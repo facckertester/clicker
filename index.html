@@ -3,36 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кликер Игра</title>
+    <title>Средневековый Кликер</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="mainMenu" class="menu">
-        <h1>Главное меню</h1>
-        <div id="loginSection">
-            <input type="text" id="username" placeholder="Логин">
-            <input type="password" id="password" placeholder="Пароль">
-            <button onclick="login()">Войти</button>
-            <p>Нет аккаунта? <a href="#" onclick="showRegister()">Зарегистрироваться</a></p>
-        </div>
-        <div id="registerSection" style="display:none;">
-            <input type="text" id="regUsername" placeholder="Логин">
-            <input type="password" id="regPassword" placeholder="Пароль">
-            <button onclick="register()">Зарегистрироваться</button>
-            <p>Уже есть аккаунт? <a href="#" onclick="showLogin()">Войти</a></p>
-        </div>
+    <div id="login-menu">
+        <h1>Авторизация</h1>
+        <input type="text" id="username" placeholder="Логин">
+        <input type="password" id="password" placeholder="Пароль">
+        <button id="login-btn">Войти</button>
+        <button id="register-btn">Зарегистрироваться</button>
     </div>
 
-    <div id="game" style="display:none;">
-        <h1>Игра</h1>
-        <p id="pointsDisplay">Поинты: 0</p>
-        <p>Клик: <span id="clickValue">0.1111</span> поинтов</p>
-        <p>Пассивный доход: <span id="passiveIncome">0.0000</span></p>
-        <button id="clickButton">Кликни!</button>
-        <button id="upgradeClickButton">Улучшить клик</button>
+    <div id="game-menu" style="display: none;">
+        <div id="points-display">Поинты: 0.0000</div>
+        <div id="passive-income">Пассивный доход: 0.0000</div>
+        <button id="click-btn">Клик: 0.1111</button>
+        <div id="level-info">Уровень кнопки: 1 | Цена улучшения: 7.772</div>
+
         <div id="buildings"></div>
+        <div id="upgrade-info"></div>
+        <div id="spider-timer"></div>
+        <div id="ultimate-building" style="display: none;">
+            <h2>Убер Пупер Турбо Здание</h2>
+            <button id="ultimate-building-upgrade">Улучшить</button>
+        </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="game.js"></script>
 </body>
 </html>
