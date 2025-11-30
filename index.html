@@ -1,35 +1,118 @@
-<!DOCTYPE html>
-<html lang="ru">
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Средневековый Кликер</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pixel Medieval Clicker</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div id="login-menu">
-        <h1>Авторизация</h1>
-        <input type="text" id="username" placeholder="Логин">
-        <input type="password" id="password" placeholder="Пароль">
-        <button id="login-btn">Войти</button>
-        <button id="register-btn">Зарегистрироваться</button>
-    </div>
-
-    <div id="game-menu" style="display: none;">
-        <div id="points-display">Поинты: 0.0000</div>
-        <div id="passive-income">Пассивный доход: 0.0000</div>
-        <button id="click-btn">Клик: 0.1111</button>
-        <div id="level-info">Уровень кнопки: 1 | Цена улучшения: 7.772</div>
-
-        <div id="buildings"></div>
-        <div id="upgrade-info"></div>
-        <div id="spider-timer"></div>
-        <div id="ultimate-building" style="display: none;">
-            <h2>Убер Пупер Турбо Здание</h2>
-            <button id="ultimate-building-upgrade">Улучшить</button>
+  <div id="app">
+    <!-- Login / Register -->
+    <div id="auth" class="card">
+      <h1>Pixel Medieval Clicker</h1>
+      <div id="auth-forms">
+        <div class="form-row">
+          <label>Login</label>
+          <input id="login-username" placeholder="username" />
         </div>
+        <div class="form-row">
+          <label>Password</label>
+          <input id="login-password" type="password" placeholder="password" />
+        </div>
+        <div class="btn-row">
+          <button id="btn-login" class="primary">Log in</button>
+          <button id="btn-show-register">Register</button>
+        </div>
+        <hr />
+        <div id="register-box" style="display:none;">
+          <div class="form-row">
+            <label>New username</label>
+            <input id="reg-username" placeholder="username" />
+          </div>
+          <div class="form-row">
+            <label>New password</label>
+            <input id="reg-password" type="password" placeholder="password" />
+          </div>
+          <div class="btn-row">
+            <button id="btn-register" class="primary">Create account</button>
+            <button id="btn-cancel-register">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="auth-notice" class="notice"></div>
     </div>
 
-    <script src="game.js"></script>
+    <!-- Game -->
+    <div id="game" class="hidden">
+      <div id="topbar">
+        <div id="player-info">Player: <span id="player-name"></span></div>
+        <div id="points-display">Points: <span id="points">0.0000</span></div>
+        <div id="pps-display">PPS: <span id="pps">0.0000</span></div>
+        <div id="notif-area"></div>
+      </div>
+
+      <div id="main">
+        <div id="left-panel">
+          <div id="clicker-card" class="card">
+            <h2>Main Click</h2>
+            <canvas id="clicker-pixel" width="160" height="160"></canvas>
+            <div id="click-info">
+              <div>Per Click: <span id="click-value">0.1111</span></div>
+              <div>Click Level: <span id="click-level">0</span></div>
+              <div>Next Upgrade Cost: <span id="click-cost">7.7720</span></div>
+            </div>
+            <div class="row">
+              <button id="main-click" class="big">Click</button>
+            </div>
+            <div class="row">
+              <div>Buy Multiplier for upgrades:</div>
+              <div id="buy-multipliers" class="mult-row">
+                <button class="mult active" data-mult="1">x1</button>
+                <button class="mult" data-mult="10">x10</button>
+                <button class="mult" data-mult="50">x50</button>
+                <button class="mult" data-mult="100">x100</button>
+                <button class="mult" data-mult="max">MAX</button>
+              </div>
+            </div>
+            <div id="click-upgrades" class="upgrades"></div>
+          </div>
+
+          <div id="buildings-card" class="card">
+            <h2>Buildings</h2>
+            <div id="buildings-list"></div>
+          </div>
+        </div>
+
+        <div id="right-panel">
+          <div id="buffs-card" class="card">
+            <h3>Active Buffs / Debuffs</h3>
+            <div id="buff-list"></div>
+          </div>
+
+          <div id="uber-card" class="card">
+            <h3>Uber-Puper-Turbo</h3>
+            <canvas id="uber-pixel" width="160" height="160"></canvas>
+            <div>Level: <span id="uber-level">0</span> / 10</div>
+            <div>Cost: <span id="uber-cost">—</span></div>
+            <div><button id="buy-uber" disabled>Buy / Level</button></div>
+          </div>
+
+          <div id="spider-card" class="card">
+            <h3>Spider Events</h3>
+            <div>Next spider in: <span id="spider-timer">180</span> s</div>
+            <div id="spider-canvas-wrap"><canvas id="spider-canvas" width="200" height="120"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="footer">
+        <div>Autosave: every second. Local save in browser.</div>
+        <div><button id="btn-logout">Logout</button> <button id="btn-reset">Reset Account</button></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>

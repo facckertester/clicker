@@ -1,61 +1,62 @@
-body {
-    font-family: 'Arial', sans-serif;
-    background-color: #2c3e50;
-    color: white;
-    text-align: center;
-    margin: 0;
-    padding: 0;
+:root{
+  --bg:#0b0b0b;
+  --card:#111010;
+  --accent:#caa24b;
+  --muted:#9a9a9a;
+  --glass: rgba(255,255,255,0.03);
 }
 
-#login-menu, #game-menu {
-    padding: 20px;
-}
+*{box-sizing:border-box;font-family: "Segoe UI", Roboto, Arial, sans-serif;color:#eee}
+html,body,#app{height:100%;margin:0;background: linear-gradient(180deg,#071017 0%, #0b0b0b 60%);}
 
-input {
-    padding: 10px;
-    margin: 5px;
-}
+#app{display:flex;align-items:center;justify-content:center;padding:18px;}
+.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:16px;border-radius:8px;box-shadow: 0 6px 18px rgba(0,0,0,0.6);}
 
-button {
-    padding: 15px;
-    margin: 10px;
-    cursor: pointer;
-    background-color: #2980b9;
-    color: white;
-    border: none;
-    border-radius: 5px;
-}
+.hidden{display:none;}
 
-button:hover {
-    background-color: #3498db;
-}
+#auth{width:420px;text-align:center}
+#auth h1{font-size:20px;margin:6px 0 12px;color:var(--accent);text-shadow:0 1px 0 #000;}
+.form-row{display:flex;flex-direction:column;align-items:flex-start;margin:8px 0;}
+.form-row label{font-size:13px;color:var(--muted);margin-bottom:6px}
+.form-row input{width:100%;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:var(--glass);color:#fff}
 
-#points-display, #passive-income {
-    font-size: 1.5em;
-    margin-top: 20px;
-}
+.btn-row{display:flex;gap:8px;justify-content:center;margin-top:8px}
+button{padding:8px 12px;border-radius:6px;border:1px solid rgba(0,0,0,0.3);background:#222;color:#fff;cursor:pointer}
+button.primary{background:linear-gradient(180deg,#caa24b,#a97b2e);color:#111;border:none}
+button.big{padding:16px 28px;font-size:18px;border-radius:10px;background:linear-gradient(180deg,#ffd67a,#caa24b);color:#111;border:none}
+.notice{margin-top:10px;color:#f4f4f4;font-size:13px}
 
-#buildings {
-    margin-top: 30px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 15px;
-}
+#game{width:1100px;}
+#topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+#topbar .card{width:100%}
+#player-info{font-weight:600}
+#points-display,#pps-display{font-weight:700;color:var(--accent)}
 
-#buildings .building {
-    padding: 10px;
-    background-color: #27ae60;
-    border-radius: 5px;
-    text-align: center;
-}
+#main{display:flex;gap:12px}
+#left-panel{flex:1;display:flex;flex-direction:column;gap:12px}
+#right-panel{width:360px;display:flex;flex-direction:column;gap:12px}
 
-#spider-timer {
-    margin-top: 20px;
-}
+#buildings-list{display:grid;grid-template-columns:repeat(1,1fr);gap:10px;max-height:520px;overflow:auto;padding:6px;}
+.building{display:flex;gap:10px;align-items:center;padding:6px;border-radius:6px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.02)}
+.build-left{width:72px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.build-right{flex:1;display:flex;flex-direction:column;gap:6px}
+.build-title{font-weight:700}
+.small{font-size:13px;color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center}
+.mult-row{display:flex;gap:6px}
+.mult{padding:6px 8px;border-radius:6px;background:#222;color:#ddd;border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+.mult.active{background:linear-gradient(180deg,#ffd67a,#caa24b);color:#111}
 
-#ultimate-building {
-    margin-top: 30px;
-    background-color: #f39c12;
-    padding: 20px;
-    border-radius: 10px;
-}
+.upgrades{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.upgrade-btn{padding:6px 8px;border-radius:6px;background:#1b1b1b;border:1px solid rgba(255,255,255,0.03);font-size:13px}
+
+#buff-list{min-height:20px}
+#spider-canvas-wrap{display:flex;justify-content:center}
+#footer{display:flex;justify-content:space-between;margin-top:12px;color:var(--muted);font-size:13px}
+canvas{image-rendering: pixelated; background:transparent; border:1px solid rgba(0,0,0,0.2); border-radius:6px}
+.notice-item{background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;margin-bottom:6px;color:#fff}
+.locked{opacity:0.45}
+.disabled{opacity:0.35;pointer-events:none}
+.pulse{animation: pulse 1s infinite}
+@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(0.98)}100%{transform:scale(1)}}
+.timer-badge{background:#222;padding:4px 6px;border-radius:6px;font-size:12px;color:var(--muted)}
