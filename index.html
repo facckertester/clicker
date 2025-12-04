@@ -116,16 +116,38 @@
         <div class="click-area">
           <div class="click-row">
             <button id="click-btn" class="btn click-btn">Click</button>
-            <div id="click-status" class="status-badge">Ready</div>
+
+            <!-- middle column: status -->
+            <div class="click-middle">
+              <div id="click-status" class="status-badge">Ready</div>
+            </div>
+
+            <!-- right column: Buy and Upgrade (Buy to the right of Click, Upgrade under Buy) -->
+            <div class="quick-actions">
+              <button id="click-buy" class="btn primary">Buy "Click" level</button>
+              <button id="click-seg-upgrade" class="btn small mt-6 hidden">Upgrade</button>
+            </div>
           </div>
 
           <div class="click-info">
-            <div class="info-item"><strong>Level:</strong> <span id="click-level">0</span> / <span id="click-max">1000</span></div>
-            <div class="info-item"><strong>Current Income/click:</strong> <span id="click-income">0.1111</span></div>
-            <div class="info-item"><strong>Next Upgrade Cost:</strong> <span id="click-cost">7.7720</span></div>
             <div class="info-item">
-              <strong>Segment Upgrade:</strong> <span id="click-seg-info">Buy 10 levels to unlock</span>
-              <button id="click-seg-upgrade" class="btn small hidden">Upgrade</button>
+              <div class="info-left"><strong>Level:</strong></div>
+              <div class="info-right"><span id="click-level">0</span> / <span id="click-max">1000</span></div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-left"><strong>Current Income / click:</strong></div>
+              <div class="info-right"><span id="click-income">0.1111</span></div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-left"><strong>Next Upgrade Cost:</strong></div>
+              <div class="info-right"><span id="click-cost">7.7720</span></div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-left"><strong>Segment Upgrade:</strong></div>
+              <div class="info-right"><span id="click-seg-info">Buy 10 levels to unlock</span></div>
             </div>
           </div>
 
@@ -135,7 +157,8 @@
               <button class="btn tiny bulk active" data-bulk="1">x1</button>
               <button class="btn tiny bulk" data-bulk="10">x10</button>
             </div>
-            <button id="click-buy" class="btn primary">Buy "Click" level</button>
+            <!-- kept for compatibility; primary buy moved to quick-actions -->
+            <button id="click-buy-duplicate" class="btn primary hidden">Buy "Click" level</button>
           </div>
         </div>
 

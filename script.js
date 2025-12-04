@@ -85,7 +85,7 @@ function initBuildings(saveObj) {
       baseIncome: inc0,
       segUpgrades: {},
       pendingSegmentCost: {},
-      blockedUntil: 0, // for 41s downtime on failure
+      blockedUntil: 0, // for 82s downtime on failure
       upgradeBonus: 0,
     };
   });
@@ -1180,5 +1180,3 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
-
-
