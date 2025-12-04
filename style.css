@@ -224,7 +224,15 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
 }
 
 /* ---------- PANELS: WOOD FRAME + STONE INSET ---------- */
-.game-columns{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;width:100%;max-width:1200px}
+.game-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* три равные колонки */
+  gap: 20px;
+  width: 100vw;       /* во всю ширину окна */
+  max-width: none;    /* убираем ограничение */
+  margin: 0;          /* убираем автоцентрирование */
+}
+
 .panel{
   position:relative;
   background:
@@ -389,16 +397,42 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   .click-info .info-item span { text-align:left; }
 }
 
-/* ---------- EFFECTS & NOTICES ---------- */
-/* Notifications increased in height (approx 2x) */
+/* ---------- EFFECTS & NOTICES (adjusted height & fixed size) ---------- */
+/* Notifications slightly reduced in height and fixed so they don't expand with content */
 .effects-board,.notice-board{
   background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
-  padding:12px;border-radius:8px;border:2px solid var(--border);
-  font-size:0.95rem;color:var(--muted);min-height:280px;max-height:480px;overflow-y:auto;flex:0 0 auto;
+  padding:12px;
+  border-radius:8px;
+  border:2px solid var(--border);
+  font-size:0.95rem;
+  color:var(--muted);
+
+  /* fixed visual height (a bit shorter) to avoid growing with many notifications */
+  height:220px;        /* немного меньше по высоте (пара сантиметров) */
+  max-height:360px;    /* ограничение на случай адаптивности */
+  overflow-y:auto;     /* прокрутка внутри, чтобы поле не расширялось */
+  flex:0 0 auto;
+
   box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
 }
-.effects-board h3,.notice-board h3{margin:0 0 8px 0;color:var(--accent);font-weight:800;font-size:0.95rem}
-.toast{padding:8px;margin-bottom:8px;background:linear-gradient(180deg, rgba(0,0,0,0.05), rgba(255,255,255,0.00));border-radius:6px;border:1px solid rgba(0,0,0,0.05);color:var(--muted);font-size:0.9rem}
+
+/* headings and toasts keep same look but slightly tighter spacing */
+.effects-board h3,.notice-board h3{
+  margin:0 0 8px 0;
+  color:var(--accent);
+  font-weight:800;
+  font-size:0.95rem;
+}
+.toast{
+  padding:8px;
+  margin-bottom:6px; /* чуть меньше отступ между уведомлениями */
+  background:linear-gradient(180deg, rgba(0,0,0,0.05), rgba(255,255,255,0.00));
+  border-radius:6px;
+  border:1px solid rgba(0,0,0,0.05);
+  color:var(--muted);
+  font-size:0.9rem;
+}
+
 
 /* ---------- RIGHT: BUILDINGS — STONE TILES ---------- */
 .buildings-list{display:grid;gap:12px;max-height:70vh;overflow-y:auto;padding-right:6px}
