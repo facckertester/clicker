@@ -576,11 +576,11 @@ function buyBuildingLevels(i) {
     const seg = segmentIndex(lvl);
     b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
 
-    // 3% chance to fail and trigger 41s downtime
-    if (randChance(0.03)) {
-      b.blockedUntil = now() + 41000;
+    // 1% chance to fail and trigger 41s downtime
+    if (randChance(0.01)) {
+      b.blockedUntil = now() + 82000;
       // Points already spent (kept), no level increase
-      toast(`${b.name} construction failed. Repairs for 41s.`, 'bad');
+      toast(`${b.name} construction failed. Repairs for 82s.`, 'bad');
     } else {
       b.level = Math.min(b.level + 1, b.max);
     }
@@ -1180,3 +1180,4 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
+
