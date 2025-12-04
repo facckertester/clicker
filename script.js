@@ -11,14 +11,115 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const randChance = (p) => Math.random() < p; // p in [0..1]
 const sum = (arr) => arr.reduce((a,b)=>a+b,0);
 
-// Toast notifications
-const toastsEl = () => document.getElementById('toasts');
-function toast(msg, type='info') {
+// Drop-in replacement for your original `toast` function.
+// - Keeps the same signature and uses your toastsEl() helper
+// - Display time: 10 seconds
+// - Shows HH:MM:SS timestamp next to each toast
+// - Collapses duplicate messages into a single toast and shows a counter like "Сообщение (х7) 19:38:44"
+// - Resets the removal timer when the same message appears again
+// - Preserves existing CSS classes: .toast, .warn, .good, .bad
+
+const TOAST_DISPLAY_MS = 10000; // 10 seconds
+
+function _formatTimeHHMMSS(ts = Date.now()) {
+  try {
+    return new Date(ts).toLocaleTimeString('ru-RU', { hour12: false });
+  } catch (e) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+}
+
+function toast(msg, type = 'info') {
+  const container = typeof toastsEl === 'function' ? toastsEl() : document.getElementById('toasts');
+  if (!container) return;
+
+  const nowTs = Date.now();
+  const timeStr = _formatTimeHHMMSS(nowTs);
+
+  // Try to find an existing toast with the same message and type
+  const existing = Array.from(container.children).find(el =>
+    el.dataset && el.dataset.msg === msg && el.dataset.type === type
+  );
+
+  if (existing) {
+    // Increment counter
+    let count = parseInt(existing.dataset.count || '1', 10);
+    if (isNaN(count) || count < 1) count = 1;
+    count += 1;
+    existing.dataset.count = String(count);
+
+    // Update or create .toast-count
+    let countEl = existing.querySelector('.toast-count');
+    if (!countEl) {
+      countEl = document.createElement('span');
+      countEl.className = 'toast-count';
+      const msgSpan = existing.querySelector('.toast-msg');
+      if (msgSpan && msgSpan.parentNode) msgSpan.after(countEl);
+      else existing.appendChild(countEl);
+    }
+    countEl.textContent = ` (х${count})`;
+
+    // Update or create .toast-time
+    let timeEl = existing.querySelector('.toast-time');
+    if (!timeEl) {
+      timeEl = document.createElement('span');
+      timeEl.className = 'toast-time';
+      existing.appendChild(timeEl);
+    }
+    timeEl.textContent = ` ${timeStr}`;
+
+    // Move to top so newest duplicates are visible
+    container.prepend(existing);
+
+    // Reset removal timer
+    if (existing._toastTimeout) clearTimeout(existing._toastTimeout);
+    existing._toastTimeout = setTimeout(() => {
+      existing.remove();
+    }, TOAST_DISPLAY_MS);
+
+    return;
+  }
+
+  // Create new toast element (keeps same outer class pattern)
   const el = document.createElement('div');
-  el.className = 'toast' + (type==='warn'?' warn': type==='good'?' good': type==='bad'?' bad':'');
-  el.textContent = msg;
-  toastsEl().prepend(el);
-  setTimeout(()=>el.remove(), 5000);
+  el.className = 'toast' + (type === 'warn' ? ' warn' : type === 'good' ? ' good' : type === 'bad' ? ' bad' : '');
+  // metadata for duplicate detection
+  el.dataset.msg = msg;
+  el.dataset.type = type;
+  el.dataset.count = '1';
+
+  // Build inner structure: message, count, time
+  const msgSpan = document.createElement('span');
+  msgSpan.className = 'toast-msg';
+  msgSpan.textContent = msg;
+
+  const countSpan = document.createElement('span');
+  countSpan.className = 'toast-count';
+  countSpan.textContent = ' (х1)';
+
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'toast-time';
+  timeSpan.textContent = ` ${timeStr}`;
+
+  // Minimal inline spacing to avoid layout regressions if CSS doesn't target these spans
+  msgSpan.style.marginRight = '6px';
+  countSpan.style.marginRight = '6px';
+  timeSpan.style.opacity = '0.85';
+  timeSpan.style.fontFamily = 'monospace';
+  timeSpan.style.fontSize = '0.9em';
+
+  el.appendChild(msgSpan);
+  el.appendChild(countSpan);
+  el.appendChild(timeSpan);
+
+  container.prepend(el);
+
+  // Auto-remove after TOAST_DISPLAY_MS
+  el._toastTimeout = setTimeout(() => {
+    el.remove();
+  }, TOAST_DISPLAY_MS);
 }
 
 // ======= Auth & Save =======
