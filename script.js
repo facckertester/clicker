@@ -21,15 +21,19 @@ const sum = (arr) => arr.reduce((a,b)=>a+b,0);
 
 const TOAST_DISPLAY_MS = 10000; // 10 seconds
 
+// Замените существующую функцию _formatTimeHHMMSS на эту — она вернёт только минуты и секунды (MM:SS)
 function _formatTimeHHMMSS(ts = Date.now()) {
   try {
-    return new Date(ts).toLocaleTimeString('ru-RU', { hour12: false });
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   } catch (e) {
     const d = new Date(ts);
     const pad = (n) => String(n).padStart(2, '0');
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 }
+
 
 function toast(msg, type = 'info') {
   const container = typeof toastsEl === 'function' ? toastsEl() : document.getElementById('toasts');
@@ -350,8 +354,8 @@ function totalPPS() {
 
 function canBuyNextBuilding(i) {
   if (i === 0) return true;
-  // "Cannot upgrade next building until previous is level 27"
-  return save.buildings[i-1].level >= 27;
+  // "Cannot upgrade next building until previous is level 67"
+  return save.buildings[i-1].level >= 67;
 }
 
 function canProgressSegment(entityLevel, segUpgrades) {
@@ -491,11 +495,11 @@ function renderBuildings() {
     card.appendChild(actions);
 
 
-    // lock overlay if previous building not level 27
+    // lock overlay if previous building not level 67
     if (!canBuyNextBuilding(i)) {
       const lockNote = document.createElement('small');
       lockNote.style.color = '#9aa3b2';
-      lockNote.textContent = 'Locked: previous building must reach level 27.';
+      lockNote.textContent = 'Locked: previous building must reach level 67.';
       info.appendChild(lockNote);
     }
     if (now() < b.blockedUntil) {
@@ -667,7 +671,7 @@ function buyBuildingLevels(i) {
     return;
   }
   if (!canBuyNextBuilding(i)) {
-    toast('Previous building must reach level 27.', 'warn');
+    toast('Previous building must reach level 67.', 'warn');
     return;
   }
   const computeFn = (bulk) => computeBulkCostForBuilding(i, bulk);
@@ -767,8 +771,10 @@ function _randInt(min, max) {
 const _spiderState = {
   moveTimer: null,
   moving: false,
-  aliveUntil: 0
+  aliveUntil: 0,
+  escapeTimer: null // id таймера, который отвечает за сообщение "сполз/убежал"
 };
+
 
 // compute spider size safely
 function _getSpiderSize() {
@@ -850,27 +856,45 @@ function maybeSpawnSpider() {
 
 function spawnSpider() {
   if (!spiderEl) return;
+
   // ensure spider is visible and positioned inside viewport
   _placeSpiderRandom();
   spiderEl.classList.remove('hidden');
+
   // ensure CSS transitions exist for smooth movement
   const cs = getComputedStyle(spiderEl);
   if (!cs.transition || cs.transition.indexOf('left') === -1) {
     spiderEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
   }
+
+  // mark alive window
   _spiderState.aliveUntil = now() + 30000; // 30s
   _startSpiderMovement();
   toast('A spider appears...', 'warn');
 
-  // Remove after 30s if not clicked
-  setTimeout(() => {
-    if (now() >= _spiderState.aliveUntil) {
-      if (spiderEl) spiderEl.classList.add('hidden');
-      _stopSpiderMovement();
-      toast('The spider slips away.', 'info');
-    }
+  // очистим старый таймер, если он есть
+  if (_spiderState.escapeTimer) {
+    clearTimeout(_spiderState.escapeTimer);
+    _spiderState.escapeTimer = null;
+  }
+
+  // создаём новый таймер, но перед показом сообщения дополнительно проверяем,
+  // что паук всё ещё видим (не скрыт и не пойман)
+  _spiderState.escapeTimer = setTimeout(() => {
+    _spiderState.escapeTimer = null; // сбросим ссылку сразу
+    // если паук уже скрыт или пойман — ничего не делаем
+    if (!spiderEl || spiderEl.classList.contains('hidden')) return;
+    // дополнительная проверка по времени на случай рассинхронизации
+    if (now() < _spiderState.aliveUntil) return;
+    // скрываем паука и останавливаем движение, затем показываем сообщение
+    spiderEl.classList.add('hidden');
+    _stopSpiderMovement();
+    _spiderState.aliveUntil = 0;
+    toast('The spider slips away.', 'info');
   }, 30000);
 }
+
+
 
 // keep original click outcomes but ensure movement stops and spider hides
 if (spiderEl) {
@@ -881,6 +905,14 @@ if (spiderEl) {
   }
 
   spiderEl.addEventListener('click', () => {
+    // отменяем таймер "убежал", если он есть
+    if (_spiderState.escapeTimer) {
+      clearTimeout(_spiderState.escapeTimer);
+      _spiderState.escapeTimer = null;
+    }
+    // пометим, что паук больше не "жив" в плане таймера
+    _spiderState.aliveUntil = 0;
+
     const roll = Math.random();
     if (roll < 0.25) {
       save.modifiers.spiderMult = 0.001;
@@ -893,10 +925,13 @@ if (spiderEl) {
     } else {
       toast('Squished! No effect.', 'info');
     }
+
+    // Скрываем паука и останавливаем движение
     spiderEl.classList.add('hidden');
     _stopSpiderMovement();
   });
 }
+
 
 // ensure spider stays inside viewport on resize
 window.addEventListener('resize', () => {
