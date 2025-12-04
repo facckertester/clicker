@@ -188,7 +188,7 @@ function clickLevelCostAt(level) {
   // base upgrade price for click is 7.772 for first level (level 0->1)
   const base = 0.0737;
   // smooth price growth
-  return base * Math.pow(1.06, level);
+  return base * Math.pow(1.055, level);
 }
 function clickIncomeAt(level, upgradesCount) {
   const basePpc = save.ppcBase;
