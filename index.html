@@ -304,6 +304,27 @@
 
   </div>
 
+<!-- King element (appears/disappears via script) -->
+<div id="king" class="king" title="King"></div>
+
+<!-- King mini-game modal -->
+<div id="king-modal" aria-hidden="true">
+  <div class="king-game" role="dialog" aria-modal="true" aria-label="King mini game">
+    <div class="kg-top">
+      <div>King: catch the crowns!</div>
+      <div class="kg-timer" id="king-game-timer">8.0s</div>
+    </div>
+    <div class="kg-arena" id="king-arena" tabindex="0" aria-label="Arena for crowns">
+      <!-- crowns will be added here dynamically -->
+    </div>
+    <div class="kg-footer">
+      <div id="king-game-status" class="muted">Click 12 crowns in 8 seconds. Clicking the background is an instant miss.</div>
+      <div>
+        <button id="king-game-close" class="btn small">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 
   <canvas id="sprite-canvas" class="hidden"></canvas>

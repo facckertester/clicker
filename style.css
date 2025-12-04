@@ -682,5 +682,189 @@ input, textarea, select { cursor: text; }
   transition: opacity .12s ease, transform .08s ease;
 }
 
+/*00001
+
+/* King styles (heraldic, distinct from spider) */
+.king{
+  position:fixed;
+  width:64px;
+  height:64px;
+  z-index:10000;
+  cursor: var(--shield-cursor);
+  transform-origin:center;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  pointer-events:auto;
+
+  /* base look: deep heraldic plate */
+  background: linear-gradient(180deg,#24364f,#16202a);
+  border-radius:10px;
+  border:2px solid rgba(0,0,0,0.6);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.02);
+  color:var(--gold);
+  font-weight:900;
+  font-family:var(--mono-font);
+  text-align:center;
+  overflow:visible;
+}
+
+/* visible state */
+.king.show{ display:flex; }
+
+/* King emblem: use an inline SVG crown + small shield/face to make it feel "king-like" */
+.king::before{
+  content: "";
+  display:block;
+  width:44px;
+  height:44px;
+  border-radius:6px;
+  transform:translateY(-2px);
+  background-image:
+    /* crown silhouette (gold) */
+    url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>\
+  <defs><linearGradient id='g' x1='0' x2='0' y1='0' y2='1'>\
+    <stop offset='0' stop-color='%23ffd86b'/>\
+    <stop offset='1' stop-color='%23d4b24a'/>\
+  </linearGradient></defs>\
+  <rect width='64' height='64' rx='8' fill='none'/>\
+  <g transform='translate(6,8)'>\
+    <path d='M2 30 L6 18 L14 26 L22 12 L30 26 L38 18 L42 30 Z' fill='url(%23g)' stroke='%23000000' stroke-opacity='0.35' stroke-width='1.2'/>\
+    <circle cx='10' cy='20' r='2.6' fill='%23ffffff' fill-opacity='0.12'/>\
+    <circle cx='22' cy='16' r='2.6' fill='%23ffffff' fill-opacity='0.12'/>\
+    <circle cx='34' cy='20' r='2.6' fill='%23ffffff' fill-opacity='0.12'/>\
+    <rect x='6' y='28' width='28' height='6' rx='2' fill='%231b2433' fill-opacity='0.18'/>\
+  </g>\
+</svg>");
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:44px 44px;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+/* small golden rim to emphasize the king */
+.king::after{
+  content: "";
+  position:absolute;
+  inset:auto -6px -6px -6px;
+  height:6px;
+  border-radius:6px;
+  background: linear-gradient(90deg, rgba(212,178,74,0.12), rgba(212,178,74,0.02));
+  pointer-events:none;
+}
+
+/* Crown token style used inside the mini-game arena (detailed, high-contrast) */
+.king-crown {
+  position:absolute;
+  width:56px;
+  height:40px;
+  border-radius:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+  color:#2b1f00;
+  cursor:pointer;
+  user-select:none;
+  transition: transform .08s ease, box-shadow .12s ease, opacity .12s ease;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.45), inset 0 -4px 8px rgba(255,255,255,0.06);
+  background-image:
+    /* detailed crown SVG as data URI for crisp pixel-like look */
+    url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 48'>\
+  <defs><linearGradient id='cg' x1='0' x2='0' y1='0' y2='1'>\
+    <stop offset='0' stop-color='%23ffe08a'/>\
+    <stop offset='1' stop-color='%23d4b24a'/>\
+  </linearGradient></defs>\
+  <rect width='64' height='48' rx='6' fill='none'/>\
+  <g transform='translate(4,6)'>\
+    <path d='M0 28 L6 12 L16 22 L26 6 L36 22 L46 12 L52 28 Z' fill='url(%23cg)' stroke='%23000000' stroke-opacity='0.28' stroke-width='1'/>\
+    <circle cx='8' cy='18' r='2.6' fill='%23ffffff' fill-opacity='0.14'/>\
+    <circle cx='26' cy='12' r='2.6' fill='%23ffffff' fill-opacity='0.14'/>\
+    <circle cx='44' cy='18' r='2.6' fill='%23ffffff' fill-opacity='0.14'/>\
+    <rect x='0' y='28' width='48' height='6' rx='2' fill='%231b2433' fill-opacity='0.12'/>\
+  </g>\
+</svg>");
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:56px 40px;
+  background-color: transparent;
+}
+
+/* hover/active feedback for crowns */
+.king-crown:hover { transform: translateY(-6px) scale(1.03); box-shadow: 0 14px 28px rgba(0,0,0,0.55); }
+.king-crown:active { transform: translateY(-2px) scale(0.98); }
+
+/* collected state */
+.king-crown.collected { opacity:0.45; transform: scale(0.96); pointer-events:none; filter:grayscale(0.05); }
+
+/* Mini-game modal (English labels) */
+#king-modal {
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:11000;
+  background:rgba(0,0,0,0.55);
+}
+#king-modal.show{ display:flex; }
+
+#king-modal .king-game {
+  width: min(720px, 92vw);
+  height: min(420px, 60vh);
+  background: linear-gradient(180deg,#2f2a22,#3b322b);
+  border:4px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.7);
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  position:relative;
+}
+
+#king-modal .kg-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color:var(--gold);
+  font-weight:900;
+}
+
+#king-modal .kg-arena {
+  flex:1;
+  position:relative;
+  background:linear-gradient(180deg,#1f1b1a,#2b2624);
+  border-radius:8px;
+  overflow:hidden;
+  padding:8px;
+}
+
+/* timer and footer */
+#king-modal .kg-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color:var(--muted);
+}
+#king-modal .kg-timer {
+  font-family:var(--mono-font);
+  font-weight:900;
+  color:var(--gold);
+}
+
+/* small responsive adjustments for crowns inside arena */
+@media (max-width:640px){
+  .king-crown { width:44px; height:32px; background-size:44px 32px; }
+  .king::before { width:36px; height:36px; background-size:36px 36px; }
+}
+
+/* Accessibility: focus outline for arena */
+#king-arena:focus { outline: 3px solid rgba(212,178,74,0.12); outline-offset:4px; }
+
+/* End of King & Crown styles (all labels and comments in English) */
+
 
 /* Конец файла: все элементы сохранены на своих местах, но визуально переработаны под AoE2 */

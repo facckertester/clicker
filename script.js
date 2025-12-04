@@ -19,7 +19,7 @@ const sum = (arr) => arr.reduce((a,b)=>a+b,0);
 // - Resets the removal timer when the same message appears again
 // - Preserves existing CSS classes: .toast, .warn, .good, .bad
 
-const TOAST_DISPLAY_MS = 10000; // 10 seconds
+const TOAST_DISPLAY_MS = 15000; // 15 seconds
 
 // Замените существующую функцию _formatTimeHHMMSS на эту — она вернёт только минуты и секунды (MM:SS)
 function _formatTimeHHMMSS(ts = Date.now()) {
@@ -898,6 +898,233 @@ function maybeSpawnSpider() {
   }
 }
 
+//0001
+
+// ======= King: behavior + mini-game =======
+
+const kingEl = document.getElementById('king');
+const kingModal = document.getElementById('king-modal');
+const kingArena = document.getElementById('king-arena');
+const kingTimerEl = document.getElementById('king-game-timer');
+const kingStatusEl = document.getElementById('king-game-status');
+const kingCloseBtn = document.getElementById('king-game-close');
+
+let _kingState = {
+  spawnTimer: null,
+  visibleUntil: 0,
+  escapeTimer: null,
+  miniGame: null // { timerId, remaining, clickedCount, crowns: [] }
+};
+
+// helper: schedule next king spawn in 3..10 minutes
+function scheduleNextKing() {
+  if (_kingState.spawnTimer) clearTimeout(_kingState.spawnTimer);
+  const ms = _randInt(3 * 60 * 1000, 7 * 60 * 1000); // 3..7 minutes
+  _kingState.spawnTimer = setTimeout(spawnKing, ms);
+}
+
+// place king randomly (reuses spider placement logic)
+function _placeKingRandom() {
+  if (!kingEl) return;
+  const w = kingEl.offsetWidth || 64;
+  const h = kingEl.offsetHeight || 64;
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+  kingEl.style.left = _randInt(0, maxLeft) + 'px';
+  kingEl.style.top = _randInt(0, maxTop) + 'px';
+  kingEl.style.transform = `rotate(${_randInt(-12,12)}deg)`;
+}
+
+// spawn king: show for 23s unless clicked
+function spawnKing() {
+  if (!kingEl) return;
+  _placeKingRandom();
+  kingEl.classList.add('show');
+  kingEl.title = 'King — click to start the mini-game';
+  _kingState.visibleUntil = now() + 23000;
+  // auto-escape after 23s
+  if (_kingState.escapeTimer) clearTimeout(_kingState.escapeTimer);
+  _kingState.escapeTimer = setTimeout(() => {
+    if (kingEl.classList.contains('show')) {
+      kingEl.classList.remove('show');
+      toast('The King has fled.', 'warn');
+      scheduleNextKing();
+    }
+  }, 23000);
+}
+
+// hide king and clear timers
+function hideKing() {
+  if (!kingEl) return;
+  kingEl.classList.remove('show');
+  if (_kingState.escapeTimer) { clearTimeout(_kingState.escapeTimer); _kingState.escapeTimer = null; }
+  _kingState.visibleUntil = 0;
+  scheduleNextKing();
+}
+
+// click on king -> open mini-game
+kingEl.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!kingEl.classList.contains('show')) return;
+  // open mini-game
+  openKingMiniGame();
+  // hide king from screen while mini-game is active
+  kingEl.classList.remove('show');
+  if (_kingState.escapeTimer) { clearTimeout(_kingState.escapeTimer); _kingState.escapeTimer = null; }
+});
+
+// Mini-game implementation
+function openKingMiniGame() {
+  // initialize state
+  const durationMs = 15000;
+  const target = 12;
+  kingModal.classList.add('show');
+  kingModal.setAttribute('aria-hidden', 'false');
+  kingArena.innerHTML = '';
+  kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
+  let clicked = 0;
+  const crowns = [];
+
+  // spawn crowns randomly inside arena; to avoid overlap we place them progressively
+  function spawnCrowns() {
+    const rect = kingArena.getBoundingClientRect();
+    for (let i = 0; i < target; i++) {
+      const c = document.createElement('div');
+      c.className = 'king-crown';
+      // random position within arena, leave margin
+      const margin = 15;
+      const x = _randInt(margin, Math.max(margin, rect.width - 48 - margin));
+      const y = _randInt(margin, Math.max(margin, rect.height - 36 - margin));
+      c.style.left = x + 'px';
+      c.style.top = y + 'px';
+      c.dataset.index = String(i);
+      c.title = 'Click!';
+      // click handler
+      c.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!kingModal.classList.contains('show')) return;
+        // mark crown as collected and increment count
+        if (!c.classList.contains('collected')) {
+          c.classList.add('collected');
+          c.style.opacity = '0.35';
+          clicked++;
+          kingStatusEl.textContent = `Caught: ${clicked} / ${target}`;
+          // success check
+          if (clicked >= target) {
+            endKingMiniGame('success', { clicked, target });
+          }
+        }
+      });
+      kingArena.appendChild(c);
+      crowns.push(c);
+    }
+  }
+
+  // clicking on arena background = miss -> immediate heavy penalty
+  function onArenaClick(e) {
+    // if click target is arena itself (not a crown), it's a miss
+    if (e.target === kingArena) {
+      endKingMiniGame('miss', { clicked, target });
+    }
+  }
+  kingArena.addEventListener('click', onArenaClick);
+
+  // timer tick
+  let remaining = durationMs;
+  kingTimerEl.textContent = (remaining/1000).toFixed(1) + 's';
+  const tickInterval = 100; // update every 100ms
+  const timerId = setInterval(() => {
+    remaining -= tickInterval;
+    kingTimerEl.textContent = Math.max(0, (remaining/1000)).toFixed(1) + 's';
+    if (remaining <= 0) {
+      clearInterval(timerId);
+      endKingMiniGame('timeout', { clicked, target });
+    }
+  }, tickInterval);
+
+  // store miniGame state for cleanup if needed
+  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked };
+
+  // spawn crowns and focus
+  spawnCrowns();
+  kingArena.focus();
+}
+
+// end mini-game with outcome: 'success' | 'timeout' | 'miss'
+function endKingMiniGame(outcome, info = {}) {
+  // cleanup listeners/timers
+  if (!_kingState.miniGame) return;
+  const { timerId, crowns, onArenaClick } = _kingState.miniGame;
+  clearInterval(timerId);
+  kingArena.removeEventListener('click', onArenaClick);
+  _kingState.miniGame = null;
+
+  // hide modal
+  kingModal.classList.remove('show');
+  kingModal.setAttribute('aria-hidden', 'true');
+  kingTimerEl.textContent = '15.0s';
+
+  // apply effects based on outcome
+  const clicked = info.clicked || 0;
+  const target = info.target || 15;
+
+  if (outcome === 'success') {
+    // reward: +4 levels to each opened Building, +3 Click, +5% points
+    let openedCount = 0;
+    save.buildings.forEach(b => {
+      if (b.level > 0) {
+        b.level = Math.min(b.max, b.level + 4);
+        openedCount++;
+      }
+    });
+    save.click.level = Math.min(save.click.max, save.click.level + 3);
+    // +5% points
+    save.points = save.points * 1.05;
+    toast(`Success! The King rewarded you: +4 levels to open buildings (${openedCount}), +3 to Click, +5% points.`, 'good');
+  } else if (outcome === 'timeout') {
+    // not enough crowns in time -> penalty: -1 level each opened building, -2 click
+    save.buildings.forEach(b => {
+      if (b.level > 0) b.level = Math.max(0, b.level - 1);
+    });
+    save.click.level = Math.max(0, save.click.level - 2);
+    toast(`Time's up. The King punished you: -1 level Building, -2 Click.`, 'bad');
+  } else if (outcome === 'miss') {
+    // immediate heavy penalty: -3 each building, -7 click, -30% points
+    save.buildings.forEach(b => {
+      b.level = Math.max(0, b.level - 3);
+    });
+    save.click.level = Math.max(0, save.click.level - 7);
+    save.points = Math.max(0, save.points * 0.7);
+    toast(`Miss! The King is furious: -3 levels Buildings, -7 Click, -30% points.`, 'bad');
+  }
+
+  // render and schedule next king
+  renderAll();
+  scheduleNextKing();
+}
+
+// allow closing mini-game manually (counts as timeout)
+kingCloseBtn.addEventListener('click', () => {
+  if (_kingState.miniGame) {
+    endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target:15 });
+  } else {
+    kingModal.classList.remove('show');
+    kingModal.setAttribute('aria-hidden', 'true');
+    scheduleNextKing();
+  }
+});
+
+// If modal is open and user presses Escape -> cancel (timeout)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && kingModal.classList.contains('show')) {
+    if (_kingState.miniGame) endKingMiniGame('timeout', { clicked:0, target:15 });
+  }
+});
+
+// Start initial schedule on load
+scheduleNextKing();
+
+
 function spawnSpider() {
   if (!spiderEl) return;
 
@@ -959,9 +1186,9 @@ if (spiderEl) {
 
     const roll = Math.random();
     if (roll < 0.25) {
-      save.modifiers.spiderMult = 0.001;
+      save.modifiers.spiderMult = 0.0001;
       save.modifiers.spiderUntil = now() + 36000;
-      toast('Spider curse! All income x0.001 for 36s.', 'bad');
+      toast('Spider curse! All income x0.0001 for 36s.', 'bad');
     } else if (roll < 0.50) {
       save.modifiers.spiderMult = 100.0;
       save.modifiers.spiderUntil = now() + 7000;
