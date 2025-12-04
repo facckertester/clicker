@@ -400,7 +400,7 @@ function renderBuildings() {
     if (now() < b.blockedUntil) {
       const downNote = document.createElement('small');
       downNote.style.color = '#c23b3b';
-      downNote.textContent = 'Under repair for 41s.';
+      downNote.textContent = 'Under repair for 82s.';
       info.appendChild(downNote);
     }
 
@@ -1180,4 +1180,5 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
+
 
