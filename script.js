@@ -738,7 +738,7 @@ clickBtn.addEventListener('click', () => {
         save.click.brokenUntil = now() + 11000;
         save.click.goldenUntil = 0;
         toast('Golden ended. Button broke for 11s.', 'warn');
-      }, 800);
+      }, 8000);
     }
   }
 
