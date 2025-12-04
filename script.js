@@ -1,782 +1,1182 @@
-// Pixel Medieval Clicker
-// Author: assistant (full game logic)
-// Save as script.js
+/* Medieval Pixel Idle - core logic */
 
-/* ========= Utilities ========= */
-const fmt = n => {
-  if (!Number.isFinite(n)) return "0.0000";
-  return n.toFixed(4);
+// ======= Utilities =======
+const fmt = (n) => {
+  // Always show 4 decimals, clamp precision
+  return Number.isFinite(n) ? n.toFixed(4) : "0.0000";
 };
-const rand = (a,b=0) => Math.random()*(a-b)+b;
-const clamp = (v,mn,mx)=>Math.max(mn,Math.min(mx,v));
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const now = () => Date.now();
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const randChance = (p) => Math.random() < p; // p in [0..1]
+const sum = (arr) => arr.reduce((a,b)=>a+b,0);
 
-/* ========= Persistent accounts (localStorage) ========= */
-const ACC_KEY = "pmc_accounts_v1";
-const SAVE_PREFIX = "pmc_save_";
-
-function loadAccounts(){
-  try{
-    return JSON.parse(localStorage.getItem(ACC_KEY) || "{}");
-  }catch(e){ return {}; }
-}
-function saveAccounts(data){
-  localStorage.setItem(ACC_KEY, JSON.stringify(data));
-}
-
-/* ========= Game definitions ========= */
-const BUILDING_COUNT = 50;
-const INITIAL_CLICK_VALUE = 0.1111;
-const INITIAL_CLICK_COST = 7.7720;
-const INITIAL_BUILD_COST = 44.0000;
-const INITIAL_BUILD_PPS = 0.1234;
-const BUILD_LEVELS_INIT = 1000;
-const CLICK_LEVELS_INIT = 1000;
-const UBER_UNLOCK_LEVEL = 800;
-const UBER_INITIAL_LEVELS = 10;
-const ENDGAME_ALLOW_MORE = 9922;
-
-const DEFAULT_NAMES = [
-"Farmstead","Granary","Millhouse","Blacksmith","Bakery","Stables","Tavern","Weavery","Caravan","Mansion",
-"Manor","Watchtower","Chapel","Library","Foundry","Lighthouse","Guildhall","Harbor","Market","Orchard",
-"Forge","Smithy","Barracks","Courtyard","Reservoir","Alchemist","Observatory","Monastery","Armory","Storehouse",
-"Villa","Townhall","Innkeeper","Greenhouse","Beacon","Millpond","Portcullis","Granary2","Silo","Loom",
-"Pottery","Bathhouse","Embassy","Dockyard","Carpenter","Weaver","Glassworks","Winery","Garden","Kiln"
-];
-// Remove digits and ensure unique & <=15 chars, no digits
-const NAMES = DEFAULT_NAMES.slice(0, BUILDING_COUNT).map((n,i)=>{
-  let s = n.replace(/\d+/g,"").slice(0,15);
-  if(s.length===0) s = "Building"+(i+1);
-  return s;
-});
-
-/* ========= Global runtime state (per account) ========= */
-function createEmptyState(username){
-  const buildings = [];
-  for(let i=0;i<BUILDING_COUNT;i++){
-    const baseCost = INITIAL_BUILD_COST * (1 + i*0.035 + i*0.002); // slightly increasing
-    const basePPS = INITIAL_BUILD_PPS * (1 + i*0.02 + i*0.001);
-    buildings.push({
-      id:i,
-      name:NAMES[i] || ("Building"+(i+1)),
-      level:0,
-      levelsMax: BUILD_LEVELS_INIT,
-      baseCost: parseFloat(baseCost.toFixed(4)),
-      basePPS: parseFloat(basePPS.toFixed(4)),
-      upgradeCount:0, // number of 10-level upgrades bought
-      disabledUntil:0, // timestamp if broken when building fails
-      lockedUntilPrereq:false // additional lock logic
-    });
-  }
-  return {
-    user: username,
-    points: 0,
-    clickLevel: 0,
-    clickLevelsMax: CLICK_LEVELS_INIT,
-    clickBase: INITIAL_CLICK_VALUE,
-    clickBaseCost: INITIAL_CLICK_COST,
-    clickUpgradeCount:0,
-    buyMultiplier:1,
-    buildings: buildings,
-    buffs: [], // active buffs/debuffs {id,type,mult,expires}
-    lastTick: Date.now(),
-    continuousClicks:0,
-    lastClickTime:0,
-    clickBrokenUntil:0,
-    clickGoldenUntil:0,
-    spiderNextAt: Date.now() + 180000,
-    spiderTimer:180,
-    paused:false,
-    endgame:false,
-    uber: { level:0, levelsMax: UBER_INITIAL_LEVELS, baseCost: 1e6, unlocked:false, levelsAfterEnd:99},
-    created: Date.now()
-  };
+// Toast notifications
+const toastsEl = () => document.getElementById('toasts');
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type==='warn'?' warn': type==='good'?' good': type==='bad'?' bad':'');
+  el.textContent = msg;
+  toastsEl().prepend(el);
+  setTimeout(()=>el.remove(), 5000);
 }
 
-/* ========= Storage helpers ========= */
-function loadSaveForUser(username){
-  const data = localStorage.getItem(SAVE_PREFIX + username);
-  if(!data) return null;
-  try{
-    return JSON.parse(data);
-  }catch(e){ return null; }
-}
-function saveForUser(username, state){
-  localStorage.setItem(SAVE_PREFIX + username, JSON.stringify(state));
-}
-
-/* ========= DOM refs ========= */
-const authDiv = document.getElementById("auth");
-const gameDiv = document.getElementById("game");
-const loginBtn = document.getElementById("btn-login");
-const showRegBtn = document.getElementById("btn-show-register");
-const registerBox = document.getElementById("register-box");
-const regBtn = document.getElementById("btn-register");
-const cancelReg = document.getElementById("btn-cancel-register");
-const authNotice = document.getElementById("auth-notice");
-const loginUser = document.getElementById("login-username");
-const loginPass = document.getElementById("login-password");
-const regUser = document.getElementById("reg-username");
-const regPass = document.getElementById("reg-password");
-
-const playerNameSpan = document.getElementById("player-name");
-const pointsSpan = document.getElementById("points");
-const ppsSpan = document.getElementById("pps");
-const notifArea = document.getElementById("notif-area");
-
-const mainClickBtn = document.getElementById("main-click");
-const clickValueSpan = document.getElementById("click-value");
-const clickLevelSpan = document.getElementById("click-level");
-const clickCostSpan = document.getElementById("click-cost");
-const buyMultipliers = document.getElementById("buy-multipliers");
-
-const buildingsList = document.getElementById("buildings-list");
-const clickUpgradesDiv = document.getElementById("click-upgrades");
-
-const buffList = document.getElementById("buff-list");
-const spiderTimerSpan = document.getElementById("spider-timer");
-const spiderCanvas = document.getElementById("spider-canvas");
-const spiderCtx = spiderCanvas.getContext("2d");
-
-const clickerCanvas = document.getElementById("clicker-pixel");
-const clickerCtx = clickerCanvas.getContext("2d");
-const uberCanvas = document.getElementById("uber-pixel");
-const uberCtx = uberCanvas.getContext("2d");
-const uberLevelSpan = document.getElementById("uber-level");
-const uberCostSpan = document.getElementById("uber-cost");
-const buyUberBtn = document.getElementById("buy-uber");
-
-const logoutBtn = document.getElementById("btn-logout");
-const resetBtn = document.getElementById("btn-reset");
-
-/* ========= UI helpers and notifications ========= */
-function notify(text){
-  const el = document.createElement("div");
-  el.className = "notice-item";
-  el.textContent = text;
-  notifArea.prepend(el);
-  setTimeout(()=>{ el.style.opacity = "0"; el.style.transition="opacity 1s"; setTimeout(()=>el.remove(),1000); }, 6000);
-}
-
-function timeSecLeft(ms){
-  return Math.ceil(ms/1000);
-}
-
-/* ========= Pixel art generator (simple blocky houses) ========= */
-function drawPixelHouse(ctx, seed, pal="warm"){
-  // 16x16 pixel art scaled to canvas
-  const w = 16, h = 16;
-  const scaleX = ctx.canvas.width / w;
-  const scaleY = ctx.canvas.height / h;
-  const rnd = (a,b=0)=> Math.floor(Math.abs(Math.sin(seed*1234 + a*97 + b*13))*10000)%256;
-  ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
-  // palette
-  const palW = {
-    bg:"#0b0b0b", roof:"#8b3b2a", roof2:"#6b2a17", wall:"#ceb69e", door:"#5b3a2a", window:"#86e0ff"
-  };
-  const palC = {
-    bg:"#071017", roof:"#5c2e1f", roof2:"#7f3f2c", wall:"#d8c7b2", door:"#4a2f22", window:"#6fd7ff"
-  };
-  const P = (pal==="warm")?palW:palC;
-
-  // simple shape: roof, wall, door, windows
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      let color = P.bg;
-      if(y<6){
-        // roof triangle
-        if(x>=2 && x<w-2 && y < 6 - Math.abs((x - w/2)/3)) color = P.roof;
-      } else {
-        color = P.wall;
-      }
-      // door
-      if(x>=7 && x<=8 && y>=10) color = P.door;
-      // windows
-      if((x===4||x===11) && y>=8 && y<=9) color = P.window;
-      // random pixel details
-      if(Math.random() < 0.02) color = P.roof2;
-      ctx.fillStyle = color;
-      ctx.fillRect(x*scaleX, y*scaleY, scaleX, scaleY);
-    }
-  }
-}
-
-/* ========= Core gameplay math ========= */
-
-// price formula: baseCost * (1.06 ^ level) with slight multiplier
-function costForLevel(baseCost, currentLevel, qty=1){
-  // sum geometric: baseCost * rate^cur * (rate^qty -1)/(rate-1)
-  const rate = 1.06;
-  const start = Math.pow(rate, currentLevel);
-  const sum = baseCost * start * (Math.pow(rate, qty)-1) / (rate-1);
-  return sum;
-}
-
-function ppsForBuilding(b){
-  // basePPS * level * (1.03 ^ upgradeCount) * possible buffs
-  const base = b.basePPS * b.level;
-  const upgradeMult = Math.pow(1.13, b.upgradeCount);
-  return base * upgradeMult;
-}
-
-function clickValueFor(state){
-  const base = state.clickBase * (state.clickLevel || 0 || 1);
-  const clickLevelContribution = state.clickBase * state.clickLevel;
-  // baseline interpretation: click value scaled by level (increases smoothly)
-  const baseVal = state.clickBase * (1 + state.clickLevel * 0.01);
-  const upgradeMult = Math.pow(1.13, state.clickUpgradeCount);
-  return baseVal * upgradeMult;
-}
-
-function totalPPS(state){
-  let total = 0;
-  for(const b of state.buildings){
-    // if disabled
-    if(b.disabledUntil && Date.now() < b.disabledUntil) continue;
-    total += ppsForBuilding(b);
-  }
-  // click passive doesn't count (click gives per click)
-  // apply global multipliers from buffs
-  total = applyBuffsToValue(state, total);
-  return total;
-}
-
-function applyBuffsToValue(state, value){
-  let mult = 1;
-  for(const buff of state.buffs){
-    if(buff.expires > Date.now()){
-      mult *= buff.mult;
-    }
-  }
-  // if click broken & this is click value handled separately
-  return value * mult;
-}
-
-/* ========= Game logic ========= */
+// ======= Auth & Save =======
+const STORAGE_KEY = 'mpi_save_v1';
+let save = null;
 let currentUser = null;
-let state = null;
-let saveInterval = null;
-let tickInterval = null;
-let spiderInterval = null;
 
-function showAuth(){
-  authDiv.classList.remove("hidden");
-  gameDiv.classList.add("hidden");
-}
-function showGame(){
-  authDiv.classList.add("hidden");
-  gameDiv.classList.remove("hidden");
-}
-
-function registerAccount(username, password){
-  username = username.trim();
-  if(!username || !password){ authNotice.textContent = "Enter username and password"; return; }
-  const accs = loadAccounts();
-  if(accs[username]) { authNotice.textContent = "Account exists"; return; }
-  accs[username] = { password };
-  saveAccounts(accs);
-  // create save
-  const s = createEmptyState(username);
-  saveForUser(username, s);
-  authNotice.textContent = "Account created. You can log in.";
-}
-
-function loginAccount(username, password){
-  username = username.trim();
-  const accs = loadAccounts();
-  if(!accs[username] || accs[username].password !== password){
-    authNotice.textContent = "Invalid credentials";
-    return;
-  }
-  currentUser = username;
-  let loaded = loadSaveForUser(username);
-  if(!loaded){
-    loaded = createEmptyState(username);
-    saveForUser(username, loaded);
-  }
-  state = loaded;
-  initGame();
-  showGame();
+function newSave(username) {
+  return {
+    meta: { username, created: now(), extendedCaps: false, endgameUnlocked: false },
+    points: 0,
+    ppcBase: 0.0111,
+    click: {
+      level: 0,
+      max: 1000,
+      segUpgrades: {}, // key: segmentIndex (0..), value: true when bought
+      pendingSegmentCost: {}, // track sum cost of the 10 levels bought per segment
+      brokenUntil: 0,
+      goldenUntil: 0,
+      goldenMult: 1.5,
+      upgradeBonus: 0, // cumulative 13% bonuses applied count
+    },
+    bulk: 1, // 1,10,50,100,'max'
+    buildings: [], // filled later
+    uber: {
+      unlocked: false,
+      level: 0,
+      max: 10,
+      segUpgrades: {},
+      pendingSegmentCost: {},
+    },
+    streak: { count: 0, lastClickTs: 0 },
+    modifiers: {
+      spiderMult: 1.0,
+      spiderUntil: 0,
+    },
+    lastTick: now()
+  };
 }
 
-function logout(){
-  if(currentUser){
-    saveForUser(currentUser, state);
-    currentUser = null;
-    state = null;
-  }
-  notify("Logged out");
-  showAuth();
-}
+const buildingNames = [
+  "Hamlet","Cottage","Hut","Lodge","Cabin","Homestead","House","Manor","Villa","Hall",
+  "Forge","Mill","Bakery","Tannery","Smithy","Granary","Barn","Stable","Barracks","Keep",
+  "Tower","Chapel","Abbey","Market","Guild","Tavern","Inn","Workshop","Foundry","Mine",
+  "Quarry","Harbor","Port","Farmstead","Pasture","Vineyard","Orchard","Garden","Sanctum","Library",
+  "Archive","Courtyard","Outpost","Watch","Gatehouse","Parlor","Kitchen","Armory","Vault","Cloister"
+];
 
-/* ========= UI rendering ========= */
+function initBuildings(saveObj) {
+  // Base cost/income for first building
+  const baseCost = 1.2345;
+  const baseIncome = 0.0123;
+  const costStep = 1.015;   // "slightly more expensive"
+  const incomeStep = 1.06; // "slightly more income"
 
-function renderTop(){
-  playerNameSpan.textContent = currentUser;
-  pointsSpan.textContent = fmt(state.points);
-  ppsSpan.textContent = fmt(totalPPS(state));
-}
-
-function renderClicker(){
-  clickValueSpan.textContent = fmt(clickValueFor(state));
-  clickLevelSpan.textContent = state.clickLevel;
-  // cost to buy 'buyMultiplier' levels
-  const qty = state.buyMultiplier==="max" ? Math.max(1, Math.floor(maxAffordableLevelsForClick())) : state.buyMultiplier;
-  const cost = costForLevel(state.clickBaseCost, state.clickLevel, qty);
-  clickCostSpan.textContent = fmt(cost);
-  // upgrades every 10 levels
-  clickUpgradesDiv.innerHTML = "";
-  const next10 = Math.floor(state.clickLevel/10)*10 + 10;
-  if(next10 <= state.clickLevelsMax){
-    const sumCost = costForLevel(state.clickBaseCost, next10-10, 10);
-    const btn = document.createElement("button");
-    btn.className = "upgrade-btn";
-    btn.textContent = `Click Upgrade Lv ${next10}: Cost ${fmt(sumCost)}`;
-    btn.onclick = ()=>{
-      if(state.points >= sumCost){
-        state.points -= sumCost;
-        state.clickUpgradeCount += 1;
-        notify(`Click upgrade bought: +13% to click power.`);
-      } else notify("Not enough points for click upgrade.");
+  saveObj.buildings = buildingNames.map((name, i) => {
+    const cost0 = baseCost * Math.pow(costStep, i);
+    const inc0 = baseIncome * Math.pow(incomeStep, i);
+    return {
+      name,
+      level: 0,
+      max: 1000,
+      baseCost: cost0,
+      baseIncome: inc0,
+      segUpgrades: {},
+      pendingSegmentCost: {},
+      blockedUntil: 0, // for 41s downtime on failure
+      upgradeBonus: 0,
     };
-    clickUpgradesDiv.appendChild(btn);
-  }
-}
-
-function maxAffordableLevelsForClick(){
-  // find how many levels you can buy given points using rate 1.06
-  const rate = 1.06;
-  const baseCost = state.clickBaseCost;
-  let level = state.clickLevel;
-  let pts = state.points;
-  let qty = 0;
-  while(pts > 0 && level < state.clickLevelsMax && qty < 10000){
-    const cost = baseCost * Math.pow(rate, level);
-    if(cost <= pts){
-      pts -= cost;
-      level++; qty++;
-    } else break;
-  }
-  return qty;
-}
-
-function renderBuildings(){
-  buildingsList.innerHTML = "";
-  state.buildings.forEach((b, idx)=>{
-    const el = document.createElement("div");
-    el.className = "building card";
-    if(idx>0 && state.buildings[idx-1].level < 27) el.classList.add("locked");
-    if(b.disabledUntil && Date.now()<b.disabledUntil) el.classList.add("disabled");
-    const left = document.createElement("div");
-    left.className = "build-left";
-    const canvas = document.createElement("canvas");
-    canvas.width = 64; canvas.height = 64;
-    left.appendChild(canvas);
-    const cctx = canvas.getContext("2d");
-    drawPixelHouse(cctx, idx + b.level);
-    const right = document.createElement("div");
-    right.className = "build-right";
-    const title = document.createElement("div");
-    title.className = "build-title";
-    title.textContent = `${b.name} (${b.level})`;
-    const small = document.createElement("div");
-    small.className = "small";
-    small.innerHTML = `PPS: <strong>${fmt( ppsForBuilding(b) )}</strong> | Level cost: <span id="cost-${idx}">${fmt(costForLevel(b.baseCost, b.level, (state.buyMultiplier==="max"?Math.max(1, Math.floor(maxAffordableLevelsForBuilding(b))):state.buyMultiplier)))}</span>`;
-    const row = document.createElement("div");
-    row.className = "row";
-    const buybtn = document.createElement("button");
-    buybtn.textContent = "Buy/Upgrade";
-    buybtn.onclick = ()=> buyBuilding(idx);
-    const infoBtn = document.createElement("button");
-    infoBtn.textContent = "Info";
-    infoBtn.onclick = ()=> notify(`${b.name}: Level ${b.level}, PPS ${fmt(ppsForBuilding(b))}`);
-    row.appendChild(buybtn); row.appendChild(infoBtn);
-
-    // upgrade per 10 levels
-    const upgRow = document.createElement("div");
-    const next10 = Math.floor(b.level/10)*10 + 10;
-    if(next10 <= b.levelsMax){
-      const sumCost = costForLevel(b.baseCost, next10-10,10);
-      const upgBtn = document.createElement("button");
-      upgBtn.className = "upgrade-btn";
-      upgBtn.textContent = `Upgrade ${next10}: Cost ${fmt(sumCost)} (+13%)`;
-      upgBtn.onclick = ()=>{
-        if(state.points >= sumCost){
-          state.points -= sumCost;
-          b.upgradeCount += 1;
-          notify(`${b.name} special upgrade bought: +13% to its income.`);
-        } else notify("Not enough points for building upgrade.");
-      };
-      upgRow.appendChild(upgBtn);
-    }
-
-    right.appendChild(title);
-    right.appendChild(small);
-    right.appendChild(row);
-    right.appendChild(upgRow);
-    el.appendChild(left);
-    el.appendChild(right);
-    buildingsList.appendChild(el);
   });
 }
 
-function maxAffordableLevelsForBuilding(b){
-  // similar to click: count how many levels can be bought with current points
-  const rate = 1.06;
-  let level = b.level; let pts = state.points; let qty=0;
-  while(pts>0 && level < b.levelsMax){
-    const cost = b.baseCost * Math.pow(rate, level);
-    if(cost <= pts){ pts -= cost; level++; qty++; }
-    else break;
-    if(qty>10000) break;
-  }
-  return qty;
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
 }
 
-function renderBuffs(){
-  buffList.innerHTML = "";
-  for(const buff of state.buffs){
-    const el = document.createElement("div");
-    el.textContent = `${buff.name}: x${buff.mult} — ${timeSecLeft(buff.expires - Date.now())}s`;
-    el.className = "timer-badge";
-    buffList.appendChild(el);
-  }
+function saveNow() {
+  if (!save || !currentUser) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: currentUser, data: save }));
 }
 
-function renderUber(){
-  uberLevelSpan.textContent = state.uber.level;
-  uberCostSpan.textContent = state.uber.level>=state.uber.levelsMax ? "—" : fmt(state.uber.baseCost * Math.pow(5, state.uber.level));
-  buyUberBtn.disabled = !(state.uber.unlocked && state.uber.level < state.uber.levelsMax);
+function autosaveLoop() {
+  setInterval(saveNow, 1000);
 }
 
-/* ========= Interactions: buying, clicking ========= */
+// ======= UI Elements =======
+const authScreen = document.getElementById('auth-screen');
+const gameScreen = document.getElementById('game-screen');
+const usernameDisplay = document.getElementById('username-display');
+const pointsEl = document.getElementById('points');
+const ppsEl = document.getElementById('pps');
+const ppcEl = document.getElementById('ppc');
 
-function buyBuilding(idx){
-  const b = state.buildings[idx];
-  // check prereq: cannot buy next building until prev at 27
-  if(idx>0 && state.buildings[idx-1].level < 27){
-    notify("Previous building must reach level 27 first.");
-    return;
-  }
-  // check locked until either building upgrade or click upgrade purchased
-  // According to spec: "Нельзя прокачать здание, пока не прокачан апгрейд для этого здания или для клика."
-  if(b.upgradeCount === 0 && state.clickUpgradeCount === 0 && b.level>0){ // if never had any upgrade
-    notify("You need an upgrade for this building or for click to upgrade it.");
-    return;
-  }
-  // compute qty chosen
-  let qty = state.buyMultiplier==="max" ? Math.max(1, Math.floor(maxAffordableLevelsForBuilding(b))) : state.buyMultiplier;
-  qty = Math.max(1, qty);
-  if(b.level + qty > (state.endgame ? ENDGAME_ALLOW_MORE : b.levelsMax)) qty = (state.endgame ? ENDGAME_ALLOW_MORE : b.levelsMax) - b.level;
-  if(qty<=0) { notify("Level cap reached."); return; }
+const clickBtn = document.getElementById('click-btn');
+const clickStatus = document.getElementById('click-status');
+const clickLevelEl = document.getElementById('click-level');
+const clickMaxEl = document.getElementById('click-max');
+const clickIncomeEl = document.getElementById('click-income');
+const clickCostEl = document.getElementById('click-cost');
+const clickSegInfo = document.getElementById('click-seg-info');
+const clickSegBtn = document.getElementById('click-seg-upgrade');
+const clickBuyBtn = document.getElementById('click-buy');
 
-  const cost = costForLevel(b.baseCost, b.level, qty);
-  if(state.points < cost){ notify("Not enough points."); return; }
+const bulkButtons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'));
 
-  // chance to fail at 3%
-  if(Math.random() < 0.03){
-    // fails: building broken for 41s
-    b.disabledUntil = Date.now() + 41000;
-    state.points -= cost*0.0; // spec unclear — I will still consume or not? It said "may not improve" — keep cost consumed.
-    // spec: "При покупки улучшения здания, оно с шансом в 3% может не улучшится, это типа оно разрушилось" -> we'll consume cost but no level up
-    state.points -= cost;
-    notify(`${b.name} construction failed and is disabled for 41s.`);
-    return;
-  }
+const buildingsList = document.getElementById('buildings-list');
 
-  // perform purchase
-  state.points -= cost;
-  b.level += qty;
+const endgameBtn = document.getElementById('endgame-btn');
+const continueBtn = document.getElementById('continue-btn');
 
-  // every 10 levels create upgrade (we already have button)
-  notify(`${b.name} upgraded by ${qty} levels.`);
-  // unlock uber if conditions
-  checkUberUnlock();
+const uberCard = document.getElementById('uber-card');
+const uberBuyBtn = document.getElementById('uber-buy');
+const uberLevelEl = document.getElementById('uber-level');
+const uberMaxEl = document.getElementById('uber-max');
+const uberIncomeEl = document.getElementById('uber-income');
+const uberCostEl = document.getElementById('uber-cost');
+const uberSegInfo = document.getElementById('uber-seg-info');
+const uberSegBtn = document.getElementById('uber-seg-upgrade');
+
+const spiderEl = document.getElementById('spider');
+
+const logoutBtn = document.getElementById('logout-btn');
+
+// Debug
+const debugOpen = document.getElementById('debug-open');
+const debugModal = document.getElementById('debug-modal');
+const debugClose = document.getElementById('debug-close');
+const debugPass = document.getElementById('debug-pass');
+const debugUnlockBtn = document.getElementById('debug-unlock-btn');
+const debugLock = document.getElementById('debug-lock');
+const debugTools = document.getElementById('debug-tools');
+
+// Auth controls
+const loginPanel = document.getElementById('login-panel');
+const registerPanel = document.getElementById('register-panel');
+const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+
+const loginUsername = document.getElementById('login-username');
+const loginPassword = document.getElementById('login-password');
+const loginBtn = document.getElementById('login-btn');
+
+const registerUsername = document.getElementById('register-username');
+const registerPassword = document.getElementById('register-password');
+const registerBtn = document.getElementById('register-btn');
+
+
+
+// ======= Core math: cost & income scaling =======
+function segmentIndex(level) {
+  return Math.floor(level / 10);
+}
+function withinSegment(level) {
+  return level % 10; // 0..9
+}
+function nextSegmentGate(level) {
+  // levels advance, but each 10-level segment requires an upgrade to proceed further
+  const seg = segmentIndex(level);
+  return { seg, within: withinSegment(level) };
 }
 
-function buyClickLevels(){
-  const qty = state.buyMultiplier==="max" ? Math.max(1, Math.floor(maxAffordableLevelsForClick())) : state.buyMultiplier;
-  if(qty<=0) { notify("No levels affordable"); return; }
-  let toBuy = qty;
-  // ensure not exceed max
-  const cap = state.endgame ? ENDGAME_ALLOW_MORE : state.clickLevelsMax;
-  if(state.clickLevel + toBuy > cap) toBuy = cap - state.clickLevel;
-  if(toBuy <= 0) { notify("Click level cap reached"); return; }
-  const cost = costForLevel(state.clickBaseCost, state.clickLevel, toBuy);
-  if(state.points < cost) { notify("Not enough points"); return; }
-
-  state.points -= cost;
-  state.clickLevel += toBuy;
-
-  notify(`Click upgraded x${toBuy} levels.`);
-
-  // chance to break? not for click upgrades; only continuous clicking break mechanic handled separately
-  checkUberUnlock();
+// Level cost/income for Click
+function clickLevelCostAt(level) {
+  // base upgrade price for click is 7.772 for first level (level 0->1)
+  const base = 0.0737;
+  // smooth price growth
+  return base * Math.pow(1.06, level);
+}
+function clickIncomeAt(level, upgradesCount) {
+  const basePpc = save.ppcBase;
+  const upgradeMult = Math.pow(1.13, upgradesCount || 0);
+  // Smooth per-level ppc growth (gentle)
+  return basePpc * Math.pow(1.03, level) * upgradeMult;
 }
 
-function checkUberUnlock(){
-  if(state.uber.unlocked) return;
-  const allAt = state.buildings.every(b=>b.level >= UBER_UNLOCK_LEVEL) && state.clickLevel >= UBER_UNLOCK_LEVEL;
-  if(allAt){
-    state.uber.unlocked = true;
-    notify("Uber-Puper-Turbo is now unlocked!");
-  }
+// Building cost/income per level
+function buildingLevelCostAt(b, level) {
+  // baseCost scales gently with level
+  return b.baseCost * Math.pow(1.06, level);
+}
+function buildingIncomeAt(b, level, upgradesCount) {
+  const upgradeMult = Math.pow(1.13, upgradesCount || 0);
+  return b.baseIncome * Math.pow(1.045, level) * upgradeMult;
 }
 
-/* ========= Click mechanics and special events ========= */
+// Uber building
+function uberCostAt(level) {
+  // make it hefty
+  const base = 999999999.0999;
+  return base * Math.pow(1.35, level);
+}
+function uberIncomeAt(level, upgradesCount) {
+  const baseInc = 333333333333.3333;
+  const upgradeMult = Math.pow(1.13, upgradesCount || 0);
+  return baseInc * Math.pow(1.22, level) * upgradeMult;
+}
 
-mainClickBtn.addEventListener("click", ()=> {
-  if(!state) return;
-  const now = Date.now();
-  // reset continuousClicks if >2s gap
-  if(now - state.lastClickTime > 2000) state.continuousClicks = 0;
-  state.continuousClicks += 1;
-  state.lastClickTime = now;
+// ======= Game state helpers =======
+function totalPPC() {
+  let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
+  // Golden modifier
+  const goldenActive = save.click.goldenUntil > now();
+  const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
+  // Spider modifier
+  const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
+  return ppc * goldenMult * spiderMult;
+}
 
-  // if button broken
-  if(state.clickBrokenUntil && now < state.clickBrokenUntil){
-    notify("Click button is broken.");
-    return;
+function totalPPS() {
+  let pps = 0;
+  for (const b of save.buildings) {
+  if (now() < b.blockedUntil) continue; // downtime disabled
+  if (b.level < 1) continue;            // no income if level < 1
+  pps += buildingIncomeAt(b, b.level, b.upgradeBonus);
+}
+
+  // Uber income
+  if (save.uber.unlocked) {
+    pps += uberIncomeAt(save.uber.level, Object.keys(save.uber.segUpgrades).length || 0);
   }
-  // compute click value with buffs
-  let val = clickValueFor(state);
-  val = applyBuffsToValue(state, val);
-  // if golden
-  if(state.clickGoldenUntil && now < state.clickGoldenUntil){
-    val *= 1.5;
+  // Spider modifier
+  const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
+  return pps * spiderMult;
+}
+
+function canBuyNextBuilding(i) {
+  if (i === 0) return true;
+  // "Cannot upgrade next building until previous is level 27"
+  return save.buildings[i-1].level >= 27;
+}
+
+function canProgressSegment(entityLevel, segUpgrades) {
+  // If level is at boundary where next segment starts, require previous segment upgrade
+  const seg = segmentIndex(entityLevel);
+  const within = withinSegment(entityLevel);
+  if (within === 0 && seg > 0) {
+    // entering a new segment (levels 10k -> 10k+1), ensure previous segment upgrade exists
+    return !!segUpgrades[seg-1];
   }
-  state.points += val;
-  // continuous click break condition
-  if(state.continuousClicks > 100 && state.continuousClicks % 101 === 0){
-    const r = Math.random();
-    if(r < 0.66){
-      // break for 36s
-      state.clickBrokenUntil = Date.now() + 36000;
-      notify("Click button broke for 36 seconds.");
-      // visual change handled in renderTick
+  // If within segment, free to progress (unless we cross boundary)
+  return true;
+}
+
+// ======= Rendering =======
+function renderTopStats() {
+  pointsEl.textContent = fmt(save.points);
+  ppsEl.textContent = fmt(totalPPS());
+  ppcEl.textContent = fmt(totalPPC());
+}
+
+function renderClick() {
+  const brokenActive = save.click.brokenUntil > now();
+  const goldenActive = save.click.goldenUntil > now();
+
+  clickBtn.classList.toggle('broken', brokenActive);
+  clickBtn.classList.toggle('golden', goldenActive);
+  clickStatus.textContent = brokenActive ? 'Broken' : (goldenActive ? 'Golden' : 'Ready');
+
+  clickLevelEl.textContent = save.click.level;
+  clickMaxEl.textContent = save.click.max;
+  clickIncomeEl.textContent = fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus));
+  const nextLevel = save.click.level;
+  const bulk = save.bulk;
+
+  const { totalCost, totalLevels } = computeBulkCostForClick(bulk);
+  clickCostEl.textContent = fmt(totalCost);
+
+  // Segment upgrade visibility for Click
+const seg = segmentIndex(save.click.level);
+const within = withinSegment(save.click.level);
+const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
+const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+
+if (needUpgrade) {
+  clickSegInfo.textContent = 'Segment upgrade required to progress';
+  clickSegBtn.classList.remove('hidden');
+  // Calculate upgrade price: sum of 10 levels that were purchased, divided by two
+  const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+  clickSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+} else {
+  clickSegBtn.classList.add('hidden');
+  clickSegInfo.textContent = 'Buy 10 levels to unlock';
+}
+}
+
+function computeBulkCostForClick(bulk) {
+  let needLevels = 0;
+  if (bulk === 'max') {
+    needLevels = save.click.max - save.click.level;
+  } else {
+    needLevels = bulk;
+  }
+  let allowedLevels = 0;
+  for (let i = 0; i < needLevels; i++) {
+    const lvl = save.click.level + i;
+    if (!canProgressSegment(lvl, save.click.segUpgrades)) break;
+    allowedLevels++;
+  }
+  let totalCost = 0;
+  for (let i = 0; i < allowedLevels; i++) {
+    totalCost += clickLevelCostAt(save.click.level + i);
+  }
+  return { totalCost, totalLevels: allowedLevels };
+}
+
+function renderBuildings() {
+  buildingsList.innerHTML = '';
+  save.buildings.forEach((b, i) => {
+    const card = document.createElement('div');
+    card.className = 'building-card';
+
+    const pixel = document.createElement('canvas');
+    pixel.width = 56; pixel.height = 56;
+    pixel.className = 'building-pixel';
+    drawHousePixel(pixel, i);
+
+    const info = document.createElement('div');
+    info.className = 'building-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'building-name';
+    nameEl.textContent = b.name;
+    const lvlEl = document.createElement('div');
+    lvlEl.innerHTML = `<strong>Level:</strong> ${b.level} / ${b.max}`;
+    const incEl = document.createElement('div');
+    incEl.innerHTML = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(b, b.level, b.upgradeBonus))}`;
+    const nextCost = computeBulkCostForBuilding(i, save.bulk);
+    const costEl = document.createElement('div');
+    costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+    const seg = segmentIndex(b.level);
+    const within = withinSegment(b.level);
+    const segInfo = document.createElement('div');
+    segInfo.innerHTML = `<strong>Segment:</strong> ${seg}, within ${within}/9`;
+
+    info.appendChild(nameEl);
+    info.appendChild(lvlEl);
+    info.appendChild(incEl);
+    info.appendChild(costEl);
+    info.appendChild(segInfo);
+
+    const actions = document.createElement('div');
+    actions.className = 'building-actions';
+
+    const buyBtn = document.createElement('button');
+    buyBtn.className = 'btn primary small';
+    buyBtn.textContent = 'Buy levels';
+    buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i);
+    buyBtn.addEventListener('click', () => buyBuildingLevels(i));
+
+    const segBtn = document.createElement('button');
+    segBtn.className = 'btn small';
+    const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
+
+    if (within === 0 && seg > 0 && !prevSegBought) {
+      segBtn.textContent = `Upgrade (cost: ${fmt((b.pendingSegmentCost[seg-1]||0)/2)})`;
+      segBtn.classList.remove('hidden');
+      segBtn.addEventListener('click', ()=> buyBuildingSegUpgrade(i, seg-1));
     } else {
-      // become golden for 8s then break for 9s
-      state.clickGoldenUntil = Date.now() + 8000;
-      notify("Click button became gold for 8 seconds!");
-      setTimeout(()=>{ state.clickBrokenUntil = Date.now() + 9000; notify("Click button broke after gold for 9 seconds.");}, 8000);
+      segBtn.classList.add('hidden');
     }
-  }
-});
 
-buyMultipliers.addEventListener("click", (e)=>{
-  if(e.target.classList.contains("mult")){
-    const nodes = buyMultipliers.querySelectorAll(".mult");
-    nodes.forEach(n=>n.classList.remove("active"));
-    e.target.classList.add("active");
-    state.buyMultiplier = e.target.dataset.mult==="max" ? "max" : parseInt(e.target.dataset.mult);
-    notify(`Buy multiplier set to ${state.buyMultiplier}`);
-  }
-});
+    actions.appendChild(buyBtn);
+    actions.appendChild(segBtn);
 
-document.getElementById("btn-login").onclick = ()=> loginAccount(loginUser.value, loginPass.value);
-document.getElementById("btn-show-register").onclick = ()=> { registerBox.style.display = "block"; };
-document.getElementById("btn-cancel-register").onclick = ()=> { registerBox.style.display = "none"; };
-document.getElementById("btn-register").onclick = ()=> registerAccount(regUser.value, regPass.value);
+    card.appendChild(pixel);
+    card.appendChild(info);
+    card.appendChild(actions);
 
-logoutBtn.onclick = ()=> { logout(); showAuth(); };
-resetBtn.onclick = ()=>{
-  if(!currentUser) return;
-  localStorage.removeItem(SAVE_PREFIX + currentUser);
-  notify("Account reset. Reloading.");
-  setTimeout(()=> location.reload(), 400);
-};
 
-/* ========= Spider event ========= */
-function scheduleSpider(){
-  state.spiderNextAt = Date.now() + 180000; // 3 minutes
-}
+    // lock overlay if previous building not level 27
+    if (!canBuyNextBuilding(i)) {
+      const lockNote = document.createElement('small');
+      lockNote.style.color = '#9aa3b2';
+      lockNote.textContent = 'Locked: previous building must reach level 27.';
+      info.appendChild(lockNote);
+    }
+    if (now() < b.blockedUntil) {
+      const downNote = document.createElement('small');
+      downNote.style.color = '#c23b3b';
+      downNote.textContent = 'Under repair for 41s.';
+      info.appendChild(downNote);
+    }
 
-function spawnSpider(){
-  // animate spider moving across canvas and apply effect
-  notify("A spider appears!");
-  // 50% debuff x0.001 for 36s; 25% bonus x100 for 11s; 25% nothing
-  const r = Math.random();
-  if(r < 0.5){
-    // debuff
-    const buff = { id: "spider-debuff-"+Date.now(), name:"Spider Debuff", mult:0.001, expires: Date.now()+36000};
-    state.buffs.push(buff);
-    notify("Spider inflicted a heavy debuff: all incomes x0.001 for 36s.");
-  } else if(r < 0.75){
-    const buff = { id: "spider-bonus-"+Date.now(), name:"Spider Bonus", mult:100, expires: Date.now()+11000};
-    state.buffs.push(buff);
-    notify("Spider provided a massive bonus: all incomes x100 for 11s.");
-  } else {
-    notify("Spider was crushed — nothing happened.");
-  }
-  scheduleSpider();
-}
-
-/* ========= Main tick: passive accrual, timers ========= */
-
-function gameTick(){
-  if(!state) return;
-  const now = Date.now();
-  const delta = (now - state.lastTick)/1000;
-  if(delta <= 0){ state.lastTick = now; return; }
-  // passive gain
-  const pps = totalPPS(state);
-  state.points += pps * delta;
-  // clamp float precision
-  state.points = parseFloat(state.points.toFixed(8));
-  // update buffs (remove expired)
-  state.buffs = state.buffs.filter(b => b.expires > now);
-
-  // spider timer
-  const until = Math.max(0, Math.ceil((state.spiderNextAt - now)/1000));
-  spiderTimerSpan.textContent = until;
-  // spider appear
-  if(now >= state.spiderNextAt){
-    spawnSpider();
-  }
-
-  // building disabled timeouts expire automatically by checking disabledUntil on usage
-
-  state.lastTick = now;
-}
-
-function renderAll(){
-  if(!state) return;
-  renderTop();
-  renderClicker();
-  renderBuildings();
-  renderBuffs();
-  renderUber();
-  drawClickerVisual();
-  drawSpiderVisual();
-}
-
-/* ========= Visuals for clicker and spider and uber ========= */
-
-function drawClickerVisual(){
-  const ctx = clickerCtx;
-  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
-  // draw big button area
-  ctx.fillStyle = "#271b10";
-  ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
-  // if broken
-  if(state.clickBrokenUntil && Date.now() < state.clickBrokenUntil){
-    ctx.fillStyle = "#522a2a";
-    ctx.fillRect(10,10,140,140);
-    ctx.fillStyle = "#000";
-    ctx.font = "bold 18px monospace";
-    ctx.fillText("BROKEN", 30, 84);
-  } else if(state.clickGoldenUntil && Date.now() < state.clickGoldenUntil){
-    // golden look
-    ctx.fillStyle = "#ffd67a";
-    ctx.fillRect(10,10,140,140);
-    ctx.fillStyle = "#6b3b00";
-    ctx.font = "bold 18px monospace";
-    ctx.fillText("GOLD", 46, 84);
-  } else {
-    // normal -- pixel heart
-    ctx.fillStyle = "#8b3b2a";
-    ctx.fillRect(10,10,140,140);
-    ctx.fillStyle = "#FFEFD5";
-    ctx.font = "bold 18px monospace";
-    ctx.fillText("CLICK", 44, 84);
-  }
-}
-
-let spiderPos = {x:0,y:40,dir:1};
-function drawSpiderVisual(){
-  const ctx = spiderCtx;
-  ctx.clearRect(0,0,spiderCanvas.width,spiderCanvas.height);
-  ctx.fillStyle = "#061018";
-  ctx.fillRect(0,0,spiderCanvas.width,spiderCanvas.height);
-  // move slowly across
-  spiderPos.x += spiderPos.dir * 0.6;
-  if(spiderPos.x > spiderCanvas.width-30) spiderPos.dir = -1;
-  if(spiderPos.x < 0) spiderPos.dir = 1;
-  // draw simple spider
-  ctx.fillStyle = "#111";
-  ctx.beginPath();
-  ctx.arc(spiderPos.x+15, spiderPos.y+15, 8,0,Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(spiderPos.x+8, spiderPos.y+4, 2,2);
-  ctx.fillRect(spiderPos.x+22, spiderPos.y+4, 2,2);
-}
-
-/* ========= Autosave and intervals ========= */
-
-function initIntervals(){
-  if(saveInterval) clearInterval(saveInterval);
-  if(tickInterval) clearInterval(tickInterval);
-  saveInterval = setInterval(()=> {
-    if(!state || !currentUser) return;
-    saveForUser(currentUser, state);
-  }, 1000);
-
-  tickInterval = setInterval(()=> {
-    gameTick();
-    renderAll();
-  }, 200); // 5 times a second for responsive UI
-
-  // spider scheduling is part of state.spiderNextAt, no separate interval needed
-}
-
-/* ========= Initialization and binding ========= */
-
-function initGame(){
-  // set UI initial values
-  playerNameSpan.textContent = currentUser;
-  // setup click-buy button handlers
-  document.getElementById("click-cost").textContent = fmt(state.clickBaseCost);
-  // buy click levels directly by clicking click cost or add a button?
-  // we use main-click double-click or alt-click to buy
-  mainClickBtn.addEventListener("dblclick", ()=> {
-    // dblclick purchase click levels
-    buyClickLevels();
+    buildingsList.appendChild(card);
   });
+}
 
-  // buildings render already uses buy building button
-  // uber buy
-  buyUberBtn.onclick = ()=>{
-    if(!state.uber.unlocked){ notify("Uber locked"); return; }
-    const lvlCap = state.uber.levelsMax;
-    if(state.uber.level >= lvlCap) { notify("Uber maxed."); return; }
-    const cost = state.uber.baseCost * Math.pow(5, state.uber.level);
-    if(state.points < cost){ notify("Not enough points for Uber"); return; }
-    state.points -= cost;
-    state.uber.level += 1;
-    notify("Uber building upgraded.");
-    if(state.uber.level >= state.uber.levelsMax){
-      // finish game choice
-      notify("You finished the first phase. You may continue: all levels can be increased up to 9922 and Uber to 99.");
-      state.endgame = true;
-      // increase limits
-      state.buildings.forEach(b=> b.levelsMax = ENDGAME_ALLOW_MORE);
-      state.clickLevelsMax = ENDGAME_ALLOW_MORE;
-      state.uber.levelsMax = 99;
+function computeBulkCostForBuilding(i, bulk) {
+  const b = save.buildings[i];
+  let needLevels = 0;
+  if (bulk === 'max') {
+    needLevels = b.max - b.level;
+  } else {
+    needLevels = bulk;
+  }
+  let allowed = 0;
+  for (let k = 0; k < needLevels; k++) {
+    const lvl = b.level + k;
+    if (!canProgressSegment(lvl, b.segUpgrades)) break;
+    allowed++;
+  }
+  let totalCost = 0;
+  for (let k = 0; k < allowed; k++) {
+    totalCost += buildingLevelCostAt(b, b.level + k);
+  }
+  return { totalCost, totalLevels: allowed };
+}
+
+function renderUber() {
+  uberLevelEl.textContent = save.uber.level;
+  uberMaxEl.textContent = save.uber.max;
+  uberIncomeEl.textContent = fmt(uberIncomeAt(save.uber.level, Object.keys(save.uber.segUpgrades).length || 0));
+  uberCostEl.textContent = fmt(uberCostAt(save.uber.level));
+
+  uberBuyBtn.disabled = !save.uber.unlocked;
+  uberCard.classList.toggle('locked', !save.uber.unlocked);
+
+  const seg = segmentIndex(save.uber.level);
+  const within = withinSegment(save.uber.level);
+  if (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) {
+    uberSegInfo.textContent = 'Segment upgrade required to progress';
+    uberSegBtn.classList.remove('hidden');
+    const prevCostSum = save.uber.pendingSegmentCost[seg-1] || 0;
+    uberSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+  } else if (within === 9) {
+    uberSegInfo.textContent = 'Segment complete. Upgrade will unlock next segment.'; 
+    const prevCostSum = save.uber.pendingSegmentCost[seg] || 0;
+    uberSegBtn.classList.remove('hidden');
+    uberSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+  } else {
+    uberSegInfo.textContent = 'Buy 10 levels to unlock';
+    uberSegBtn.classList.add('hidden');
+  }
+
+  // Draw pixel citadel
+  drawCitadelPixel(document.getElementById('uber-pixel'));
+}
+
+function renderEffects() {
+  const list = document.getElementById('effects-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const t = now();
+
+  // Broken click
+  if (save.click.brokenUntil > t) {
+    const remain = Math.ceil((save.click.brokenUntil - t) / 1000);
+    list.innerHTML += `<div class="effect bad">Click broken: ${remain}s</div>`;
+  }
+
+  // Golden click
+  if (save.click.goldenUntil > t) {
+    const remain = Math.ceil((save.click.goldenUntil - t) / 1000);
+    list.innerHTML += `<div class="effect good">Golden click: ${remain}s</div>`;
+  }
+
+  // Spider buff/debuff
+  if (save.modifiers.spiderUntil > t) {
+    const remain = Math.ceil((save.modifiers.spiderUntil - t) / 1000);
+    const mult = save.modifiers.spiderMult;
+    const type = mult > 1 ? 'good' : 'bad';
+    list.innerHTML += `<div class="effect ${type}">Spider ${mult>1?'blessing':'curse'}: ${remain}s</div>`;
+  }
+}
+
+
+function renderAll() {
+  renderTopStats();
+  renderClick();
+  renderBuildings();
+  renderUber();
+  renderEffects();
+
+  updateEndgameButtons();
+}
+
+// ======= Actions =======
+function addPoints(n) {
+  save.points += n;
+}
+
+function buyBulkLevels(entity, computeFn, applyFn) {
+  const { totalCost, totalLevels } = computeFn(save.bulk);
+  if (totalLevels === 0) {
+    toast('Cannot progress: segment upgrade required.', 'warn');
+    return;
+  }
+  if (save.points < totalCost) {
+    toast('Not enough points.', 'warn');
+    return;
+  }
+
+  // Apply
+  save.points -= totalCost;
+
+  // Track segment cost sum
+  for (let i = 0; i < totalLevels; i++) applyFn();
+
+  // After buy, re-render
+  renderAll();
+}
+
+function buyClickLevels() {
+  const segStartLevel = save.click.level;
+  buyBulkLevels('click', computeBulkCostForClick, () => {
+    const lvl = save.click.level;
+    const cost = clickLevelCostAt(lvl);
+    const seg = segmentIndex(lvl);
+    save.click.pendingSegmentCost[seg] = (save.click.pendingSegmentCost[seg] || 0) + cost;
+
+    // 66% break or 33% golden on 101st continuous click (handled in clicking, not leveling)
+    // Level up gating check (3% fail chance for buildings only, not for click)
+    save.click.level = Math.min(save.click.level + 1, save.click.max);
+  });
+}
+
+function buyClickSegmentUpgrade(segIndex) {
+  const costSum = (save.click.pendingSegmentCost[segIndex] || 0) / 2;
+  if (save.points < costSum) {
+    toast('Not enough points for segment upgrade.', 'warn');
+    return;
+  }
+  save.points -= costSum;
+  save.click.segUpgrades[segIndex] = true;
+  save.click.upgradeBonus += 1; // 13% per upgrade (count stack)
+  toast('Click segment upgraded: +13% income.', 'good');
+  renderAll();
+}
+
+clickBuyBtn.addEventListener('click', buyClickLevels);
+clickSegBtn.addEventListener('click', () => {
+  const seg = segmentIndex(save.click.level);
+  const within = withinSegment(save.click.level);
+  const targetSeg = within === 0 ? seg-1 : seg;
+  buyClickSegmentUpgrade(targetSeg);
+});
+
+function buyBuildingLevels(i) {
+  const b = save.buildings[i];
+  if (now() < b.blockedUntil) {
+    toast('This building is under repair.', 'warn');
+    return;
+  }
+  if (!canBuyNextBuilding(i)) {
+    toast('Previous building must reach level 27.', 'warn');
+    return;
+  }
+  const computeFn = (bulk) => computeBulkCostForBuilding(i, bulk);
+  const applyFn = () => {
+    const lvl = b.level;
+    const cost = buildingLevelCostAt(b, lvl);
+    const seg = segmentIndex(lvl);
+    b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
+
+    // 3% chance to fail and trigger 41s downtime
+    if (randChance(0.03)) {
+      b.blockedUntil = now() + 41000;
+      // Points already spent (kept), no level increase
+      toast(`${b.name} construction failed. Repairs for 41s.`, 'bad');
+    } else {
+      b.level = Math.min(b.level + 1, b.max);
     }
   };
-
-  // draw pixel samples
-  drawPixelHouse(clickerCtx, 1);
-  drawPixelHouse(uberCtx, 999, "cool");
-
-  initIntervals();
-  renderAll();
-  notify("Welcome back!");
+  buyBulkLevels('building', computeFn, applyFn);
 }
 
-/* ========= Initialization on load ========= */
-window.addEventListener("load", ()=>{
-  showAuth();
-  // if a single account is saved, optionally auto-fill - but spec wants login flow
-  // attach login on Enter
-  [loginUser, loginPass].forEach(inp=> inp.addEventListener("keyup", (e)=> { if(e.key==="Enter") loginAccount(loginUser.value, loginPass.value); }));
-  regPass.addEventListener("keyup", (e)=> { if(e.key==="Enter") registerAccount(regUser.value, regPass.value); });
+function buyBuildingSegUpgrade(i, segIndex) {
+  const b = save.buildings[i];
+  const costSum = (b.pendingSegmentCost[segIndex] || 0) / 2;
+  if (save.points < costSum) {
+    toast('Not enough points for segment upgrade.', 'warn');
+    return;
+  }
+  save.points -= costSum;
+  b.segUpgrades[segIndex] = true;
+  b.upgradeBonus += 1;
+  toast(`${b.name} segment upgraded: +13% income.`, 'good');
+  renderAll();
+}
 
-  // periodic UI tick for timers display
-  setInterval(()=> {
-    if(!state) return;
-    // update timers in UI
-    renderAll();
-  }, 1000);
+// ======= Clicking mechanics =======
+clickBtn.addEventListener('click', () => {
+  // Broken or golden states
+  if (save.click.brokenUntil > now()) {
+    toast('Click button is broken.', 'warn');
+    return;
+  }
+  const ts = now();
+  // Streak logic
+  if (ts - save.streak.lastClickTs <= 2000) {
+    save.streak.count += 1;
+  } else {
+    save.streak.count = 1;
+  }
+  save.streak.lastClickTs = ts;
+
+  // Apply points
+  const ppc = totalPPC();
+  addPoints(ppc);
+
+  // After >100 continuous, 101st click triggers outcomes
+  if (save.streak.count === 101) {
+    const roll = Math.random();
+    if (roll < 0.66) {
+      // Break for 26s
+      save.click.brokenUntil = now() + 26000;
+      toast('Click button broke for 26s.', 'bad');
+    } else {
+      // Golden for 8s then break for 11s
+      save.click.goldenUntil = now() + 8000;
+      toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
+      setTimeout(() => {
+        save.click.brokenUntil = now() + 11000;
+        save.click.goldenUntil = 0;
+        toast('Golden ended. Button broke for 11s.', 'warn');
+      }, 800);
+    }
+  }
+
+  renderTopStats();
 });
+
+// ======= Bulk controls =======
+bulkButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    bulkButtons.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    save.bulk = btn.dataset.bulk === 'max' ? 'max' : parseInt(btn.dataset.bulk, 10);
+    renderAll();
+  });
+});
+
+// ======= Spider events (behavior fixed only) =======
+// Only spider behavior is changed here. All other logic, timings and click outcomes remain the same.
+
+// helper: random integer inclusive
+function _randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// internal movement state
+const _spiderState = {
+  moveTimer: null,
+  moving: false,
+  aliveUntil: 0
+};
+
+// compute spider size safely
+function _getSpiderSize() {
+  if (!spiderEl) return { w: 64, h: 64 };
+  const r = spiderEl.getBoundingClientRect();
+  return { w: Math.max(1, r.width), h: Math.max(1, r.height) };
+}
+
+// place spider at a random position within viewport
+function _placeSpiderRandom() {
+  if (!spiderEl) return;
+  const { w, h } = _getSpiderSize();
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+  spiderEl.style.left = _randInt(0, maxLeft) + 'px';
+  spiderEl.style.top = _randInt(0, maxTop) + 'px';
+  spiderEl.style.transform = `rotate(${_randInt(-12,12)}deg)`;
+}
+
+// move spider once to a new random point (avoid tiny hops)
+function _moveSpiderOnce() {
+  if (!spiderEl || spiderEl.classList.contains('hidden')) return;
+  const { w, h } = _getSpiderSize();
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+
+  const cur = spiderEl.getBoundingClientRect();
+  let nx, ny, attempts = 0;
+  do {
+    nx = _randInt(0, maxLeft);
+    ny = _randInt(0, maxTop);
+    attempts++;
+  } while (attempts < 8 && Math.hypot(nx - cur.left, ny - cur.top) < Math.max(w,h) * 0.5);
+
+  // apply new position with smooth CSS transitions
+  spiderEl.style.left = nx + 'px';
+  spiderEl.style.top = ny + 'px';
+  spiderEl.style.transform = `rotate(${_randInt(-18,18)}deg)`;
+  // gently reset rotation after a short time so it doesn't stay tilted forever
+  setTimeout(()=> {
+    if (!spiderEl.classList.contains('hidden')) spiderEl.style.transform = 'rotate(0deg)';
+  }, 900);
+}
+
+// start periodic movement while spider visible
+function _startSpiderMovement() {
+  if (_spiderState.moving) return;
+  _spiderState.moving = true;
+  const schedule = () => {
+    if (!_spiderState.moving) return;
+    const delay = _randInt(1200, 3200);
+    _spiderState.moveTimer = setTimeout(() => {
+      _moveSpiderOnce();
+      schedule();
+    }, delay);
+  };
+  schedule();
+}
+
+// stop movement and clear timers
+function _stopSpiderMovement() {
+  _spiderState.moving = false;
+  if (_spiderState.moveTimer) {
+    clearTimeout(_spiderState.moveTimer);
+    _spiderState.moveTimer = null;
+  }
+}
+
+// spawn scheduling preserved, but spawn now places spider randomly and starts movement
+let nextSpiderTs = now() + 180000; // 3 minutes
+function maybeSpawnSpider() {
+  const t = now();
+  if (t >= nextSpiderTs) {
+    spawnSpider();
+    // small variation so schedule isn't rigid
+    nextSpiderTs = t + 180000 + _randInt(-30000, 30000);
+  }
+}
+
+function spawnSpider() {
+  if (!spiderEl) return;
+  // ensure spider is visible and positioned inside viewport
+  _placeSpiderRandom();
+  spiderEl.classList.remove('hidden');
+  // ensure CSS transitions exist for smooth movement
+  const cs = getComputedStyle(spiderEl);
+  if (!cs.transition || cs.transition.indexOf('left') === -1) {
+    spiderEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
+  }
+  _spiderState.aliveUntil = now() + 30000; // 30s
+  _startSpiderMovement();
+  toast('A spider appears...', 'warn');
+
+  // Remove after 30s if not clicked
+  setTimeout(() => {
+    if (now() >= _spiderState.aliveUntil) {
+      if (spiderEl) spiderEl.classList.add('hidden');
+      _stopSpiderMovement();
+      toast('The spider slips away.', 'info');
+    }
+  }, 30000);
+}
+
+// keep original click outcomes but ensure movement stops and spider hides
+if (spiderEl) {
+  // ensure smooth transitions exist; fallback to inline if not
+  const cs = getComputedStyle(spiderEl);
+  if (!cs.transition || cs.transition.indexOf('left') === -1) {
+    spiderEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
+  }
+
+  spiderEl.addEventListener('click', () => {
+    const roll = Math.random();
+    if (roll < 0.25) {
+      save.modifiers.spiderMult = 0.001;
+      save.modifiers.spiderUntil = now() + 36000;
+      toast('Spider curse! All income x0.001 for 36s.', 'bad');
+    } else if (roll < 0.50) {
+      save.modifiers.spiderMult = 100.0;
+      save.modifiers.spiderUntil = now() + 7000;
+      toast('Spider blessing! All income x100 for 7s.', 'good');
+    } else {
+      toast('Squished! No effect.', 'info');
+    }
+    spiderEl.classList.add('hidden');
+    _stopSpiderMovement();
+  });
+}
+
+// ensure spider stays inside viewport on resize
+window.addEventListener('resize', () => {
+  if (!spiderEl || spiderEl.classList.contains('hidden')) return;
+  const { w, h } = _getSpiderSize();
+  const left = parseInt(spiderEl.style.left || 0, 10);
+  const top = parseInt(spiderEl.style.top || 0, 10);
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+  if (left > maxLeft) spiderEl.style.left = maxLeft + 'px';
+  if (top > maxTop) spiderEl.style.top = maxTop + 'px';
+});
+
+// ======= Ticker =======
+function tick() {
+  const t = now();
+  const dt = (t - save.lastTick) / 1000; // seconds
+  save.lastTick = t;
+
+  // Real-time income
+  const pps = totalPPS();
+  addPoints(pps * dt);
+
+  // Spider spawn check
+  maybeSpawnSpider();
+
+  // Update UI
+  renderTopStats();
+  renderEffects();
+
+  // Render some parts less often
+}
+setInterval(tick, 100); // 10x per second for smoothness
+
+// ======= Endgame & caps =======
+function checkUberUnlock() {
+  if (save.uber.unlocked) return;
+  const all800 = save.buildings.every(b => b.level >= 800) && save.click.level >= 800;
+  if (all800) {
+    save.uber.unlocked = true;
+    uberBuyBtn.disabled = false;
+    toast('Uber Turbo Building unlocked!', 'good');
+  }
+}
+function updateEndgameButtons() {
+  // When uber reaches level 10, show endgame or continue
+  if (save.uber.level >= 10 && !save.meta.extendedCaps) {
+    endgameBtn.classList.remove('hidden');
+    continueBtn.classList.remove('hidden');
+  } else {
+    endgameBtn.classList.add('hidden');
+    continueBtn.classList.add('hidden');
+  }
+}
+uberBuyBtn.addEventListener('click', () => {
+  if (!save.uber.unlocked) return;
+  // Respect segment gating
+  const seg = segmentIndex(save.uber.level);
+  const within = withinSegment(save.uber.level);
+  if (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) {
+    toast('Segment upgrade required to progress.', 'warn');
+    return;
+  }
+  const cost = uberCostAt(save.uber.level);
+  if (save.points < cost) {
+    toast('Not enough points.', 'warn');
+    return;
+  }
+  save.points -= cost;
+  // Track segment cost
+  save.uber.pendingSegmentCost[seg] = (save.uber.pendingSegmentCost[seg] || 0) + cost;
+  save.uber.level = Math.min(save.uber.level + 1, save.uber.max);
+  toast('Citadel level increased.', 'good');
+  renderAll();
+});
+uberSegBtn.addEventListener('click', () => {
+  const seg = segmentIndex(save.uber.level);
+  const within = withinSegment(save.uber.level);
+  const targetSeg = within === 0 ? seg-1 : seg;
+  const costSum = (save.uber.pendingSegmentCost[targetSeg] || 0) / 2;
+  if (save.points < costSum) {
+    toast('Not enough points for segment upgrade.', 'warn');
+    return;
+  }
+  save.points -= costSum;
+  save.uber.segUpgrades[targetSeg] = true;
+  toast('Citadel segment upgraded: +13% income.', 'good');
+  renderAll();
+});
+
+endgameBtn.addEventListener('click', () => {
+  save.meta.endgameUnlocked = true;
+  toast('You completed the game! Take a victory pause.', 'good');
+});
+continueBtn.addEventListener('click', () => {
+  save.meta.extendedCaps = true;
+  toast('Extended caps unlocked. You may level Click/buildings to 9922, Citadel to 99.', 'good');
+  save.click.max = 9922;
+  save.buildings.forEach(b => b.max = 9922);
+  save.uber.max = 99;
+  renderAll();
+});
+
+// ======= Pixel art drawing (procedural) =======
+function drawHousePixel(canvas, seed) {
+  const ctx = canvas.getContext('2d');
+  // clear
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Pixel grid 14x14
+  const px = 4;
+  // Palette (medieval earth tones)
+  const palettes = [
+    ['#3a2a1a','#7b4f1c','#b8893d','#d6b557','#2a2f46'],
+    ['#2b1f14','#6a4420','#a8732f','#cfa25a','#1f2538'],
+    ['#2a1b12','#5e3a19','#9a6a2c','#c59752','#242a3f']
+  ];
+  const pal = palettes[seed % palettes.length];
+  const base = pal[0], wood = pal[1], roof = pal[2], trim = pal[3], shadow = pal[4];
+
+  // Ground
+  ctx.fillStyle = shadow;
+  ctx.fillRect(0, 52, 56, 4);
+
+  // Walls
+  ctx.fillStyle = wood;
+  ctx.fillRect(10, 28, 36, 22);
+
+  // Roof
+  ctx.fillStyle = roof;
+  ctx.fillRect(6, 22, 44, 8);
+  ctx.fillStyle = trim;
+  ctx.fillRect(6, 30, 44, 2);
+
+  // Door
+  ctx.fillStyle = base;
+  ctx.fillRect(26, 36, 8, 14);
+  ctx.fillStyle = trim;
+  ctx.fillRect(33, 43, 2, 2);
+
+  // Window left
+  ctx.fillStyle = '#c9d8ff';
+  ctx.fillRect(14, 36, 6, 6);
+  ctx.fillStyle = trim;
+  ctx.fillRect(14, 39, 6, 2);
+
+  // Window right
+  ctx.fillStyle = '#c9d8ff';
+  ctx.fillRect(36, 36, 6, 6);
+  ctx.fillStyle = trim;
+  ctx.fillRect(36, 39, 6, 2);
+
+  // Outline
+  ctx.strokeStyle = '#0b0c15';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(10, 28, 36, 22);
+  ctx.strokeRect(6, 22, 44, 8);
+}
+
+function drawCitadelPixel(el) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,64,64);
+
+  // Base
+  ctx.fillStyle = '#2f364d';
+  ctx.fillRect(6, 36, 52, 22);
+  // Towers
+  ctx.fillStyle = '#3b4563';
+  ctx.fillRect(6, 22, 12, 14);
+  ctx.fillRect(46, 22, 12, 14);
+  // Battlements
+  ctx.fillStyle = '#586287';
+  for (let i=8; i<=56; i+=10) ctx.fillRect(i, 18, 6, 4);
+  // Gate
+  ctx.fillStyle = '#7b4f1c';
+  ctx.fillRect(30, 44, 8, 14);
+  // Highlights
+  ctx.fillStyle = '#a0aac8';
+  ctx.fillRect(10, 28, 4, 6);
+  ctx.fillRect(50, 28, 4, 6);
+
+  el.innerHTML = '';
+  el.appendChild(canvas);
+}
+
+// ======= Auth logic =======
+function showGame() {
+  authScreen.classList.add('hidden');
+  gameScreen.classList.remove('hidden');
+  usernameDisplay.textContent = save.meta.username;
+  renderAll();
+}
+function showAuth() {
+  gameScreen.classList.add('hidden');
+  authScreen.classList.remove('hidden');
+}
+
+loginBtn.addEventListener('click', () => {
+  const u = loginUsername.value.trim();
+  const p = loginPassword.value;
+  if (!u || !p) { toast('Please enter username and password.', 'warn'); return; }
+
+  const stored = load();
+  if (!stored || !stored.user || stored.user.username !== u || stored.user.password !== p) {
+    toast('Invalid credentials.', 'bad');
+    return;
+  }
+  currentUser = stored.user;
+  save = stored.data;
+  // If buildings missing (first run), init
+  if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+  showGame();
+});
+
+registerBtn.addEventListener('click', () => {
+  const u = registerUsername.value.trim();
+  const p = registerPassword.value;
+  if (!u || !p) { toast('Please enter username and password.', 'warn'); return; }
+
+  // Overwrite for simplicity
+  currentUser = { username: u, password: p };
+  save = newSave(u);
+  initBuildings(save);
+  saveNow();
+  toast('Account created.', 'good');
+  showGame();
+});
+
+logoutBtn.addEventListener('click', () => {
+  saveNow();
+  currentUser = null;
+  save = null;
+  toast('Logged out.', 'info');
+  showAuth();
+});
+
+// Tab switching
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabBtns.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    if (tab === 'login') {
+      loginPanel.classList.remove('hidden');
+      registerPanel.classList.add('hidden');
+    } else {
+      registerPanel.classList.remove('hidden');
+      loginPanel.classList.add('hidden');
+    }
+  });
+});
+
+// ======= Debug panel =======
+debugOpen.addEventListener('click', () => debugModal.classList.remove('hidden'));
+debugClose.addEventListener('click', () => debugModal.classList.add('hidden'));
+debugUnlockBtn.addEventListener('click', () => {
+  if (debugPass.value === '1488') {
+    debugLock.classList.add('hidden');
+    debugTools.classList.remove('hidden');
+  } else {
+    toast('Wrong password.', 'bad');
+  }
+});
+debugTools.addEventListener('click', (e) => {
+  const action = e.target.dataset.debug;
+  if (!action) return;
+  if (!save) { toast('Not logged in.', 'warn'); return; }
+  switch(action) {
+    case 'addPoints': addPoints(10000); toast('Added 10000 points.', 'good'); break;
+    case 'addAllBuildingLevels':
+      save.buildings.forEach((b,i)=>{
+        for (let k=0;k<100;k++){
+          const seg = segmentIndex(b.level);
+          const cost = buildingLevelCostAt(b, b.level);
+          b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg]||0)+cost;
+          b.level = Math.min(b.level+1, b.max);
+        }
+      });
+      toast('Added 100 levels to all buildings.', 'good');
+      break;
+    case 'addClickLevels':
+      for (let k=0;k<100;k++){
+        const seg = segmentIndex(save.click.level);
+        const cost = clickLevelCostAt(save.click.level);
+        save.click.pendingSegmentCost[seg]=(save.click.pendingSegmentCost[seg]||0)+cost;
+        save.click.level = Math.min(save.click.level+1, save.click.max);
+      }
+      toast('Added 100 levels to Click.', 'good');
+      break;
+    case 'clickIncomeBoost':
+      save.ppcBase *= 1000;
+      toast('Click income x1000 base applied.', 'good');
+      break;
+    case 'spawnSpider':
+      spawnSpider(); break;
+    case 'breakClick':
+      save.click.brokenUntil = now() + 26000;
+      toast('Click button broken.', 'bad'); break;
+    case 'goldenClick':
+      save.click.goldenUntil = now() + 8000;
+      toast('Click button golden.', 'good'); break;
+    case 'resetAll':
+      const uname = save.meta.username;
+      save = newSave(uname); initBuildings(save);
+      toast('Reset complete.', 'warn'); break;
+  }
+  renderAll();
+});
+
+
+/////////
+
+// ======= Effects system =======
+
+// Добавление эффекта
+function addEffect(type, durationMs, mult=1.0) {
+  save.modifiers.activeEffects = save.modifiers.activeEffects || [];
+  const until = now() + durationMs;
+  save.modifiers.activeEffects.push({ type, until, mult });
+}
+
+// Рендер панели эффектов
+function renderEffects() {
+  const list = document.getElementById('effects-list');
+  list.innerHTML = '';
+  if (!save.modifiers.activeEffects) return;
+
+  // Убираем просроченные эффекты
+  save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > now());
+
+  save.modifiers.activeEffects.forEach(e => {
+    const item = document.createElement('div');
+    item.className = 'effect-item ' + (
+      e.type.toLowerCase().includes('buff') || e.type.toLowerCase().includes('golden')
+        ? 'effect-good'
+        : e.type.toLowerCase().includes('debuff') || e.type.toLowerCase().includes('broken')
+        ? 'effect-bad'
+        : 'effect-info'
+    );
+
+    const secondsLeft = ((e.until - now())/1000).toFixed(1);
+    item.textContent = `${e.type} — ${secondsLeft}s left`;
+    list.appendChild(item);
+  });
+}
+
+// Встраиваем в игровой цикл
+function tick() {
+  const t = now();
+  const dt = (t - save.lastTick) / 1000;
+  save.lastTick = t;
+
+  // Реальный доход
+  const pps = totalPPS();
+  addPoints(pps * dt);
+
+  // Проверка паука
+  maybeSpawnSpider();
+
+  // Обновление UI
+  renderTopStats();
+  renderEffects(); // <-- добавили сюда
+}
+
+
+// ======= Boot =======
+(function boot() {
+  const stored = load();
+  if (stored && stored.user && stored.data) {
+    // Keep saved for quick login
+    currentUser = stored.user;
+    save = stored.data;
+    if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+    // Show auth; user can log in. Or auto-login? Keep manual per request.
+  }
+  autosaveLoop();
+})();
+
+// ======= Periodic checks ===++___-----++====
+setInterval(() => {
+  checkUberUnlock();
+  renderUber();
+}, 1000);
