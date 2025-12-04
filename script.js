@@ -712,8 +712,10 @@ clickBtn.addEventListener('click', () => {
   // Broken or golden states
   if (save.click.brokenUntil > now()) {
     toast('Click button is broken.', 'warn');
+    renderClick(); // обновляем статус сразу
     return;
   }
+
   const ts = now();
   // Streak logic
   if (ts - save.streak.lastClickTs <= 2000) {
@@ -734,20 +736,27 @@ clickBtn.addEventListener('click', () => {
       // Break for 26s
       save.click.brokenUntil = now() + 26000;
       toast('Click button broke for 26s.', 'bad');
+      renderClick(); // обновляем статус сразу
     } else {
       // Golden for 8s then break for 11s
       save.click.goldenUntil = now() + 8000;
       toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
+      renderClick(); // обновляем статус сразу
+
       setTimeout(() => {
         save.click.brokenUntil = now() + 11000;
         save.click.goldenUntil = 0;
         toast('Golden ended. Button broke for 11s.', 'warn');
+        renderClick(); // обновляем статус после окончания
       }, 8000);
     }
   }
 
+  // Обновляем верхние показатели и статус кнопки
   renderTopStats();
+  renderClick();
 });
+
 
 // ======= Bulk controls =======
 bulkButtons.forEach(btn => {
