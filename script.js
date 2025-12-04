@@ -388,29 +388,43 @@ function renderClick() {
   clickLevelEl.textContent = save.click.level;
   clickMaxEl.textContent = save.click.max;
   clickIncomeEl.textContent = fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus));
-  const nextLevel = save.click.level;
   const bulk = save.bulk;
 
   const { totalCost, totalLevels } = computeBulkCostForClick(bulk);
   clickCostEl.textContent = fmt(totalCost);
 
   // Segment upgrade visibility for Click
-const seg = segmentIndex(save.click.level);
-const within = withinSegment(save.click.level);
-const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
-const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+  const seg = segmentIndex(save.click.level);
+  const within = withinSegment(save.click.level);
+  const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
+  const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
 
-if (needUpgrade) {
-  clickSegInfo.textContent = 'Segment upgrade required to progress';
-  clickSegBtn.classList.remove('hidden');
-  // Calculate upgrade price: sum of 10 levels that were purchased, divided by two
-  const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
-  clickSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
-} else {
-  clickSegBtn.classList.add('hidden');
-  clickSegInfo.textContent = 'Buy 10 levels to unlock';
+  if (needUpgrade) {
+    // Показываем апгрейд вместо покупки
+    clickSegInfo.textContent = 'Segment upgrade required to progress';
+    clickBuyBtn.classList.add('hidden');
+    clickBuyBtn.setAttribute('aria-hidden', 'true');
+
+    clickSegBtn.classList.remove('hidden');
+    clickSegBtn.removeAttribute('aria-hidden');
+    // Визуально сделать похожей на primary (если нужно)
+    clickSegBtn.classList.add('primary');
+    const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+    clickSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+    clickSegBtn.disabled = save.points < (prevCostSum/2);
+  } else {
+    // Показываем покупку, скрываем апгрейд
+    clickSegBtn.classList.add('hidden');
+    clickSegBtn.setAttribute('aria-hidden', 'true');
+    clickSegBtn.classList.remove('primary');
+
+    clickBuyBtn.classList.remove('hidden');
+    clickBuyBtn.removeAttribute('aria-hidden');
+    clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
+    clickSegInfo.textContent = 'Buy 10 levels to unlock';
+  }
 }
-}
+
 
 function computeBulkCostForClick(bulk) {
   let needLevels = 0;
@@ -469,22 +483,32 @@ function renderBuildings() {
     const actions = document.createElement('div');
     actions.className = 'building-actions';
 
+    // Buy button
     const buyBtn = document.createElement('button');
     buyBtn.className = 'btn primary small';
     buyBtn.textContent = 'Buy levels';
     buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i);
     buyBtn.addEventListener('click', () => buyBuildingLevels(i));
 
+    // Segment upgrade button
     const segBtn = document.createElement('button');
     segBtn.className = 'btn small';
     const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
 
     if (within === 0 && seg > 0 && !prevSegBought) {
-      segBtn.textContent = `Upgrade (cost: ${fmt((b.pendingSegmentCost[seg-1]||0)/2)})`;
+      // Требуется сегментный апгрейд — показываем только segBtn
+      const prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      segBtn.textContent = `Upgrade (cost: ${fmt(prevCost)})`;
       segBtn.classList.remove('hidden');
       segBtn.addEventListener('click', ()=> buyBuildingSegUpgrade(i, seg-1));
+
+      // Скрываем кнопку покупки
+      buyBtn.classList.add('hidden');
+      buyBtn.setAttribute('aria-hidden', 'true');
     } else {
+      // Обычное состояние — показываем покупку, скрываем segBtn
       segBtn.classList.add('hidden');
+      segBtn.setAttribute('aria-hidden', 'true');
     }
 
     actions.appendChild(buyBtn);
@@ -493,7 +517,6 @@ function renderBuildings() {
     card.appendChild(pixel);
     card.appendChild(info);
     card.appendChild(actions);
-
 
     // lock overlay if previous building not level 67
     if (!canBuyNextBuilding(i)) {
@@ -512,6 +535,7 @@ function renderBuildings() {
     buildingsList.appendChild(card);
   });
 }
+
 
 function computeBulkCostForBuilding(i, bulk) {
   const b = save.buildings[i];
@@ -545,24 +569,35 @@ function renderUber() {
 
   const seg = segmentIndex(save.uber.level);
   const within = withinSegment(save.uber.level);
-  if (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) {
+
+  // Determine if a segment upgrade is required (entering new segment or at boundary)
+  const needSegUpgrade = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) || (within === 9 && !save.uber.segUpgrades[seg]);
+
+  if (needSegUpgrade) {
     uberSegInfo.textContent = 'Segment upgrade required to progress';
+    uberBuyBtn.classList.add('hidden');
+    uberBuyBtn.setAttribute('aria-hidden', 'true');
+
     uberSegBtn.classList.remove('hidden');
-    const prevCostSum = save.uber.pendingSegmentCost[seg-1] || 0;
+    uberSegBtn.removeAttribute('aria-hidden');
+    const prevIndex = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) ? seg-1 : seg;
+    const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
     uberSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
-  } else if (within === 9) {
-    uberSegInfo.textContent = 'Segment complete. Upgrade will unlock next segment.'; 
-    const prevCostSum = save.uber.pendingSegmentCost[seg] || 0;
-    uberSegBtn.classList.remove('hidden');
-    uberSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+    uberSegBtn.disabled = save.points < (prevCostSum/2);
   } else {
     uberSegInfo.textContent = 'Buy 10 levels to unlock';
     uberSegBtn.classList.add('hidden');
+    uberSegBtn.setAttribute('aria-hidden', 'true');
+
+    uberBuyBtn.classList.remove('hidden');
+    uberBuyBtn.removeAttribute('aria-hidden');
+    uberBuyBtn.disabled = !save.uber.unlocked;
   }
 
   // Draw pixel citadel
   drawCitadelPixel(document.getElementById('uber-pixel'));
 }
+
 
 function renderEffects() {
   const list = document.getElementById('effects-list');

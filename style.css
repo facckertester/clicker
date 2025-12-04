@@ -663,4 +663,24 @@ input, textarea, select { cursor: text; }
   .building-name{font-size:1.1rem}
 }
 
+/* Стабильная ширина и плавное переключение для buy/upgrade кнопок */
+.quick-actions .btn,
+.building-actions .btn,
+.uber-actions .btn {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 140px;
+}
+
+.btn.small { min-width: 140px; }
+
+.btn.hidden { display: none !important; }
+
+.building-actions .btn,
+.quick-actions .btn,
+.uber-actions .btn {
+  transition: opacity .12s ease, transform .08s ease;
+}
+
+
 /* Конец файла: все элементы сохранены на своих местах, но визуально переработаны под AoE2 */
