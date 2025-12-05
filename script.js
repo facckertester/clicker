@@ -190,7 +190,7 @@ function initBuildings(saveObj) {
       baseIncome: inc0,
       segUpgrades: {},
       pendingSegmentCost: {},
-      blockedUntil: 0, // for 82s downtime on failure
+      blockedUntil: 0, // for 164s downtime on failure
       upgradeBonus: 0,
     };
   });
@@ -212,6 +212,44 @@ function saveNow() {
 function autosaveLoop() {
   setInterval(saveNow, 1000);
 }
+let _countdownInterval = null;
+
+// Обновляет все заметки ремонта каждую секунду и перерендеривает UI, если что-то закончилось
+function _updateBuildingCountdowns() {
+  const nodes = document.querySelectorAll('.building-downnote');
+  const t = now();
+  let removedAny = false;
+
+  nodes.forEach(node => {
+    const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
+    if (!blockedUntil || t >= blockedUntil) {
+      // время истекло — удаляем ноту
+      node.remove();
+      removedAny = true;
+      return;
+    }
+    const remain = Math.ceil((blockedUntil - t) / 1000);
+    node.textContent = `Under repair: ${remain}s`;
+  });
+
+  // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
+  if (removedAny) {
+    renderAll();
+  }
+}
+
+
+function startCountdownLoop() {
+  if (_countdownInterval) return;
+  _countdownInterval = setInterval(() => {
+    _updateBuildingCountdowns();
+    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
+    // при необходимости можно обновлять верхнюю панель:
+    renderTopStats();
+  }, 1000);
+}
+// Запускаем цикл
+startCountdownLoop();
 
 // ======= UI Elements =======
 const authScreen = document.getElementById('auth-screen');
@@ -526,11 +564,16 @@ function renderBuildings() {
       info.appendChild(lockNote);
     }
     if (now() < b.blockedUntil) {
-      const downNote = document.createElement('small');
-      downNote.style.color = '#c23b3b';
-      downNote.textContent = 'Under repair for 82s.';
-      info.appendChild(downNote);
-    }
+  const remain = Math.ceil((b.blockedUntil - now()) / 1000);
+  const downNote = document.createElement('small');
+  downNote.style.color = '#c23b3b';
+  downNote.className = 'building-downnote';
+  // сохраняем метку окончания в data-атрибуте, чтобы таймер мог обновлять текст
+  downNote.dataset.blockedUntil = String(b.blockedUntil);
+  downNote.textContent = `Under repair: ${remain}s`;
+  info.appendChild(downNote);
+}
+
 
     buildingsList.appendChild(card);
   });
@@ -716,11 +759,11 @@ function buyBuildingLevels(i) {
     const seg = segmentIndex(lvl);
     b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
 
-    // 1% chance to fail and trigger 41s downtime
+    // 1% chance to fail and trigger 164s downtime
     if (randChance(0.01)) {
-      b.blockedUntil = now() + 82000;
+      b.blockedUntil = now() + 164000;
       // Points already spent (kept), no level increase
-      toast(`${b.name} construction failed. Repairs for 82s.`, 'bad');
+      toast(`${b.name} construction failed. Repairs for 164s.`, 'bad');
     } else {
       b.level = Math.min(b.level + 1, b.max);
     }
@@ -1550,6 +1593,176 @@ function renderEffects() {
   });
 }
 
+
+// Обновляет все заметки ремонта каждую секунду
+function _updateBuildingCountdowns() {
+  const nodes = document.querySelectorAll('.building-downnote');
+  const t = now();
+  nodes.forEach(node => {
+    const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
+    if (!blockedUntil || t >= blockedUntil) {
+      // время истекло — удаляем ноту (или можно заменить текст)
+      node.remove();
+      // при желании можно перерендерить здания целиком, чтобы восстановить кнопки и т.д.
+      renderAll();
+      return;
+    }
+    const remain = Math.ceil((blockedUntil - t) / 1000);
+    node.textContent = `Under repair: ${remain}s`;
+  });
+}
+
+// ===== Updates modal logic =====
+// Редактируйте этот массив — добавляйте/удаляйте апдейты.
+// Каждый элемент: { title: 'Заголовок', date: '2025-12-05', body: 'Текст апдейта' }
+const GAME_UPDATES = [
+  {
+     title: 'Patch Alpha 0.1a',
+    date: '2025-12-05',
+    body: 'Hotfix: Building downtime.\n\nFixed a bug with building repair timers; buttons now correctly become active again.\n\nAdded Updates button.\n\nBuilding repair downtime increased from 82s to 164s.'
+  }
+];
+
+const updatesBtn = document.getElementById('updates-btn');
+const updatesModal = document.getElementById('updates-modal');
+const updatesBody = document.getElementById('updates-body');
+const updatesClose = document.getElementById('updates-close');
+const updatesClose2 = document.getElementById('updates-close-2');
+
+// Рендер списка апдейтов в модалке
+function _renderUpdatesList() {
+  if (!updatesBody) return;
+  updatesBody.innerHTML = '';
+  if (!GAME_UPDATES || GAME_UPDATES.length === 0) {
+    updatesBody.innerHTML = '<div class="update-item"><div class="u-body">No updates yet.</div></div>';
+    return;
+  }
+  GAME_UPDATES.forEach(u => {
+    const node = document.createElement('div');
+    node.className = 'update-item';
+    const title = document.createElement('div');
+    title.className = 'u-title';
+    title.textContent = u.title || 'Update';
+    if (u.date) {
+      const d = document.createElement('span');
+      d.className = 'u-date';
+      d.textContent = u.date;
+      title.appendChild(d);
+    }
+    const body = document.createElement('div');
+    body.className = 'u-body';
+    // сохраняем переносы строк в <pre> подобном виде для читаемости
+    body.textContent = u.body || '';
+    node.appendChild(title);
+    node.appendChild(body);
+    updatesBody.appendChild(node);
+  });
+}
+
+/*
+  Открытие/закрытие модалки — аккуратно, чтобы не ломать layout:
+  - используем CSS-класс .open на модалке (в CSS уже есть #updates-modal.open { display:flex; })
+  - добавляем класс body.modal-open для блокировки скролла
+  - компенсируем ширину скролла (padding-right) при появлении модалки, чтобы не дергался layout
+  - при закрытии восстанавливаем исходные значения
+*/
+let _savedBodyPaddingRight = '';
+function _getScrollbarWidth() {
+  return window.innerWidth - document.documentElement.clientWidth;
+}
+
+function openUpdatesModal() {
+  _renderUpdatesList();
+
+  // Пометка aria
+  updatesModal.setAttribute('aria-hidden', 'false');
+
+  // Показываем модалку через класс (CSS управляет display)
+  updatesModal.classList.add('open');
+
+  // Сохраняем текущий padding-right тела и добавляем компенсацию скролла,
+  // чтобы не происходил сдвиг ширины контента при скрытии скролла.
+  _savedBodyPaddingRight = document.body.style.paddingRight || '';
+  const sbw = _getScrollbarWidth();
+  if (sbw > 0) {
+    document.body.style.paddingRight = `${sbw}px`;
+  }
+
+  // Блокируем прокрутку страницы через класс (CSS: body.modal-open { overflow: hidden; })
+  document.body.classList.add('modal-open');
+
+  // Фокусируем кнопку закрытия для доступности
+  if (updatesClose && typeof updatesClose.focus === 'function') updatesClose.focus();
+
+  // Слушатель клавиши Escape для закрытия
+  document.addEventListener('keydown', _updatesKeyHandler);
+}
+
+function closeUpdatesModal() {
+  // Скрываем модалку
+  updatesModal.classList.remove('open');
+  updatesModal.setAttribute('aria-hidden', 'true');
+
+  // Убираем блокировку прокрутки
+  document.body.classList.remove('modal-open');
+
+  // Восстанавливаем padding-right, если мы его меняли
+  document.body.style.paddingRight = _savedBodyPaddingRight || '';
+
+  // Возвращаем фокус на кнопку Updates
+  if (updatesBtn && typeof updatesBtn.focus === 'function') updatesBtn.focus();
+
+  // Удаляем обработчик Escape
+  document.removeEventListener('keydown', _updatesKeyHandler);
+}
+
+function _updatesKeyHandler(e) {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeUpdatesModal();
+  }
+}
+
+// Подключаем обработчики кликов (без изменения логики открытия/закрытия)
+if (updatesBtn) {
+  updatesBtn.addEventListener('click', (ev) => {
+    // предотвращаем возможные побочные эффекты (например, если кнопка внутри flex)
+    ev.preventDefault();
+    openUpdatesModal();
+  });
+}
+if (updatesClose) updatesClose.addEventListener('click', closeUpdatesModal);
+if (updatesClose2) updatesClose2.addEventListener('click', closeUpdatesModal);
+
+// Закрытие при клике по фону модалки (но не по внутренней карточке)
+if (updatesModal) {
+  updatesModal.addEventListener('click', (ev) => {
+    // если кликнули именно по модалке (фон), а не по .modal-card или его потомкам
+    if (ev.target === updatesModal) closeUpdatesModal();
+  });
+}
+
+// Инициализация: рендерим список заранее (необязательно, но удобно)
+_renderUpdatesList();
+
+
+// Events
+updatesBtn.addEventListener('click', openUpdatesModal);
+updatesClose.addEventListener('click', closeUpdatesModal);
+updatesClose2.addEventListener('click', closeUpdatesModal);
+
+// Close when clicking backdrop (but not when clicking inside modal-card)
+updatesModal.addEventListener('click', (e) => {
+  if (e.target === updatesModal) closeUpdatesModal();
+});
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && updatesModal.style.display === 'flex') {
+    closeUpdatesModal();
+  }
+});
+
+
 // Встраиваем в игровой цикл
 function tick() {
   const t = now();
@@ -1580,6 +1793,10 @@ function tick() {
     // Show auth; user can log in. Or auto-login? Keep manual per request.
   }
   autosaveLoop();
+// ... после загрузки save и первого рендера
+renderAll();
+startCountdownLoop();
+
 })();
 
 // ======= Periodic checks ===++___-----++====

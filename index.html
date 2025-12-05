@@ -18,7 +18,7 @@
 
  /* Родительский контейнер игры */
 .game-layout {
-  width: 100vw;       /* во всю ширину окна */
+  width: 100%;       /* во всю ширину окна */
   max-width: none;    /* убираем ограничение */
   margin: 0;          /* убираем автоцентрирование */
   box-sizing: border-box;
@@ -101,6 +101,10 @@
     }
     #buildings-list { max-height: 40vh; }
   }
+
+
+
+
 </style>
 
 
@@ -180,6 +184,8 @@
 
   <!-- GAME SCREEN -->
   <div id="game-screen" class="screen hidden game-layout">
+
+
 
     <!-- TITLE -->
     <div class="game-title">Medieval Pixel Idle</div>
@@ -303,6 +309,25 @@
     <div id="spider" class="spider hidden" title="Catch the spider!"></div>
 
   </div>
+
+<!-- Updates button (fixed top-left) -->
+<button id="updates-btn" aria-haspopup="dialog" aria-controls="updates-modal" title="Updates">Updates</button>
+
+<!-- Updates modal -->
+<div id="updates-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card" role="document" aria-labelledby="updates-title">
+    <div class="modal-header">
+      <h3 id="updates-title">Game updates</h3>
+      <button class="modal-close" id="updates-close" aria-label="Close updates">✕</button>
+    </div>
+    <div class="modal-body" id="updates-body">
+      <!-- Сюда JS вставит список апдейтов -->
+    </div>
+    <div class="modal-footer">
+    </div>
+  </div>
+</div>
+
 
 <!-- King element (appears/disappears via script) -->
 <div id="king" class="king" title="King"></div>
