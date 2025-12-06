@@ -250,6 +250,51 @@ function saveNow() {
 function autosaveLoop() {
   setInterval(saveNow, 1000);
 }
+
+// --- Autosave: надежный автосейв каждую секунду ---
+const AUTOSAVE_INTERVAL_MS = 1000;
+let _autosaveTimer = null;
+
+function _storageKeyForUser(user) {
+  return `${STORAGE_KEY}::${user}`;
+}
+
+function startAutosave() {
+  if (_autosaveTimer) return;
+  // Сохраняем сразу при старте
+  try { if (save && currentUser) { save.lastTick = now(); localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save })); } } catch(e){}
+  _autosaveTimer = setInterval(() => {
+    try {
+      if (!save || !currentUser) return;
+      save.lastTick = now();
+      localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
+    } catch (e) {
+      console.error('Autosave failed', e);
+    }
+  }, AUTOSAVE_INTERVAL_MS);
+}
+
+function stopAutosave() {
+  if (_autosaveTimer) {
+    clearInterval(_autosaveTimer);
+    _autosaveTimer = null;
+  }
+}
+
+// Сохраняем при закрытии вкладки/перезагрузке
+window.addEventListener('beforeunload', () => {
+  try {
+    if (!save || !currentUser) return;
+    save.lastTick = now();
+    localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
+  } catch (e) {}
+});
+
+// Сохраняем при уходе вкладки в фон
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveNow();
+});
+
 let _countdownInterval = null;
 
 // Обновляет все заметки ремонта каждую секунду и перерендеривает UI, если что-то закончилось
@@ -715,6 +760,7 @@ function renderAll() {
   renderBuildings();
   renderUber();
   renderEffects();
+  startAutosave();
 
   updateEndgameButtons();
 }
