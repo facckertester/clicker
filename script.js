@@ -1,10 +1,48 @@
 /* Medieval Pixel Idle - core logic */
 
 // ======= Utilities =======
+// Форматирование: сокращения k, M, B, T и дальше; 4 знака после запятой для малых чисел
 const fmt = (n) => {
-  // Always show 4 decimals, clamp precision
-  return Number.isFinite(n) ? n.toFixed(4) : "0.0000";
+  if (!Number.isFinite(n)) return "0.0000";
+  const abs = Math.abs(n);
+
+  // Для чисел меньше 1000 — обычный формат с 4 знаками
+  if (abs < 1000) return n.toFixed(4);
+
+  // Список суффиксов (short scale). Можно расширить при необходимости.
+  const SUFFIXES = [
+    { p: 3, s: ' k'  }, // thousand
+    { p: 6, s: ' M'  }, // million
+    { p: 9, s: ' B'  }, // billion
+    { p: 12, s: ' T' }, // trillion
+    { p: 15, s: ' Qa' }, // quadrillion
+    { p: 18, s: ' Qi' }, // quintillion
+    { p: 21, s: ' Sx' }, // sextillion
+    { p: 24, s: ' Sp' }, // septillion
+    { p: 27, s: ' Oc' }, // octillion
+    { p: 30, s: ' No' }, // nonillion
+    { p: 33, s: ' Dc' }  // decillion
+  ];
+
+  // Выбираем подходящий суффикс
+  let chosen = SUFFIXES[0];
+  for (let i = 0; i < SUFFIXES.length; i++) {
+    if (abs >= Math.pow(10, SUFFIXES[i].p)) chosen = SUFFIXES[i];
+    else break;
+  }
+
+  const base = Math.pow(10, chosen.p);
+  const value = n / base;
+
+  // Если число намного больше последнего суффикса — возвращаем научную нотацию
+  const maxHandled = Math.pow(10, SUFFIXES[SUFFIXES.length - 1].p) * 1000;
+  if (abs >= maxHandled) return n.toExponential(4).replace(/e\+?/, 'e');
+
+  // Обрезаем до 4 знаков после запятой и убираем лишние нули
+  let s = value.toFixed(4).replace(/\.?0+$/, '');
+  return `${s}${chosen.s}`;
 };
+
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const now = () => Date.now();
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -212,6 +250,44 @@ function saveNow() {
 function autosaveLoop() {
   setInterval(saveNow, 1000);
 }
+let _countdownInterval = null;
+
+// Обновляет все заметки ремонта каждую секунду и перерендеривает UI, если что-то закончилось
+function _updateBuildingCountdowns() {
+  const nodes = document.querySelectorAll('.building-downnote');
+  const t = now();
+  let removedAny = false;
+
+  nodes.forEach(node => {
+    const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
+    if (!blockedUntil || t >= blockedUntil) {
+      // время истекло — удаляем ноту
+      node.remove();
+      removedAny = true;
+      return;
+    }
+    const remain = Math.ceil((blockedUntil - t) / 1000);
+    node.textContent = `Under repair: ${remain}s`;
+  });
+
+  // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
+  if (removedAny) {
+    renderAll();
+  }
+}
+
+
+function startCountdownLoop() {
+  if (_countdownInterval) return;
+  _countdownInterval = setInterval(() => {
+    _updateBuildingCountdowns();
+    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
+    // при необходимости можно обновлять верхнюю панель:
+    renderTopStats();
+  }, 1000);
+}
+// Запускаем цикл
+startCountdownLoop();
 
 // ======= UI Elements =======
 const authScreen = document.getElementById('auth-screen');
@@ -634,15 +710,14 @@ function renderEffects() {
 
 
 function renderAll() {
-  checkUberUnlock();
   renderTopStats();
   renderClick();
   renderBuildings();
   renderUber();
   renderEffects();
+
   updateEndgameButtons();
 }
-
 
 // ======= Actions =======
 function addPoints(n) {
@@ -1244,18 +1319,15 @@ function tick() {
 setInterval(tick, 100); // 10x per second for smoothness
 
 // ======= Endgame & caps =======
-// Проверяет условия и разблокирует Uber, если все здания и Click >= THRESHOLD
 function checkUberUnlock() {
-  const THRESHOLD = 800;
-  if (!save || !Array.isArray(save.buildings)) return;
-  const allBuildingsOk = save.buildings.every(b => (b.level || 0) >= THRESHOLD);
-  const clickOk = (save.click && (save.click.level || 0) >= THRESHOLD);
-  if (allBuildingsOk && clickOk && !save.uber.unlocked) {
+  if (save.uber.unlocked) return;
+  const all800 = save.buildings.every(b => b.level >= 800) && save.click.level >= 800;
+  if (all800) {
     save.uber.unlocked = true;
-    toast('Uber unlocked!', 'good');
+    uberBuyBtn.disabled = false;
+    toast('Uber Turbo Building unlocked!', 'good');
   }
 }
-
 function updateEndgameButtons() {
   // When uber reaches level 10, show endgame or continue
   if (save.uber.level >= 10 && !save.meta.extendedCaps) {
@@ -1560,55 +1632,29 @@ function renderEffects() {
 }
 
 
-let _countdownInterval = null;
-
-// Обновляет все заметки ремонта каждую секунду и перерендеривает UI, если что-то закончилось
+// Обновляет все заметки ремонта каждую секунду
 function _updateBuildingCountdowns() {
   const nodes = document.querySelectorAll('.building-downnote');
   const t = now();
-  let removedAny = false;
-
   nodes.forEach(node => {
     const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
     if (!blockedUntil || t >= blockedUntil) {
-      // время истекло — удаляем ноту
+      // время истекло — удаляем ноту (или можно заменить текст)
       node.remove();
-      removedAny = true;
+      // при желании можно перерендерить здания целиком, чтобы восстановить кнопки и т.д.
+      renderAll();
       return;
     }
     const remain = Math.ceil((blockedUntil - t) / 1000);
     node.textContent = `Under repair: ${remain}s`;
   });
-
-  // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
-  if (removedAny) {
-    renderAll();
-  }
 }
-
-
-function startCountdownLoop() {
-  if (_countdownInterval) return;
-  _countdownInterval = setInterval(() => {
-    _updateBuildingCountdowns();
-    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
-    // при необходимости можно обновлять верхнюю панель:
-    renderTopStats();
-  }, 1000);
-}
-// Запускаем цикл
-startCountdownLoop();
 
 // ===== Updates modal logic =====
 // Редактируйте этот массив — добавляйте/удаляйте апдейты.
 // Каждый элемент: { title: 'Заголовок', date: '2025-12-05', body: 'Текст апдейта' }
 const GAME_UPDATES = [
   {
-title: 'Patch Alpha 0.1b',
-date: '2025-12-06',
-body: 'Fixed the display of the Uber Building card.\n\nFixed the Uber Building logic — it was not accessible even after meeting all the required conditions.\n\nI am aware of several remaining visual bugs, and I’m working on resolving them.'
-},
-{
      title: 'Patch Alpha 0.1a',
     date: '2025-12-05',
     body: 'Hotfix: Building downtime.\n\nFixed a bug with building repair timers; buttons now correctly become active again.\n\nAdded Updates button.\n\nBuilding repair downtime increased from 82s to 164s.'
