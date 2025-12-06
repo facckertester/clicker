@@ -391,11 +391,11 @@ function buildingIncomeAt(b, level, upgradesCount) {
 // Uber building
 function uberCostAt(level) {
   // make it hefty
-  const base = 999999999.0999;
+  const base = 3712345678901234567890.0999;
   return base * Math.pow(1.35, level);
 }
 function uberIncomeAt(level, upgradesCount) {
-  const baseInc = 333333333333.3333;
+  const baseInc = 432109876543210.3333;
   const upgradeMult = Math.pow(1.13, upgradesCount || 0);
   return baseInc * Math.pow(1.22, level) * upgradeMult;
 }
