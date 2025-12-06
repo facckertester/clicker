@@ -212,44 +212,6 @@ function saveNow() {
 function autosaveLoop() {
   setInterval(saveNow, 1000);
 }
-let _countdownInterval = null;
-
-// Обновляет все заметки ремонта каждую секунду и перерендеривает UI, если что-то закончилось
-function _updateBuildingCountdowns() {
-  const nodes = document.querySelectorAll('.building-downnote');
-  const t = now();
-  let removedAny = false;
-
-  nodes.forEach(node => {
-    const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
-    if (!blockedUntil || t >= blockedUntil) {
-      // время истекло — удаляем ноту
-      node.remove();
-      removedAny = true;
-      return;
-    }
-    const remain = Math.ceil((blockedUntil - t) / 1000);
-    node.textContent = `Under repair: ${remain}s`;
-  });
-
-  // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
-  if (removedAny) {
-    renderAll();
-  }
-}
-
-
-function startCountdownLoop() {
-  if (_countdownInterval) return;
-  _countdownInterval = setInterval(() => {
-    _updateBuildingCountdowns();
-    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
-    // при необходимости можно обновлять верхнюю панель:
-    renderTopStats();
-  }, 1000);
-}
-// Запускаем цикл
-startCountdownLoop();
 
 // ======= UI Elements =======
 const authScreen = document.getElementById('auth-screen');
@@ -672,14 +634,15 @@ function renderEffects() {
 
 
 function renderAll() {
+  checkUberUnlock();
   renderTopStats();
   renderClick();
   renderBuildings();
   renderUber();
   renderEffects();
-
   updateEndgameButtons();
 }
+
 
 // ======= Actions =======
 function addPoints(n) {
@@ -1281,15 +1244,18 @@ function tick() {
 setInterval(tick, 100); // 10x per second for smoothness
 
 // ======= Endgame & caps =======
+// Проверяет условия и разблокирует Uber, если все здания и Click >= THRESHOLD
 function checkUberUnlock() {
-  if (save.uber.unlocked) return;
-  const all800 = save.buildings.every(b => b.level >= 800) && save.click.level >= 800;
-  if (all800) {
+  const THRESHOLD = 800;
+  if (!save || !Array.isArray(save.buildings)) return;
+  const allBuildingsOk = save.buildings.every(b => (b.level || 0) >= THRESHOLD);
+  const clickOk = (save.click && (save.click.level || 0) >= THRESHOLD);
+  if (allBuildingsOk && clickOk && !save.uber.unlocked) {
     save.uber.unlocked = true;
-    uberBuyBtn.disabled = false;
-    toast('Uber Turbo Building unlocked!', 'good');
+    toast('Uber unlocked!', 'good');
   }
 }
+
 function updateEndgameButtons() {
   // When uber reaches level 10, show endgame or continue
   if (save.uber.level >= 10 && !save.meta.extendedCaps) {
@@ -1594,29 +1560,55 @@ function renderEffects() {
 }
 
 
-// Обновляет все заметки ремонта каждую секунду
+let _countdownInterval = null;
+
+// Обновляет все заметки ремонта каждую секунду и перерендеривает UI, если что-то закончилось
 function _updateBuildingCountdowns() {
   const nodes = document.querySelectorAll('.building-downnote');
   const t = now();
+  let removedAny = false;
+
   nodes.forEach(node => {
     const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
     if (!blockedUntil || t >= blockedUntil) {
-      // время истекло — удаляем ноту (или можно заменить текст)
+      // время истекло — удаляем ноту
       node.remove();
-      // при желании можно перерендерить здания целиком, чтобы восстановить кнопки и т.д.
-      renderAll();
+      removedAny = true;
       return;
     }
     const remain = Math.ceil((blockedUntil - t) / 1000);
     node.textContent = `Under repair: ${remain}s`;
   });
+
+  // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
+  if (removedAny) {
+    renderAll();
+  }
 }
+
+
+function startCountdownLoop() {
+  if (_countdownInterval) return;
+  _countdownInterval = setInterval(() => {
+    _updateBuildingCountdowns();
+    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
+    // при необходимости можно обновлять верхнюю панель:
+    renderTopStats();
+  }, 1000);
+}
+// Запускаем цикл
+startCountdownLoop();
 
 // ===== Updates modal logic =====
 // Редактируйте этот массив — добавляйте/удаляйте апдейты.
 // Каждый элемент: { title: 'Заголовок', date: '2025-12-05', body: 'Текст апдейта' }
 const GAME_UPDATES = [
   {
+title: 'Patch Alpha 0.1b',
+date: '2025-12-06',
+body: 'Fixed the display of the Uber Building card.\n\nFixed the Uber Building logic — it was not accessible even after meeting all the required conditions.\n\nI am aware of several remaining visual bugs, and I’m working on resolving them.'
+},
+{
      title: 'Patch Alpha 0.1a',
     date: '2025-12-05',
     body: 'Hotfix: Building downtime.\n\nFixed a bug with building repair timers; buttons now correctly become active again.\n\nAdded Updates button.\n\nBuilding repair downtime increased from 82s to 164s.'

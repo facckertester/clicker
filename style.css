@@ -593,16 +593,54 @@ body.modal-open {
 }
 
 /* ---------- UBER FOOTER (нижняя панель) ---------- */
-.uber-footer{width:100%;padding:16px;background:linear-gradient(180deg, rgba(0,0,0,0.02), #151212);border-top:4px solid var(--border);display:flex;justify-content:center;gap:12px}
-.uber-card{
-  width:100%;max-width:920px;background:linear-gradient(180deg,#3b322b,#2f2620);
-  border:4px solid var(--border);padding:12px;border-radius:12px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+/* Scope larger pixel size only inside the footer card, avoid overriding the main Uber card */
+.uber-footer .uber-pixel {
+  width: 96px;
+  height: 96px;
 }
-.uber-pixel{width:96px;height:96px;border-radius:10px;background:linear-gradient(180deg,#6b5638,#4b3a26);border:2px solid rgba(0,0,0,0.6)}
-.uber-info{color:var(--muted);display:flex;flex-direction:column;gap:6px}
-.uber-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
-.uber-card.locked{opacity:0.85;filter:grayscale(0.08)}
+
+/* REMOVE this entire block from the <style> in the <head> */
+.uber-building-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  background: linear-gradient(180deg,#1f1b1a,#2b2624);
+  border-radius:8px;
+  padding:12px;
+  border:2px solid rgba(0,0,0,0.6);
+  box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  min-height:86px;
+}
+.uber-pixel { width:80px;height:80px;border-radius:8px;background:linear-gradient(180deg,#3a2f2b,#1f1715);border:2px solid rgba(0,0,0,0.6); }
+.uber-actions { display:flex;flex-direction:column;gap:8px;align-items:flex-end; }
+
+/* Make Uber card the same height as the Click block */
+#uber-card {
+  min-height: 220px; /* equals .click-area min-height */
+}
+
+/* Ensure Uber pixel matches building-pixel sizes (64px default, 80px at ≥1100px) */
+#uber-card .uber-pixel {
+  width: 64px;
+  height: 64px;
+}
+
+/* Keep wide-screen consistency with building cards */
+@media (min-width: 1100px) {
+  #uber-card .uber-pixel {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* Align lock note styling to regular building notes */
+#uber-card .uber-lock-note {
+  color: #9aa3b2;
+  display: block;
+  margin-top: 4px;
+}
+
 
 /* ---------- HERALDIC EMBLEM (подвижный герб) ---------- */
 .spider{

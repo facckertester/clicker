@@ -64,7 +64,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    min-height: 60vh;
+    min-height:220px
     align-items: stretch;
     width: 100%;
   }
@@ -80,7 +80,7 @@
     padding:12px;
     border:2px solid rgba(0,0,0,0.6);
     box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
-    min-height:86px;
+    min-height:220px;
   }
   .uber-pixel { width:80px;height:80px;border-radius:8px;background:linear-gradient(180deg,#3a2f2b,#1f1715);border:2px solid rgba(0,0,0,0.6); }
   .uber-actions { display:flex;flex-direction:column;gap:8px;align-items:flex-end; }
@@ -282,25 +282,30 @@
       </section>
 
       <!-- RIGHT COLUMN (3/3) – Uber building (visible, placed on the right third) -->
-      <section class="col-right">
-        <div class="building-card uber-building-card" id="uber-card" aria-label="Uber Turbo Building">
-          <div class="building-pixel uber-pixel" id="uber-pixel"></div>
-          <div class="building-info">
-            <div class="building-name">Citadel</div>
-            <div class="building-meta"><strong>Level:</strong> <span id="uber-level">0</span> / <span id="uber-max">10</span></div>
-            <div class="building-meta"><strong>Income/sec:</strong> <span id="uber-income">0.0000</span></div>
-            <div class="building-meta"><strong>Next Cost:</strong> <span id="uber-cost">0.0000</span></div>
-            <div class="building-meta seg-upgrade">
-              <strong>Segment Upgrade:</strong>
-              <span id="uber-seg-info">Buy 10 levels to unlock</span>
-              <button id="uber-seg-upgrade" class="btn small hidden">Upgrade</button>
-            </div>
-          </div>
-          <div class="building-actions uber-actions">
-            <button id="uber-buy" class="btn primary" disabled>Buy levels</button>
-          </div>
-          <div class="uber-lock">Locked: reach level ≥ 800 on all buildings and the Click.</div>
-        </div>
+      <!-- RIGHT COLUMN (3/3) – Uber building (visually matches building cards, height equals Click block) -->
+<section class="col-right">
+  <div class="building-card" id="uber-card" aria-label="Uber Turbo Building">
+    <div class="building-pixel uber-pixel" id="uber-pixel"></div>
+
+    <div class="building-info">
+      <div class="building-name">Citadel</div>
+      <div class="building-meta"><strong>Level:</strong> <span id="uber-level">0</span> / <span id="uber-max">10</span></div>
+      <div class="building-meta"><strong>Income/sec:</strong> <span id="uber-income">0.0000</span></div>
+      <div class="building-meta"><strong>Next Cost:</strong> <span id="uber-cost">0.0000</span></div>
+      <div class="building-meta seg-upgrade">
+        <strong>Segment Upgrade:</strong>
+        <span id="uber-seg-info">Buy 10 levels to unlock</span>
+        <button id="uber-seg-upgrade" class="btn small hidden">Upgrade</button>
+      </div>
+      <small class="uber-lock-note muted">Locked: reach level ≥ 800 on all buildings and the Click.</small>
+    </div>
+
+    <div class="building-actions" id="uber-actions">
+      <button id="uber-buy" class="btn primary" disabled>Buy levels</button>
+    </div>
+  </div>
+</section>
+
       </section>
 
     </main>
