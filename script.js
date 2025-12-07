@@ -376,6 +376,16 @@ const uberCostEl = document.getElementById('uber-cost');
 const spiderEl = document.getElementById('spider');
 
 const logoutBtn = document.getElementById('logout-btn');
+const statsBtn = document.getElementById('stats-btn');
+const statsModal = document.getElementById('stats-modal');
+const statsBody = document.getElementById('stats-body');
+const statsClose = document.getElementById('stats-close');
+
+// Проверка инициализации элементов статистики
+if (!statsModal) console.warn('stats-modal element not found');
+if (!statsBody) console.warn('stats-body element not found');
+if (!statsClose) console.warn('stats-close element not found');
+if (!statsBtn) console.warn('stats-btn element not found');
 
 // Debug
 const debugOpen = document.getElementById('debug-open');
@@ -459,17 +469,17 @@ const ACHIEVEMENTS = [
   { id: 'clicks_1084', type: 'clicks', value: 1084, reward: 0.01, name: '1084 Clicks', icon: '👆' },
   { id: 'clicks_5844', type: 'clicks', value: 5844, reward: 0.01, name: '5844 Clicks', icon: '🖱️' },
   { id: 'clicks_11111', type: 'clicks', value: 11111, reward: 0.01, name: '11111 Clicks', icon: '👆' },
-  // Клики: 25678, 54321, 101101, 333333 (+6%)
-  { id: 'clicks_25678', type: 'clicks', value: 25678, reward: 0.06, name: '25678 Clicks', icon: '⚡' },
-  { id: 'clicks_54321', type: 'clicks', value: 54321, reward: 0.06, name: '54321 Clicks', icon: '⚡' },
-  { id: 'clicks_101101', type: 'clicks', value: 101101, reward: 0.06, name: '101101 Clicks', icon: '⚡' },
-  { id: 'clicks_333333', type: 'clicks', value: 333333, reward: 0.06, name: '333333 Clicks', icon: '⚡' },
-  // Клики: 666666, 1000011 (+11%)
-  { id: 'clicks_666666', type: 'clicks', value: 666666, reward: 0.11, name: '666666 Clicks', icon: '🔥' },
-  { id: 'clicks_1000011', type: 'clicks', value: 1000011, reward: 0.11, name: '1M Clicks', icon: '🔥' },
-  // Клики: 5553535, 10000000 (+26%)
-  { id: 'clicks_5553535', type: 'clicks', value: 5553535, reward: 0.26, name: '5.5M Clicks', icon: '💎' },
-  { id: 'clicks_10000000', type: 'clicks', value: 10000000, reward: 0.26, name: '10M Clicks', icon: '💎' },
+  // Клики: 25678, 54321, 101101, 333333 (+1%)
+  { id: 'clicks_25678', type: 'clicks', value: 25678, reward: 0.01, name: '25678 Clicks', icon: '⚡' },
+  { id: 'clicks_54321', type: 'clicks', value: 54321, reward: 0.01, name: '54321 Clicks', icon: '⚡' },
+  { id: 'clicks_101101', type: 'clicks', value: 101101, reward: 0.01, name: '101101 Clicks', icon: '⚡' },
+  { id: 'clicks_333333', type: 'clicks', value: 333333, reward: 0.01, name: '333333 Clicks', icon: '⚡' },
+  // Клики: 666666, 1000011 (+1%)
+  { id: 'clicks_666666', type: 'clicks', value: 666666, reward: 0.01, name: '666666 Clicks', icon: '🔥' },
+  { id: 'clicks_1000011', type: 'clicks', value: 1000011, reward: 0.01, name: '1M Clicks', icon: '🔥' },
+  // Клики: 5553535, 10000000 (+1%)
+  { id: 'clicks_5553535', type: 'clicks', value: 5553535, reward: 0.01, name: '5.5M Clicks', icon: '💎' },
+  { id: 'clicks_10000000', type: 'clicks', value: 10000000, reward: 0.01, name: '10M Clicks', icon: '💎' },
   
   // Здания: купить первое (+1%)
   { id: 'building_first', type: 'first_building', value: 1, reward: 0.01, name: 'First Building', icon: '🏠' },
@@ -481,59 +491,59 @@ const ACHIEVEMENTS = [
   { id: 'buildings_10_37', type: 'buildings_level', level: 10, count: 37, reward: 0.01, name: '37 Buildings Lv10', icon: '🏘️' },
   { id: 'buildings_10_50', type: 'buildings_level', level: 10, count: 50, reward: 0.01, name: '50 Buildings Lv10', icon: '🏘️' },
   
-  // Здания: прокачать до 40 уровня (+2%)
-  { id: 'buildings_40_1', type: 'buildings_level', level: 40, count: 1, reward: 0.02, name: '1 Building Lv40', icon: '🏛️' },
-  { id: 'buildings_40_7', type: 'buildings_level', level: 40, count: 7, reward: 0.02, name: '7 Buildings Lv40', icon: '🏛️' },
-  { id: 'buildings_40_16', type: 'buildings_level', level: 40, count: 16, reward: 0.02, name: '16 Buildings Lv40', icon: '🏛️' },
-  { id: 'buildings_40_37', type: 'buildings_level', level: 40, count: 37, reward: 0.02, name: '37 Buildings Lv40', icon: '🏛️' },
-  { id: 'buildings_40_50', type: 'buildings_level', level: 40, count: 50, reward: 0.02, name: '50 Buildings Lv40', icon: '🏛️' },
+  // Здания: прокачать до 40 уровня (+1%)
+  { id: 'buildings_40_1', type: 'buildings_level', level: 40, count: 1, reward: 0.01, name: '1 Building Lv40', icon: '🏛️' },
+  { id: 'buildings_40_7', type: 'buildings_level', level: 40, count: 7, reward: 0.01, name: '7 Buildings Lv40', icon: '🏛️' },
+  { id: 'buildings_40_16', type: 'buildings_level', level: 40, count: 16, reward: 0.01, name: '16 Buildings Lv40', icon: '🏛️' },
+  { id: 'buildings_40_37', type: 'buildings_level', level: 40, count: 37, reward: 0.01, name: '37 Buildings Lv40', icon: '🏛️' },
+  { id: 'buildings_40_50', type: 'buildings_level', level: 40, count: 50, reward: 0.01, name: '50 Buildings Lv40', icon: '🏛️' },
   
-  // Здания: прокачать до 90 уровня (+3%)
-  { id: 'buildings_90_1', type: 'buildings_level', level: 90, count: 1, reward: 0.03, name: '1 Building Lv90', icon: '🏰' },
-  { id: 'buildings_90_7', type: 'buildings_level', level: 90, count: 7, reward: 0.03, name: '7 Buildings Lv90', icon: '🏰' },
-  { id: 'buildings_90_16', type: 'buildings_level', level: 90, count: 16, reward: 0.03, name: '16 Buildings Lv90', icon: '🏰' },
-  { id: 'buildings_90_37', type: 'buildings_level', level: 90, count: 37, reward: 0.03, name: '37 Buildings Lv90', icon: '🏰' },
-  { id: 'buildings_90_50', type: 'buildings_level', level: 90, count: 50, reward: 0.03, name: '50 Buildings Lv90', icon: '🏰' },
+  // Здания: прокачать до 90 уровня (+1%)
+  { id: 'buildings_90_1', type: 'buildings_level', level: 90, count: 1, reward: 0.01, name: '1 Building Lv90', icon: '🏰' },
+  { id: 'buildings_90_7', type: 'buildings_level', level: 90, count: 7, reward: 0.01, name: '7 Buildings Lv90', icon: '🏰' },
+  { id: 'buildings_90_16', type: 'buildings_level', level: 90, count: 16, reward: 0.01, name: '16 Buildings Lv90', icon: '🏰' },
+  { id: 'buildings_90_37', type: 'buildings_level', level: 90, count: 37, reward: 0.01, name: '37 Buildings Lv90', icon: '🏰' },
+  { id: 'buildings_90_50', type: 'buildings_level', level: 90, count: 50, reward: 0.01, name: '50 Buildings Lv90', icon: '🏰' },
   
-  // Здания: прокачать до 170 уровня (+6%)
-  { id: 'buildings_170_1', type: 'buildings_level', level: 170, count: 1, reward: 0.06, name: '1 Building Lv170', icon: '🏯' },
-  { id: 'buildings_170_7', type: 'buildings_level', level: 170, count: 7, reward: 0.06, name: '7 Buildings Lv170', icon: '🏯' },
-  { id: 'buildings_170_16', type: 'buildings_level', level: 170, count: 16, reward: 0.06, name: '16 Buildings Lv170', icon: '🏯' },
-  { id: 'buildings_170_37', type: 'buildings_level', level: 170, count: 37, reward: 0.06, name: '37 Buildings Lv170', icon: '🏯' },
-  { id: 'buildings_170_50', type: 'buildings_level', level: 170, count: 50, reward: 0.06, name: '50 Buildings Lv170', icon: '🏯' },
+  // Здания: прокачать до 170 уровня (+1%)
+  { id: 'buildings_170_1', type: 'buildings_level', level: 170, count: 1, reward: 0.01, name: '1 Building Lv170', icon: '🏯' },
+  { id: 'buildings_170_7', type: 'buildings_level', level: 170, count: 7, reward: 0.01, name: '7 Buildings Lv170', icon: '🏯' },
+  { id: 'buildings_170_16', type: 'buildings_level', level: 170, count: 16, reward: 0.01, name: '16 Buildings Lv170', icon: '🏯' },
+  { id: 'buildings_170_37', type: 'buildings_level', level: 170, count: 37, reward: 0.01, name: '37 Buildings Lv170', icon: '🏯' },
+  { id: 'buildings_170_50', type: 'buildings_level', level: 170, count: 50, reward: 0.01, name: '50 Buildings Lv170', icon: '🏯' },
   
-  // Здания: прокачать до 310 уровня (+11%)
-  { id: 'buildings_310_1', type: 'buildings_level', level: 310, count: 1, reward: 0.11, name: '1 Building Lv310', icon: '🗼' },
-  { id: 'buildings_310_7', type: 'buildings_level', level: 310, count: 7, reward: 0.11, name: '7 Buildings Lv310', icon: '🗼' },
-  { id: 'buildings_310_16', type: 'buildings_level', level: 310, count: 16, reward: 0.11, name: '16 Buildings Lv310', icon: '🗼' },
-  { id: 'buildings_310_37', type: 'buildings_level', level: 310, count: 37, reward: 0.11, name: '37 Buildings Lv310', icon: '🗼' },
-  { id: 'buildings_310_50', type: 'buildings_level', level: 310, count: 50, reward: 0.11, name: '50 Buildings Lv310', icon: '🗼' },
+  // Здания: прокачать до 310 уровня (+1%)
+  { id: 'buildings_310_1', type: 'buildings_level', level: 310, count: 1, reward: 0.01, name: '1 Building Lv310', icon: '🗼' },
+  { id: 'buildings_310_7', type: 'buildings_level', level: 310, count: 7, reward: 0.01, name: '7 Buildings Lv310', icon: '🗼' },
+  { id: 'buildings_310_16', type: 'buildings_level', level: 310, count: 16, reward: 0.01, name: '16 Buildings Lv310', icon: '🗼' },
+  { id: 'buildings_310_37', type: 'buildings_level', level: 310, count: 37, reward: 0.01, name: '37 Buildings Lv310', icon: '🗼' },
+  { id: 'buildings_310_50', type: 'buildings_level', level: 310, count: 50, reward: 0.01, name: '50 Buildings Lv310', icon: '🗼' },
   
-  // Здания: прокачать до 520 уровня (+17%)
-  { id: 'buildings_520_1', type: 'buildings_level', level: 520, count: 1, reward: 0.17, name: '1 Building Lv520', icon: '🏗️' },
-  { id: 'buildings_520_7', type: 'buildings_level', level: 520, count: 7, reward: 0.17, name: '7 Buildings Lv520', icon: '🏗️' },
-  { id: 'buildings_520_16', type: 'buildings_level', level: 520, count: 16, reward: 0.17, name: '16 Buildings Lv520', icon: '🏗️' },
-  { id: 'buildings_520_37', type: 'buildings_level', level: 520, count: 37, reward: 0.17, name: '37 Buildings Lv520', icon: '🏗️' },
-  { id: 'buildings_520_50', type: 'buildings_level', level: 520, count: 50, reward: 0.17, name: '50 Buildings Lv520', icon: '🏗️' },
+  // Здания: прокачать до 520 уровня (+1%)
+  { id: 'buildings_520_1', type: 'buildings_level', level: 520, count: 1, reward: 0.01, name: '1 Building Lv520', icon: '🏗️' },
+  { id: 'buildings_520_7', type: 'buildings_level', level: 520, count: 7, reward: 0.01, name: '7 Buildings Lv520', icon: '🏗️' },
+  { id: 'buildings_520_16', type: 'buildings_level', level: 520, count: 16, reward: 0.01, name: '16 Buildings Lv520', icon: '🏗️' },
+  { id: 'buildings_520_37', type: 'buildings_level', level: 520, count: 37, reward: 0.01, name: '37 Buildings Lv520', icon: '🏗️' },
+  { id: 'buildings_520_50', type: 'buildings_level', level: 520, count: 50, reward: 0.01, name: '50 Buildings Lv520', icon: '🏗️' },
   
-  // Здания: прокачать до 800 уровня (+22%)
-  { id: 'buildings_800_1', type: 'buildings_level', level: 800, count: 1, reward: 0.22, name: '1 Building Lv800', icon: '🏛️' },
-  { id: 'buildings_800_7', type: 'buildings_level', level: 800, count: 7, reward: 0.22, name: '7 Buildings Lv800', icon: '🏛️' },
-  { id: 'buildings_800_16', type: 'buildings_level', level: 800, count: 16, reward: 0.22, name: '16 Buildings Lv800', icon: '🏛️' },
-  { id: 'buildings_800_37', type: 'buildings_level', level: 800, count: 37, reward: 0.22, name: '37 Buildings Lv800', icon: '🏛️' },
-  { id: 'buildings_800_50', type: 'buildings_level', level: 800, count: 50, reward: 0.22, name: '50 Buildings Lv800', icon: '🏛️' },
+  // Здания: прокачать до 800 уровня (+1%)
+  { id: 'buildings_800_1', type: 'buildings_level', level: 800, count: 1, reward: 0.01, name: '1 Building Lv800', icon: '🏛️' },
+  { id: 'buildings_800_7', type: 'buildings_level', level: 800, count: 7, reward: 0.01, name: '7 Buildings Lv800', icon: '🏛️' },
+  { id: 'buildings_800_16', type: 'buildings_level', level: 800, count: 16, reward: 0.01, name: '16 Buildings Lv800', icon: '🏛️' },
+  { id: 'buildings_800_37', type: 'buildings_level', level: 800, count: 37, reward: 0.01, name: '37 Buildings Lv800', icon: '🏛️' },
+  { id: 'buildings_800_50', type: 'buildings_level', level: 800, count: 50, reward: 0.01, name: '50 Buildings Lv800', icon: '🏛️' },
   
-  // Здания: прокачать до 1000 уровня (+27%)
-  { id: 'buildings_1000_1', type: 'buildings_level', level: 1000, count: 1, reward: 0.27, name: '1 Building Lv1000', icon: '👑' },
-  { id: 'buildings_1000_7', type: 'buildings_level', level: 1000, count: 7, reward: 0.27, name: '7 Buildings Lv1000', icon: '👑' },
-  { id: 'buildings_1000_16', type: 'buildings_level', level: 1000, count: 16, reward: 0.27, name: '16 Buildings Lv1000', icon: '👑' },
-  { id: 'buildings_1000_37', type: 'buildings_level', level: 1000, count: 37, reward: 0.27, name: '37 Buildings Lv1000', icon: '👑' },
-  { id: 'buildings_1000_50', type: 'buildings_level', level: 1000, count: 50, reward: 0.27, name: '50 Buildings Lv1000', icon: '👑' },
+  // Здания: прокачать до 1000 уровня (+1%)
+  { id: 'buildings_1000_1', type: 'buildings_level', level: 1000, count: 1, reward: 0.01, name: '1 Building Lv1000', icon: '👑' },
+  { id: 'buildings_1000_7', type: 'buildings_level', level: 1000, count: 7, reward: 0.01, name: '7 Buildings Lv1000', icon: '👑' },
+  { id: 'buildings_1000_16', type: 'buildings_level', level: 1000, count: 16, reward: 0.01, name: '16 Buildings Lv1000', icon: '👑' },
+  { id: 'buildings_1000_37', type: 'buildings_level', level: 1000, count: 37, reward: 0.01, name: '37 Buildings Lv1000', icon: '👑' },
+  { id: 'buildings_1000_50', type: 'buildings_level', level: 1000, count: 50, reward: 0.01, name: '50 Buildings Lv1000', icon: '👑' },
   
-  // Uber: открыть (+50%)
-  { id: 'uber_unlock', type: 'uber_unlock', value: 1, reward: 0.50, name: 'Citadel Unlocked', icon: '🏰' },
-  // Uber: уровень 10 (+50%)
-  { id: 'uber_level_10', type: 'uber_level', value: 10, reward: 0.50, name: 'Citadel Lv10', icon: '👑' },
+  // Uber: открыть (+1%)
+  { id: 'uber_unlock', type: 'uber_unlock', value: 1, reward: 0.01, name: 'Citadel Unlocked', icon: '🏰' },
+  // Uber: уровень 10 (+1%)
+  { id: 'uber_level_10', type: 'uber_level', value: 10, reward: 0.01, name: 'Citadel Lv10', icon: '👑' },
   
   // Разрушения: 1, 6, 26, 44, 72, 147, 502, 1033 (+1%)
   { id: 'destructions_1', type: 'destructions', value: 1, reward: 0.01, name: '1 Destruction', icon: '💥' },
@@ -703,9 +713,10 @@ function canProgressSegment(entityLevel, segUpgrades) {
 
 // ======= Rendering =======
 function renderTopStats() {
-  pointsEl.textContent = fmt(save.points);
-  ppsEl.textContent = fmt(totalPPS());
-  ppcEl.textContent = fmt(totalPPC());
+  if (!save) return;
+  if (pointsEl) pointsEl.textContent = fmt(save.points);
+  if (ppsEl) ppsEl.textContent = fmt(totalPPS());
+  if (ppcEl) ppcEl.textContent = fmt(totalPPC());
 }
 
 function renderClick() {
@@ -797,6 +808,13 @@ function renderBuildings() {
   save.buildings.forEach((b, i) => {
     const card = document.createElement('div');
     card.className = 'building-card';
+    
+    // Визуальные улучшения в зависимости от уровня
+    if (b.level >= 100) {
+      card.classList.add('high-level');
+    } else if (b.level >= 50) {
+      card.classList.add('level-upgraded');
+    }
 
     // Используем пиксельную canvas-иконку
     const pixel = document.createElement('canvas');
@@ -936,7 +954,7 @@ function renderUber() {
 
   // Обновляем состояние блокировки карточки
   uberCard.classList.toggle('locked', !save.uber.unlocked);
-  
+
   // Скрываем/показываем сообщение о блокировке
   const lockNote = document.querySelector('.uber-lock-note');
   if (lockNote) {
@@ -951,8 +969,8 @@ function renderUber() {
   if (!save.uber.unlocked) {
     if (uberBuyBtn) {
       uberBuyBtn.disabled = true;
-      uberBuyBtn.classList.add('hidden');
-      uberBuyBtn.setAttribute('aria-hidden', 'true');
+    uberBuyBtn.classList.add('hidden');
+    uberBuyBtn.setAttribute('aria-hidden', 'true');
     }
     // Draw pixel citadel даже если не разблокировано
     drawCitadelPixel(document.getElementById('uber-pixel'));
@@ -974,8 +992,8 @@ function renderUber() {
     uberCostEl.textContent = fmt(uberCost);
     
     if (uberBuyBtn) {
-      uberBuyBtn.classList.remove('hidden');
-      uberBuyBtn.removeAttribute('aria-hidden');
+    uberBuyBtn.classList.remove('hidden');
+    uberBuyBtn.removeAttribute('aria-hidden');
       // Кнопка активна только если разблокировано И достаточно поинтов
       uberBuyBtn.disabled = save.points < uberCost;
     }
@@ -1165,6 +1183,40 @@ function renderAchievements() {
   });
 }
 
+// ======= Season Functions =======
+function updateSeason() {
+  // Применяем сезон даже если save еще не загружен
+  const month = new Date().getMonth(); // 0-11
+  let season = null;
+  
+  // Декабрь, Январь, Февраль - зима
+  if (month === 11 || month === 0 || month === 1) {
+    season = 'winter';
+  }
+  // Март, Апрель, Май - весна
+  else if (month >= 2 && month <= 4) {
+    season = 'spring';
+  }
+  // Июнь, Июль, Август - лето
+  else if (month >= 5 && month <= 7) {
+    season = 'summer';
+  }
+  // Сентябрь, Октябрь, Ноябрь - осень
+  else {
+    season = 'autumn';
+  }
+  
+  if (save) {
+    save.season = season;
+  }
+  
+  // Применяем сезонный класс к body
+  document.body.classList.remove('season-spring', 'season-summer', 'season-autumn', 'season-winter');
+  if (season) {
+    document.body.classList.add(`season-${season}`);
+  }
+}
+
 function renderAll() {
   renderTopStats();
   renderClick();
@@ -1175,6 +1227,7 @@ function renderAll() {
   renderEffects();
   renderAchievements();
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk
+  updateSeason(); // Обновляем сезонную тему
   startAutosave();
 
   updateEndgameButtons();
@@ -1183,6 +1236,18 @@ function renderAll() {
 // ======= Actions =======
 function addPoints(n) {
   save.points += n;
+  // Обновляем статистику
+  if (save.statistics) {
+    save.statistics.totalPointsEarned += n;
+    const currentPPS = totalPPS();
+    const currentPPC = totalPPC();
+    if (currentPPS > save.statistics.highestPPS) {
+      save.statistics.highestPPS = currentPPS;
+    }
+    if (currentPPC > save.statistics.highestPPC) {
+      save.statistics.highestPPC = currentPPC;
+    }
+  }
   // Обновляем состояние кнопок после изменения поинтов
   updateButtonStates();
 }
@@ -1289,6 +1354,9 @@ function buyClickSegmentUpgrade(segIndex) {
     return;
   }
   save.points -= costSum;
+  if (save.statistics) {
+    save.statistics.totalPointsSpent += costSum;
+  }
   save.click.segUpgrades[segIndex] = true;
   save.click.upgradeBonus += 1; // 13% per upgrade (count stack)
   toast('Click segment upgraded: +13% income.', 'good');
@@ -1354,6 +1422,9 @@ function buyBuildingSegUpgrade(i, segIndex) {
     return;
   }
   save.points -= costSum;
+  if (save.statistics) {
+    save.statistics.totalPointsSpent += costSum;
+  }
   b.segUpgrades[segIndex] = true;
   b.upgradeBonus += 1;
   toast(`${b.name} segment upgraded: +13% income.`, 'good');
@@ -1361,6 +1432,44 @@ function buyBuildingSegUpgrade(i, segIndex) {
 }
 
 // ======= Clicking mechanics =======
+// Функция для создания частиц при клике
+function createClickParticles(event, value) {
+  if (!clickBtn) return;
+  
+  const rect = clickBtn.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  // Создаем 5-8 частиц
+  const particleCount = 5 + Math.floor(Math.random() * 4);
+  const formattedValue = fmt(value);
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'click-particle';
+    particle.textContent = formattedValue;
+    
+    // Случайное направление и скорость
+    const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
+    const distance = 30 + Math.random() * 40;
+    const endX = centerX + Math.cos(angle) * distance;
+    const endY = centerY + Math.sin(angle) * distance;
+    
+    particle.style.left = `${centerX}px`;
+    particle.style.top = `${centerY}px`;
+    particle.style.setProperty('--end-x', `${endX}px`);
+    particle.style.setProperty('--end-y', `${endY}px`);
+    particle.style.setProperty('--delay', `${i * 0.05}s`);
+    
+    document.body.appendChild(particle);
+    
+    // Удаляем частицу после анимации
+    setTimeout(() => {
+      particle.remove();
+    }, 1000);
+  }
+}
+
 // Функция для показа критического урона над курсором
 function showCritDamage(multiplier, event) {
   const critEl = document.createElement('div');
@@ -1453,6 +1562,9 @@ clickBtn.addEventListener('click', (event) => {
   // Apply points
   const ppc = totalPPC();
   addPoints(ppc);
+  
+  // Создаем частицы при клике
+  createClickParticles(event, ppc);
 
   // Отслеживаем клики для достижений
   if (save.achievements) {
@@ -1461,7 +1573,7 @@ clickBtn.addEventListener('click', (event) => {
   }
 
   // 0.5% шанс на золотую или сломанную кнопку при каждом клике
-  const roll = Math.random();
+    const roll = Math.random();
   if (roll < 0.005) {
     // 0.5% шанс - определяем золотую или сломанную
     const outcomeRoll = Math.random();
@@ -1692,9 +1804,106 @@ function _placeKingRandom() {
   kingEl.style.transform = `rotate(${_randInt(-12,12)}deg)`;
 }
 
+function drawKing(canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 64, 64);
+  
+  const skinColor = '#f5d5a3';
+  const crownColor = '#ffd700';
+  const crownDark = '#b8860b';
+  const robeColor = '#2a4b7a';
+  const robeDark = '#1a2f4a';
+  const beardColor = '#8b7355';
+  
+  // Body/robe
+  ctx.fillStyle = robeColor;
+  ctx.fillRect(16, 40, 32, 24);
+  ctx.fillStyle = robeDark;
+  ctx.fillRect(18, 42, 28, 20);
+  
+  // Head
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.arc(32, 32, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a0f0a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Crown base
+  ctx.fillStyle = crownColor;
+  ctx.fillRect(20, 18, 24, 6);
+  ctx.fillRect(22, 16, 20, 2);
+  
+  // Crown jewels
+  ctx.fillStyle = '#ff0000';
+  ctx.fillRect(24, 20, 4, 4);
+  ctx.fillStyle = '#00ff00';
+  ctx.fillRect(30, 20, 4, 4);
+  ctx.fillStyle = '#0000ff';
+  ctx.fillRect(36, 20, 4, 4);
+  
+  // Crown spikes
+  ctx.fillStyle = crownDark;
+  ctx.fillRect(22, 14, 3, 4);
+  ctx.fillRect(28, 12, 3, 6);
+  ctx.fillRect(34, 14, 3, 4);
+  ctx.fillRect(39, 16, 3, 2);
+  
+  // Eyes
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(28, 30, 2, 2);
+  ctx.fillRect(34, 30, 2, 2);
+  
+  // Nose
+  ctx.fillStyle = '#d4a574';
+  ctx.fillRect(31, 33, 2, 3);
+  
+  // Mouth
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(32, 38, 3, 0, Math.PI);
+  ctx.stroke();
+  
+  // Beard
+  ctx.fillStyle = beardColor;
+  ctx.beginPath();
+  ctx.arc(32, 40, 10, 0, Math.PI);
+  ctx.fill();
+  ctx.strokeStyle = '#1a0f0a';
+  ctx.stroke();
+  
+  // Beard details
+  ctx.fillStyle = '#6b5a45';
+  ctx.fillRect(28, 38, 2, 4);
+  ctx.fillRect(34, 38, 2, 4);
+  
+  // Robe collar
+  ctx.fillStyle = '#d4b24a';
+  ctx.fillRect(24, 40, 16, 4);
+  ctx.fillRect(26, 38, 12, 2);
+}
+
 // spawn king: show for 23s unless clicked
 function spawnKing() {
   if (!kingEl) return;
+  
+  // Создаем canvas для короля, если его еще нет
+  if (!kingEl.querySelector('canvas')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.style.imageRendering = 'pixelated';
+    canvas.style.imageRendering = '-moz-crisp-edges';
+    canvas.style.imageRendering = 'crisp-edges';
+    kingEl.innerHTML = '';
+    kingEl.appendChild(canvas);
+    drawKing(canvas);
+  } else {
+    drawKing(kingEl.querySelector('canvas'));
+  }
+  
   _placeKingRandom();
   kingEl.classList.add('show');
   kingEl.title = 'King — click to start the mini-game';
@@ -1733,7 +1942,7 @@ kingEl.addEventListener('click', (e) => {
 // Mini-game implementation
 function openKingMiniGame() {
   // initialize state
-  const durationMs = 15000;
+  const durationMs = 8000;
   const target = 12;
   kingModal.classList.add('show');
   kingModal.setAttribute('aria-hidden', 'false');
@@ -1882,8 +2091,104 @@ document.addEventListener('keydown', (e) => {
 scheduleNextKing();
 
 
+function drawSpider(canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 64, 64);
+  
+  const bodyColor = '#2a1f14';
+  const legColor = '#1a0f0a';
+  const eyeColor = '#ff0000';
+  const highlight = '#3a2f24';
+  
+  // Body (oval)
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(32, 36, 14, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0a0500';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Head (smaller oval)
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(32, 20, 8, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0a0500';
+  ctx.stroke();
+  
+  // Legs - 8 legs total
+  ctx.strokeStyle = legColor;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  
+  // Front left legs
+  ctx.beginPath();
+  ctx.moveTo(24, 22);
+  ctx.lineTo(12, 12);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(26, 28);
+  ctx.lineTo(14, 20);
+  ctx.stroke();
+  
+  // Front right legs
+  ctx.beginPath();
+  ctx.moveTo(40, 22);
+  ctx.lineTo(52, 12);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(38, 28);
+  ctx.lineTo(50, 20);
+  ctx.stroke();
+  
+  // Back left legs
+  ctx.beginPath();
+  ctx.moveTo(22, 40);
+  ctx.lineTo(10, 50);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(24, 46);
+  ctx.lineTo(12, 56);
+  ctx.stroke();
+  
+  // Back right legs
+  ctx.beginPath();
+  ctx.moveTo(42, 40);
+  ctx.lineTo(54, 50);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(40, 46);
+  ctx.lineTo(52, 56);
+  ctx.stroke();
+  
+  // Eyes (8 eyes - 2 rows)
+  ctx.fillStyle = eyeColor;
+  ctx.fillRect(28, 18, 2, 2);
+  ctx.fillRect(34, 18, 2, 2);
+  ctx.fillRect(26, 20, 2, 2);
+  ctx.fillRect(36, 20, 2, 2);
+  
+  // Body pattern
+  ctx.fillStyle = highlight;
+  ctx.fillRect(30, 34, 4, 2);
+  ctx.fillRect(28, 38, 8, 2);
+}
+
 function spawnSpider() {
   if (!spiderEl) return;
+
+  // Создаем canvas для паука, если его еще нет
+  if (!spiderEl.querySelector('canvas')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    spiderEl.innerHTML = '';
+    spiderEl.appendChild(canvas);
+    drawSpider(canvas);
+  } else {
+    drawSpider(spiderEl.querySelector('canvas'));
+  }
 
   // ensure spider is visible and positioned inside viewport
   _placeSpiderRandom();
@@ -1981,8 +2286,9 @@ window.addEventListener('resize', () => {
 // ======= Ticker =======
 let _lastAchievementCheck = 0;
 function tick() {
+  if (!save) return;
   const t = now();
-  const dt = (t - save.lastTick) / 1000; // seconds
+  const dt = (t - (save.lastTick || t)) / 1000; // seconds
   save.lastTick = t;
 
   // Real-time income
@@ -2071,6 +2377,9 @@ uberBuyBtn.addEventListener('click', () => {
     return;
   }
   save.points -= cost;
+  if (save.statistics) {
+    save.statistics.totalPointsSpent += cost;
+  }
   save.uber.level = Math.min(save.uber.level + 1, save.uber.max);
   toast('Citadel level increased.', 'good');
   checkAchievements(); // Проверяем достижения после покупки уровня Uber
@@ -2090,7 +2399,7 @@ endgameBtn.addEventListener('click', () => {
       currentUser = { username, password: '' }; // Сохраняем пользователя для автологина
       toast('Game completely reset.', 'info');
       updateEndgameButtons(); // Скрываем кнопки после сброса
-      renderAll();
+  renderAll();
     }
   );
 });
@@ -2111,7 +2420,7 @@ uberModeBtn.addEventListener('click', () => {
       toast('Entered Uber Mode!', 'good');
       saveNow(); // Сохраняем состояние убер мода немедленно
       updateEndgameButtons(); // Скрываем кнопки после перехода в убер мод
-      renderAll();
+  renderAll();
     }
   );
 });
@@ -2123,56 +2432,100 @@ function drawHousePixel(canvas, seed) {
   canvas.style.imageRendering = '-moz-crisp-edges';
   canvas.style.imageRendering = 'crisp-edges';
   const ctx = canvas.getContext('2d');
-  // clear
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Pixel grid 14x14
-  const px = 4;
-  // Palette (medieval earth tones)
+  
+  // Улучшенная палитра с большим разнообразием
   const palettes = [
-    ['#3a2a1a','#7b4f1c','#b8893d','#d6b557','#2a2f46'],
-    ['#2b1f14','#6a4420','#a8732f','#cfa25a','#1f2538'],
-    ['#2a1b12','#5e3a19','#9a6a2c','#c59752','#242a3f']
+    { wall: '#7b4f1c', roof: '#8b5a2a', door: '#3a2a1a', window: '#c9d8ff', trim: '#d6b557', shadow: '#2a1f14', ground: '#3a2f26' },
+    { wall: '#6a4420', roof: '#7a4f1f', door: '#2b1f14', window: '#d4e4ff', trim: '#cfa25a', shadow: '#1f1a12', ground: '#2f2520' },
+    { wall: '#5e3a19', roof: '#6d4a1d', door: '#2a1b12', window: '#b8d0ff', trim: '#c59752', shadow: '#1a1510', ground: '#2a2018' },
+    { wall: '#8b6a3d', roof: '#9b7a4d', door: '#4a3a2a', window: '#e0f0ff', trim: '#e6c677', shadow: '#3a2f24', ground: '#4a3f36' },
+    { wall: '#9a7a4d', roof: '#aa8a5d', door: '#5a4a3a', window: '#f0f8ff', trim: '#f6d697', shadow: '#4a3f34', ground: '#5a4f46' }
   ];
   const pal = palettes[seed % palettes.length];
-  const base = pal[0], wood = pal[1], roof = pal[2], trim = pal[3], shadow = pal[4];
 
-  // Ground
-  ctx.fillStyle = shadow;
-  ctx.fillRect(0, 52, 56, 4);
-
-  // Walls
-  ctx.fillStyle = wood;
-  ctx.fillRect(10, 28, 36, 22);
-
-  // Roof
-  ctx.fillStyle = roof;
-  ctx.fillRect(6, 22, 44, 8);
-  ctx.fillStyle = trim;
-  ctx.fillRect(6, 30, 44, 2);
-
+  // Ground shadow
+  ctx.fillStyle = pal.ground;
+  ctx.fillRect(0, 50, 56, 6);
+  
+  // Main building base
+  ctx.fillStyle = pal.shadow;
+  ctx.fillRect(12, 32, 32, 20);
+  
+  // Walls with texture
+  ctx.fillStyle = pal.wall;
+  ctx.fillRect(10, 28, 36, 24);
+  
+  // Wall texture pattern
+  ctx.fillStyle = pal.shadow;
+  for (let y = 30; y < 50; y += 4) {
+    for (let x = 12; x < 44; x += 4) {
+      if ((x + y) % 8 === 0) {
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+  }
+  
+  // Roof - треугольная крыша
+  ctx.fillStyle = pal.roof;
+  // Левая часть крыши
+  ctx.beginPath();
+  ctx.moveTo(8, 24);
+  ctx.lineTo(28, 10);
+  ctx.lineTo(48, 24);
+  ctx.lineTo(8, 24);
+  ctx.fill();
+  
+  // Правая часть крыши
+  ctx.beginPath();
+  ctx.moveTo(28, 10);
+  ctx.lineTo(48, 24);
+  ctx.lineTo(48, 28);
+  ctx.lineTo(28, 14);
+  ctx.lineTo(8, 28);
+  ctx.lineTo(8, 24);
+  ctx.fill();
+  
+  // Roof trim
+  ctx.fillStyle = pal.trim;
+  ctx.fillRect(8, 24, 40, 2);
+  ctx.fillRect(28, 10, 2, 14);
+  
   // Door
-  ctx.fillStyle = base;
-  ctx.fillRect(26, 36, 8, 14);
-  ctx.fillStyle = trim;
-  ctx.fillRect(33, 43, 2, 2);
-
-  // Window left
-  ctx.fillStyle = '#c9d8ff';
-  ctx.fillRect(14, 36, 6, 6);
-  ctx.fillStyle = trim;
-  ctx.fillRect(14, 39, 6, 2);
-
-  // Window right
-  ctx.fillStyle = '#c9d8ff';
-  ctx.fillRect(36, 36, 6, 6);
-  ctx.fillStyle = trim;
-  ctx.fillRect(36, 39, 6, 2);
-
+  ctx.fillStyle = pal.door;
+  ctx.fillRect(24, 38, 10, 14);
+  ctx.fillStyle = pal.shadow;
+  ctx.fillRect(26, 40, 6, 10);
+  // Door handle
+  ctx.fillStyle = pal.trim;
+  ctx.fillRect(32, 44, 2, 2);
+  
+  // Windows
+  ctx.fillStyle = pal.window;
+  ctx.fillRect(14, 34, 6, 8);
+  ctx.fillRect(36, 34, 6, 8);
+  // Window frames
+  ctx.fillStyle = pal.trim;
+  ctx.strokeStyle = pal.trim;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(14, 34, 6, 8);
+  ctx.strokeRect(36, 34, 6, 8);
+  // Window cross
+  ctx.fillRect(16, 37, 2, 8);
+  ctx.fillRect(14, 38, 6, 2);
+  ctx.fillRect(38, 37, 2, 8);
+  ctx.fillRect(36, 38, 6, 2);
+  
   // Outline
   ctx.strokeStyle = '#0b0c15';
   ctx.lineWidth = 2;
-  ctx.strokeRect(10, 28, 36, 22);
-  ctx.strokeRect(6, 22, 44, 8);
+  ctx.strokeRect(10, 28, 36, 24);
+  // Roof outline
+  ctx.beginPath();
+  ctx.moveTo(8, 24);
+  ctx.lineTo(28, 10);
+  ctx.lineTo(48, 24);
+  ctx.stroke();
 }
 
 function drawCitadelPixel(el) {
@@ -2184,23 +2537,139 @@ function drawCitadelPixel(el) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,64,64);
 
-  // Base
-  ctx.fillStyle = '#2f364d';
-  ctx.fillRect(6, 36, 52, 22);
-  // Towers
-  ctx.fillStyle = '#3b4563';
-  ctx.fillRect(6, 22, 12, 14);
-  ctx.fillRect(46, 22, 12, 14);
-  // Battlements
-  ctx.fillStyle = '#586287';
-  for (let i=8; i<=56; i+=10) ctx.fillRect(i, 18, 6, 4);
-  // Gate
-  ctx.fillStyle = '#7b4f1c';
-  ctx.fillRect(30, 44, 8, 14);
+  const stoneDark = '#2f364d';
+  const stoneMid = '#3b4563';
+  const stoneLight = '#586287';
+  const stoneHighlight = '#7a8ba8';
+  const gateDark = '#5a3a1a';
+  const gateLight = '#7b4f1c';
+  const gateTrim = '#9a6a3d';
+  const shadow = '#1a1f2d';
+  const ground = '#2a2f3d';
+
+  // Ground
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, 58, 64, 6);
+  
+  // Main base shadow
+  ctx.fillStyle = shadow;
+  ctx.fillRect(8, 40, 48, 18);
+  
+  // Main base
+  ctx.fillStyle = stoneDark;
+  ctx.fillRect(6, 38, 52, 20);
+  
+  // Stone texture on base
+  ctx.fillStyle = stoneMid;
+  for (let x = 8; x < 56; x += 6) {
+    for (let y = 40; y < 56; y += 4) {
+      if ((x + y) % 12 === 0) {
+        ctx.fillRect(x, y, 4, 2);
+      }
+    }
+  }
+  
+  // Left tower
+  ctx.fillStyle = stoneDark;
+  ctx.fillRect(4, 20, 14, 18);
+  ctx.fillStyle = stoneMid;
+  ctx.fillRect(6, 22, 10, 14);
+  // Tower texture
+  ctx.fillStyle = stoneLight;
+  for (let y = 24; y < 34; y += 3) {
+    ctx.fillRect(8, y, 6, 1);
+  }
+  
+  // Right tower
+  ctx.fillStyle = stoneDark;
+  ctx.fillRect(46, 20, 14, 18);
+  ctx.fillStyle = stoneMid;
+  ctx.fillRect(48, 22, 10, 14);
+  // Tower texture
+  ctx.fillStyle = stoneLight;
+  for (let y = 24; y < 34; y += 3) {
+    ctx.fillRect(50, y, 6, 1);
+  }
+  
+  // Center tower (higher)
+  ctx.fillStyle = stoneDark;
+  ctx.fillRect(26, 14, 12, 24);
+  ctx.fillStyle = stoneMid;
+  ctx.fillRect(28, 16, 8, 20);
+  // Tower texture
+  ctx.fillStyle = stoneLight;
+  for (let y = 18; y < 34; y += 3) {
+    ctx.fillRect(30, y, 4, 1);
+  }
+  
+  // Battlements on left tower
+  ctx.fillStyle = stoneLight;
+  ctx.fillRect(6, 18, 4, 2);
+  ctx.fillRect(12, 18, 4, 2);
+  ctx.fillRect(8, 18, 2, 2);
+  
+  // Battlements on right tower
+  ctx.fillRect(48, 18, 4, 2);
+  ctx.fillRect(54, 18, 4, 2);
+  ctx.fillRect(50, 18, 2, 2);
+  
+  // Battlements on center tower
+  ctx.fillRect(28, 12, 3, 2);
+  ctx.fillRect(33, 12, 3, 2);
+  ctx.fillRect(30, 12, 1, 2);
+  
+  // Main wall battlements
+  ctx.fillStyle = stoneLight;
+  for (let i = 10; i <= 54; i += 8) {
+    ctx.fillRect(i, 36, 4, 2);
+  }
+  
+  // Gate arch
+  ctx.fillStyle = stoneDark;
+  ctx.fillRect(28, 44, 8, 2);
+  ctx.fillRect(30, 46, 4, 2);
+  
+  // Gate door
+  ctx.fillStyle = gateDark;
+  ctx.fillRect(30, 46, 8, 12);
+  ctx.fillStyle = gateLight;
+  ctx.fillRect(32, 48, 4, 8);
+  // Gate trim
+  ctx.fillStyle = gateTrim;
+  ctx.fillRect(30, 46, 8, 2);
+  ctx.fillRect(30, 56, 8, 2);
+  ctx.fillRect(30, 48, 2, 8);
+  ctx.fillRect(36, 48, 2, 8);
+  // Gate details
+  ctx.fillStyle = gateDark;
+  ctx.fillRect(33, 50, 2, 4);
+  
+  // Tower windows
+  ctx.fillStyle = '#c9d8ff';
+  ctx.fillRect(9, 28, 4, 4);
+  ctx.fillRect(51, 28, 4, 4);
+  ctx.fillRect(30, 24, 4, 4);
+  // Window frames
+  ctx.fillStyle = stoneDark;
+  ctx.strokeStyle = stoneDark;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(9, 28, 4, 4);
+  ctx.strokeRect(51, 28, 4, 4);
+  ctx.strokeRect(30, 24, 4, 4);
+  
   // Highlights
-  ctx.fillStyle = '#a0aac8';
-  ctx.fillRect(10, 28, 4, 6);
-  ctx.fillRect(50, 28, 4, 6);
+  ctx.fillStyle = stoneHighlight;
+  ctx.fillRect(8, 22, 2, 6);
+  ctx.fillRect(50, 22, 2, 6);
+  ctx.fillRect(28, 18, 2, 4);
+  
+  // Outline
+  ctx.strokeStyle = '#0b0c15';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(6, 38, 52, 20);
+  ctx.strokeRect(4, 20, 14, 18);
+  ctx.strokeRect(46, 20, 14, 18);
+  ctx.strokeRect(26, 14, 12, 24);
 
   el.innerHTML = '';
   el.appendChild(canvas);
@@ -2317,6 +2786,67 @@ logoutBtn.addEventListener('click', () => {
 });
 }
 
+// Инициализация обработчика кнопки статистики
+function initStatsButton() {
+  const btn = document.getElementById('stats-btn');
+  const modal = document.getElementById('stats-modal');
+  const body = document.getElementById('stats-body');
+  const close = document.getElementById('stats-close');
+  
+  if (!btn) {
+    console.error('Stats button not found');
+    return;
+  }
+  if (!modal) {
+    console.error('Stats modal not found');
+    return;
+  }
+  if (!body) {
+    console.error('Stats body not found');
+    return;
+  }
+  
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Stats button clicked');
+    openStatsModal();
+  });
+  
+  if (close) {
+    close.addEventListener('click', () => {
+      closeStatsModal();
+    });
+  }
+  
+  // Закрытие при клике на фон
+  modal.addEventListener('click', (ev) => {
+    if (ev.target === modal) {
+      closeStatsModal();
+    }
+  });
+}
+
+// Вызываем инициализацию после загрузки DOM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initStatsButton);
+} else {
+  initStatsButton();
+}
+
+if (statsClose) {
+statsClose.addEventListener('click', () => {
+  closeStatsModal();
+});
+}
+
+// Закрытие статистики при клике на фон
+if (statsModal) {
+statsModal.addEventListener('click', (ev) => {
+  if (ev.target === statsModal) closeStatsModal();
+});
+}
+
 // Tab switching
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -2376,6 +2906,25 @@ debugTools.addEventListener('click', (e) => {
       break;
     case 'spawnSpider':
       spawnSpider(); break;
+    case 'spawnKing':
+      spawnKing(); break;
+    case 'addUberLevels':
+      if (save.uber.unlocked) {
+        for (let i = 0; i < 10; i++) {
+          if (save.uber.level < save.uber.max) {
+            save.uber.level = Math.min(save.uber.level + 1, save.uber.max);
+          }
+        }
+        renderUber();
+        toast('Added 10 levels to Citadel.', 'good');
+      } else {
+        toast('Citadel is locked.', 'warn');
+      }
+      break;
+    case 'addMillionPoints':
+      addPoints(1000000);
+      toast('Added 1,000,000 points.', 'good');
+      break;
     case 'breakClick':
       save.click.brokenUntil = now() + 26000;
       toast('Click button broken.', 'bad'); break;
@@ -2405,8 +2954,21 @@ function addEffect(type, durationMs, mult=1.0) {
 // Рендер панели эффектов
 function renderEffects() {
   const list = document.getElementById('effects-list');
+  if (!list) {
+    // Элемент не найден - возможно, игра еще не загружена или элемент не существует
+    return;
+  }
+  
+  if (!save || !save.modifiers) {
+    list.innerHTML = '';
+    return;
+  }
+  
   list.innerHTML = '';
-  if (!save.modifiers.activeEffects) return;
+  
+  if (!save.modifiers.activeEffects || save.modifiers.activeEffects.length === 0) {
+    return;
+  }
 
   // Убираем просроченные эффекты
   save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > now());
@@ -2457,7 +3019,7 @@ const GAME_UPDATES = [
   },
 
   {
-    title: 'Patch Alpha 0.1a',
+     title: 'Patch Alpha 0.1a',
     date: '2025-12-05',
     body: 'Hotfix: Building downtime.\n\nFixed a bug with building repair timers; buttons now correctly become active again.\n\nAdded Updates button.\n\nBuilding repair downtime increased from 82s to 164s.'
   }
@@ -2516,6 +3078,7 @@ function _renderUpdatesList() {
 */
 let _savedBodyPaddingRight = '';
 let _savedGameColumnsWidth = null;
+let _savedGameColumnsWidthStats = null;
 
 function _getScrollbarWidth() {
   return window.innerWidth - document.documentElement.clientWidth;
@@ -2819,20 +3382,269 @@ if (save) {
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;
   }
-  // Нормализуем bulk
-  if (save.bulk !== 'max') {
-    const parsed = parseInt(save.bulk, 10);
-    save.bulk = isNaN(parsed) ? 1 : parsed;
+    // Нормализуем bulk
+    if (save.bulk !== 'max') {
+      const parsed = parseInt(save.bulk, 10);
+      save.bulk = isNaN(parsed) ? 1 : parsed;
+    }
+    // Инициализируем статистику для старых сохранений
+    if (!save.statistics) {
+      save.statistics = {
+        totalPointsEarned: save.points,
+        totalPointsSpent: 0,
+        highestPPS: 0,
+        highestPPC: 0,
+        sessionStartTime: now(),
+        lastSessionTime: 0,
+      };
+    }
+    // Определяем и применяем сезон
+    updateSeason();
   }
-  renderAll();
+  if (save) {
+    renderAll();
+  }
+  
   // Дополнительно обновляем кнопки bulk после полной загрузки DOM
   setTimeout(() => {
     if (save) updateBulkButtons();
   }, 100);
-}
-startCountdownLoop();
-
 })();
+
+// ======= Statistics Functions =======
+function renderStatistics() {
+  const body = document.getElementById('stats-body');
+  if (!body) {
+    console.error('Stats body element not found');
+    return;
+  }
+  if (!save) {
+    console.error('Save not loaded');
+    return;
+  }
+  if (!save.statistics) {
+    save.statistics = {
+      totalPointsEarned: save.points,
+      totalPointsSpent: 0,
+      highestPPS: 0,
+      highestPPC: 0,
+      sessionStartTime: now(),
+      lastSessionTime: 0,
+    };
+  }
+  
+  const stats = save.statistics;
+  const achievements = save.achievements;
+  const currentPPS = totalPPS();
+  const currentPPC = totalPPC();
+  const sessionTime = now() - stats.sessionStartTime;
+  const totalPlayTime = achievements ? achievements.stats.totalPlayTime : 0;
+  
+  body.innerHTML = `
+    <div class="stat-section">
+      <div class="stat-section-title">Points</div>
+      <div class="stat-row">
+        <span class="stat-label">Total Earned:</span>
+        <span class="stat-value">${fmt(stats.totalPointsEarned)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Total Spent:</span>
+        <span class="stat-value">${fmt(stats.totalPointsSpent)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Current Balance:</span>
+        <span class="stat-value">${fmt(save.points)}</span>
+      </div>
+    </div>
+    
+    <div class="stat-section">
+      <div class="stat-section-title">Performance</div>
+      <div class="stat-row">
+        <span class="stat-label">Current PPS:</span>
+        <span class="stat-value">${fmt(currentPPS)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Highest PPS:</span>
+        <span class="stat-value">${fmt(stats.highestPPS)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Current PPC:</span>
+        <span class="stat-value">${fmt(currentPPC)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Highest PPC:</span>
+        <span class="stat-value">${fmt(stats.highestPPC)}</span>
+      </div>
+    </div>
+    
+    <div class="stat-section">
+      <div class="stat-section-title">Activity</div>
+      <div class="stat-row">
+        <span class="stat-label">Total Clicks:</span>
+        <span class="stat-value">${achievements ? achievements.stats.totalClicks.toLocaleString() : '0'}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Total Play Time:</span>
+        <span class="stat-value">${formatTime(totalPlayTime)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Session Time:</span>
+        <span class="stat-value">${formatTime(sessionTime)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Destructions:</span>
+        <span class="stat-value">${achievements ? achievements.stats.totalDestructions : '0'}</span>
+      </div>
+    </div>
+    
+    <div class="stat-section">
+      <div class="stat-section-title">Buildings</div>
+      <div class="stat-row">
+        <span class="stat-label">Total Buildings:</span>
+        <span class="stat-value">${save.buildings.length}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Total Building Levels:</span>
+        <span class="stat-value">${save.buildings.reduce((sum, b) => sum + b.level, 0)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Click Level:</span>
+        <span class="stat-value">${save.click.level}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Citadel Level:</span>
+        <span class="stat-value">${save.uber.unlocked ? save.uber.level : 'Locked'}</span>
+      </div>
+    </div>
+  `;
+}
+
+function formatTime(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
+
+function openStatsModal() {
+  // Получаем элементы заново на случай, если они не были инициализированы
+  const modal = document.getElementById('stats-modal');
+  const body = document.getElementById('stats-body');
+  
+  console.log('openStatsModal called', { 
+    modal: !!modal, 
+    body: !!body, 
+    save: !!save 
+  });
+  
+  if (!modal) {
+    console.error('Stats modal element not found');
+    toast('Statistics modal not found.', 'bad');
+    return;
+  }
+  if (!body) {
+    console.error('Stats body element not found');
+    toast('Statistics body not found.', 'bad');
+    return;
+  }
+  if (!save) {
+    console.error('Save not loaded');
+    toast('Please log in first.', 'warn');
+    return;
+  }
+  // Инициализируем статистику, если её нет
+  if (!save.statistics) {
+    save.statistics = {
+      totalPointsEarned: save.points || 0,
+      totalPointsSpent: 0,
+      highestPPS: 0,
+      highestPPC: 0,
+      sessionStartTime: now(),
+      lastSessionTime: 0,
+    };
+  }
+  
+  // КРИТИЧНО: Сохраняем реальную ширину grid ДО любых изменений layout
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    _savedGameColumnsWidthStats = rect.width;
+  }
+  
+  try {
+    renderStatistics();
+    
+    // Пометка aria
+    modal.setAttribute('aria-hidden', 'false');
+    
+    // Компенсируем ширину скроллбара
+    const scrollbarWidth = _getScrollbarWidth();
+    if (scrollbarWidth > 0) {
+      _savedBodyPaddingRight = document.body.style.paddingRight || '';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    
+    // Добавляем класс для блокировки скролла
+    document.body.classList.add('modal-open');
+    
+    // Фиксируем ширину grid после того, как overflow: hidden применен
+    requestAnimationFrame(() => {
+      if (gameColumns && _savedGameColumnsWidthStats !== null) {
+        gameColumns.style.width = `${_savedGameColumnsWidthStats}px`;
+        gameColumns.style.minWidth = `${_savedGameColumnsWidthStats}px`;
+        gameColumns.style.maxWidth = `${_savedGameColumnsWidthStats}px`;
+      }
+    });
+    
+    modal.classList.add('open');
+    console.log('Stats modal opened successfully');
+  } catch (error) {
+    console.error('Error opening stats modal:', error);
+    toast('Error opening statistics: ' + error.message, 'bad');
+  }
+}
+
+function closeStatsModal() {
+  const modal = document.getElementById('stats-modal');
+  if (!modal) return;
+  
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  
+  // Восстанавливаем padding-right
+  if (_savedBodyPaddingRight !== '') {
+    document.body.style.paddingRight = _savedBodyPaddingRight;
+    _savedBodyPaddingRight = '';
+  } else {
+    document.body.style.paddingRight = '';
+  }
+  
+  // Убираем класс для блокировки скролла
+  document.body.classList.remove('modal-open');
+  
+  // Восстанавливаем ширину grid после того, как overflow: hidden убран
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns && _savedGameColumnsWidthStats !== null) {
+    // Используем двойной requestAnimationFrame для гарантии, что браузер завершил пересчет layout
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (gameColumns) {
+          gameColumns.style.width = '';
+          gameColumns.style.minWidth = '';
+          gameColumns.style.maxWidth = '';
+        }
+        _savedGameColumnsWidthStats = null;
+      });
+    });
+  }
+}
+
+startCountdownLoop();
 
 // ======= Periodic checks ===++___-----++====
 setInterval(() => {

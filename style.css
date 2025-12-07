@@ -25,23 +25,69 @@
   --ui-font: "IM Fell English", "Goudy Old Style", Georgia, "Times New Roman", serif;
   --mono-font: "Courier New", Courier, monospace;
 
-  /* Курсоры: пиксельный меч и щит в стиле ретро (SVG data-URI) */
+  /* Курсоры: детальный меч и щит в стиле ретро (SVG data-URI) */
   --sword-cursor: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>\
-  <rect width='32' height='32' fill='none'/>\
-  <g stroke='%23000000' stroke-width='0.8' fill='none' stroke-linecap='round' stroke-linejoin='round'>\
-    <path d='M16 1 L19 6 L19 20 L16 30 L13 20 L13 6 Z' fill='%23e6d6a3' stroke='%23000000'/>\
-    <rect x='11' y='20' width='10' height='2' fill='%233b2b18'/>\
-    <circle cx='16' cy='9' r='1.6' fill='%23d4b24a'/>\
-  </g>\
-</svg>") 16 2, auto;
+<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
+  <defs>\
+    <linearGradient id='swordGrad' x1='0%' y1='0%' x2='0%' y2='100%'>\
+      <stop offset='0%' style='stop-color:%23f5e6d3;stop-opacity:1' />\
+      <stop offset='50%' style='stop-color:%23e6d6a3;stop-opacity:1' />\
+      <stop offset='100%' style='stop-color:%23d4b24a;stop-opacity:1' />\
+    </linearGradient>\
+    <linearGradient id='swordHandleGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\
+      <stop offset='0%' style='stop-color:%23d4b24a;stop-opacity:1' />\
+      <stop offset='100%' style='stop-color:%23a07a2a;stop-opacity:1' />\
+    </linearGradient>\
+  </defs>\
+  <rect width='48' height='48' fill='none'/>\
+  <!-- Blade -->\
+  <path d='M24 2 L27 8 L27 24 L24 38 L21 24 L21 8 Z' fill='url(%23swordGrad)' stroke='%23000000' stroke-width='1.5' stroke-linejoin='round'/>\
+  <!-- Blade edge highlight -->\
+  <path d='M24 2 L27 8 L27 24 L24 30' fill='none' stroke='%23ffffff' stroke-width='0.8' opacity='0.6'/>\
+  <!-- Cross guard -->\
+  <rect x='18' y='24' width='12' height='3' fill='%233b2b18' stroke='%23000000' stroke-width='1' rx='1'/>\
+  <rect x='20' y='22' width='8' height='1' fill='%235a4a36' stroke='%23000000' stroke-width='0.8'/>\
+  <!-- Handle -->\
+  <rect x='22' y='27' width='4' height='12' fill='url(%23swordHandleGrad)' stroke='%23000000' stroke-width='1' rx='1'/>\
+  <!-- Handle grip lines -->\
+  <line x1='23' y1='30' x2='23' y2='36' stroke='%23000000' stroke-width='0.6'/>\
+  <line x1='25' y1='30' x2='25' y2='36' stroke='%23000000' stroke-width='0.6'/>\
+  <!-- Pommel -->\
+  <circle cx='24' cy='40' r='2.5' fill='%23d4b24a' stroke='%23000000' stroke-width='1'/>\
+  <circle cx='24' cy='40' r='1.2' fill='%23a07a2a'/>\
+</svg>") 24 4, auto;
 
   --shield-cursor: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>\
-  <path d='M16 2 L26 7 L26 14 C26 20 20 26 16 28 C12 26 6 20 6 14 L6 7 Z' fill='%233b2b18' stroke='%23000000' stroke-width='1'/>\
-  <circle cx='16' cy='12' r='2' fill='%232a4b7a' stroke='%23000000' stroke-width='0.8'/>\
-  <path d='M16 8 L16 20' stroke='%23d4b24a' stroke-width='1.2' stroke-linecap='round'/>\
-</svg>") 16 8, pointer;
+<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
+  <defs>\
+    <linearGradient id='shieldGrad' x1='0%' y1='0%' x2='0%' y2='100%'>\
+      <stop offset='0%' style='stop-color:%234a3a2a;stop-opacity:1' />\
+      <stop offset='50%' style='stop-color:%233b2b18;stop-opacity:1' />\
+      <stop offset='100%' style='stop-color:%232a1f14;stop-opacity:1' />\
+    </linearGradient>\
+    <radialGradient id='shieldBossGrad' cx='50%' cy='50%' r='50%'>\
+      <stop offset='0%' style='stop-color:%23d4b24a;stop-opacity:1' />\
+      <stop offset='100%' style='stop-color:%23a07a2a;stop-opacity:1' />\
+    </radialGradient>\
+  </defs>\
+  <rect width='48' height='48' fill='none'/>\
+  <!-- Shield body -->\
+  <path d='M24 3 L36 8 L36 18 C36 26 30 32 24 36 C18 32 12 26 12 18 L12 8 Z' fill='url(%23shieldGrad)' stroke='%23000000' stroke-width='2' stroke-linejoin='round'/>\
+  <!-- Shield boss (center) -->\
+  <circle cx='24' cy='16' r='4.5' fill='url(%23shieldBossGrad)' stroke='%23000000' stroke-width='1.5'/>\
+  <circle cx='24' cy='16' r='2.5' fill='%23a07a2a'/>\
+  <!-- Vertical stripe -->\
+  <path d='M24 10 L24 28' stroke='%23d4b24a' stroke-width='2.5' stroke-linecap='round'/>\
+  <!-- Horizontal stripe -->\
+  <path d='M18 16 L30 16' stroke='%23d4b24a' stroke-width='2' stroke-linecap='round'/>\
+  <!-- Shield edge highlight -->\
+  <path d='M24 3 L36 8 L36 18' fill='none' stroke='%23ffffff' stroke-width='0.8' opacity='0.3'/>\
+  <!-- Rivets -->\
+  <circle cx='18' cy='12' r='0.8' fill='%23d4b24a'/>\
+  <circle cx='30' cy='12' r='0.8' fill='%23d4b24a'/>\
+  <circle cx='20' cy='24' r='0.8' fill='%23d4b24a'/>\
+  <circle cx='28' cy='24' r='0.8' fill='%23d4b24a'/>\
+</svg>") 24 12, pointer;
 }
 
 /* ---------- RESET & BACKGROUND ---------- */
@@ -1066,31 +1112,30 @@ body.modal-open .game-columns {
 }
 
 
-/* ---------- HERALDIC EMBLEM (подвижный герб) ---------- */
+/* ---------- SPIDER (canvas-based) ---------- */
 .spider{
   position:fixed;
   top:40px;left:40px;
-  width:56px;height:56px;z-index:9999;
+  width:64px;height:64px;z-index:9999;
   cursor: var(--shield-cursor);
   transform-origin:center;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
-  border-radius:8px;border:2px solid rgba(0,0,0,0.6);
-  box-shadow: 0 8px 18px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.02);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display:block;
   animation: spider-wander 18s cubic-bezier(.22,.9,.35,1) infinite alternate;
   will-change: transform, left, top;
   pointer-events:auto;
 }
-.spider::before,.spider::after{
-  content:"";
-  position:absolute;left:50%;transform:translateX(-50%);
-  background:linear-gradient(180deg,#2f2620,#1f1715);
-  border-radius:50%;
-  border:1px solid rgba(0,0,0,0.6);
-  box-shadow:inset 0 -4px 8px rgba(255,255,255,0.02);
+
+.spider canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
 }
-.spider::before{width:36px;height:28px;top:14px}
-.spider::after{width:18px;height:14px;top:6px;background:linear-gradient(180deg,#1f1715,#0f0b0a)}
 
 @keyframes spider-wander{
   0%   { transform: translate(0px, 0px) rotate(0deg); }
@@ -1213,46 +1258,13 @@ input, textarea, select { cursor: text; }
 /* visible state */
 .king.show{ display:flex; }
 
-/* King emblem: use an inline SVG crown + small shield/face to make it feel "king-like" */
-.king::before{
-  content: "";
-  display:block;
-  width:44px;
-  height:44px;
-  border-radius:6px;
-  transform:translateY(-2px);
-  background-image:
-    /* crown silhouette (gold) */
-    url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>\
-  <defs><linearGradient id='g' x1='0' x2='0' y1='0' y2='1'>\
-    <stop offset='0' stop-color='%23ffd86b'/>\
-    <stop offset='1' stop-color='%23d4b24a'/>\
-  </linearGradient></defs>\
-  <rect width='64' height='64' rx='8' fill='none'/>\
-  <g transform='translate(6,8)'>\
-    <path d='M2 30 L6 18 L14 26 L22 12 L30 26 L38 18 L42 30 Z' fill='url(%23g)' stroke='%23000000' stroke-opacity='0.35' stroke-width='1.2'/>\
-    <circle cx='10' cy='20' r='2.6' fill='%23ffffff' fill-opacity='0.12'/>\
-    <circle cx='22' cy='16' r='2.6' fill='%23ffffff' fill-opacity='0.12'/>\
-    <circle cx='34' cy='20' r='2.6' fill='%23ffffff' fill-opacity='0.12'/>\
-    <rect x='6' y='28' width='28' height='6' rx='2' fill='%231b2433' fill-opacity='0.18'/>\
-  </g>\
-</svg>");
-  background-repeat:no-repeat;
-  background-position:center;
-  background-size:44px 44px;
-  box-shadow: 0 6px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.02);
-}
-
-/* small golden rim to emphasize the king */
-.king::after{
-  content: "";
-  position:absolute;
-  inset:auto -6px -6px -6px;
-  height:6px;
-  border-radius:6px;
-  background: linear-gradient(90deg, rgba(212,178,74,0.12), rgba(212,178,74,0.02));
-  pointer-events:none;
+.king canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
 }
 
 /* Crown token style used inside the mini-game arena (detailed, high-contrast) */
@@ -1550,6 +1562,348 @@ input, textarea, select { cursor: text; }
   50% {
     transform: translate(-50%, -100%) scale(1.15);
   }
+}
+
+/* ======= Click Particles ======= */
+.click-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10000;
+  font-family: var(--mono-font);
+  font-weight: 900;
+  font-size: 16px;
+  color: #ffd700;
+  text-shadow: 
+    0 0 10px rgba(255, 215, 0, 1),
+    0 0 20px rgba(255, 215, 0, 0.8),
+    0 0 30px rgba(255, 215, 0, 0.6),
+    2px 2px 6px rgba(0, 0, 0, 1),
+    -1px -1px 2px rgba(0, 0, 0, 0.8);
+  transform: translate(-50%, -50%);
+  animation: particleFloat 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  user-select: none;
+  letter-spacing: 1px;
+}
+
+@keyframes particleFloat {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(0, 0) scale(1.2) rotate(0deg);
+    filter: brightness(1.5);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) 
+      translate(calc(var(--end-x) - 50%), calc(var(--end-y) - 50%)) 
+      scale(0.3) rotate(15deg);
+    filter: brightness(0.5);
+  }
+}
+
+/* ======= Season Themes ======= */
+body.season-spring {
+  --season-primary: #90ee90;
+  --season-secondary: #ffb6c1;
+  --season-accent: #98fb98;
+}
+
+body.season-summer {
+  --season-primary: #ffd700;
+  --season-secondary: #ff8c00;
+  --season-accent: #ffa500;
+}
+
+body.season-autumn {
+  --season-primary: #d2691e;
+  --season-secondary: #cd853f;
+  --season-accent: #daa520;
+}
+
+body.season-winter {
+  --season-primary: #b0e0e6;
+  --season-secondary: #87ceeb;
+  --season-accent: #add8e6;
+}
+
+/* Применяем сезонные цвета к элементам */
+body.season-spring {
+  background: linear-gradient(135deg, #0b0f0b 0%, #1a2a1a 50%, #0b0f0b 100%);
+}
+
+body.season-spring .building-card,
+body.season-spring .auth-card,
+body.season-spring .click-area {
+  border-color: #90ee90;
+  box-shadow: 0 4px 16px rgba(144, 238, 144, 0.4),
+    inset 0 1px 0 rgba(144, 238, 144, 0.2);
+  background: linear-gradient(180deg, rgba(144, 238, 144, 0.05) 0%, rgba(59, 58, 54, 0.95) 100%);
+}
+
+body.season-summer {
+  background: linear-gradient(135deg, #0b0f0b 0%, #2a1a0b 50%, #0b0f0b 100%);
+}
+
+body.season-summer .building-card,
+body.season-summer .auth-card,
+body.season-summer .click-area {
+  border-color: #ffd700;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.5),
+    inset 0 1px 0 rgba(255, 215, 0, 0.3);
+  background: linear-gradient(180deg, rgba(255, 215, 0, 0.08) 0%, rgba(59, 58, 54, 0.95) 100%);
+}
+
+body.season-autumn {
+  background: linear-gradient(135deg, #0b0f0b 0%, #2a1a0f 50%, #0b0f0b 100%);
+}
+
+body.season-autumn .building-card,
+body.season-autumn .auth-card,
+body.season-autumn .click-area {
+  border-color: #d2691e;
+  box-shadow: 0 4px 16px rgba(210, 105, 30, 0.4),
+    inset 0 1px 0 rgba(210, 105, 30, 0.2);
+  background: linear-gradient(180deg, rgba(210, 105, 30, 0.06) 0%, rgba(59, 58, 54, 0.95) 100%);
+}
+
+body.season-winter {
+  background: linear-gradient(135deg, #0b0f0b 0%, #0f1a1f 50%, #0b0f0b 100%);
+}
+
+body.season-winter .building-card,
+body.season-winter .auth-card,
+body.season-winter .click-area {
+  border-color: #b0e0e6;
+  box-shadow: 0 4px 16px rgba(176, 224, 230, 0.4),
+    inset 0 1px 0 rgba(176, 224, 230, 0.2);
+  background: linear-gradient(180deg, rgba(176, 224, 230, 0.05) 0%, rgba(59, 58, 54, 0.95) 100%);
+}
+
+/* ======= Statistics Modal ======= */
+#stats-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 12000;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(2px);
+}
+
+#stats-modal.open {
+  display: flex;
+}
+
+#stats-modal .modal-card {
+  max-width: 600px;
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg,#3b352f,#2f2a24);
+  border: 6px solid var(--border);
+  box-shadow: 
+    0 25px 60px var(--shadow-strong), 
+    inset 0 2px 0 rgba(255,255,255,0.03),
+    inset 0 -2px 0 rgba(0,0,0,0.6),
+    0 0 0 1px rgba(212, 178, 74, 0.1);
+  background-image: 
+    linear-gradient(180deg,#3b352f,#2f2a24),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><g opacity='0.04' fill='%23000000'><path d='M0 0 L200 0 L200 200 L0 200 Z'/></g></svg>");
+  border-radius: 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.3s ease-out;
+  max-height: 80vh;
+  overflow: hidden;
+}
+
+#stats-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 3px solid rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, rgba(0,0,0,0.3), rgba(0,0,0,0.1));
+}
+
+#stats-modal .modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text);
+  text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 8px rgba(212, 178, 74, 0.2);
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+#stats-modal .modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+#stats-modal .stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+#stats-modal .stat-row:last-child {
+  border-bottom: none;
+}
+
+#stats-modal .stat-label {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+#stats-modal .stat-value {
+  color: var(--text);
+  font-weight: bold;
+  font-family: var(--mono-font);
+}
+
+#stats-modal .stat-section {
+  margin-bottom: 24px;
+}
+
+#stats-modal .stat-section-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--gold);
+  margin-bottom: 12px;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+}
+
+/* ======= Building Visual Upgrades ======= */
+.building-card.level-upgraded {
+  border-width: 3px;
+  border-color: rgba(212, 178, 74, 0.6);
+  box-shadow: 
+    0 8px 24px rgba(0,0,0,0.4),
+    0 0 20px rgba(212, 178, 74, 0.3),
+    inset 0 2px 0 rgba(255,255,255,0.1),
+    0 0 0 1px rgba(212, 178, 74, 0.4);
+  background: linear-gradient(180deg, 
+    rgba(212, 178, 74, 0.08) 0%, 
+    rgba(59, 58, 54, 0.98) 50%,
+    rgba(59, 58, 54, 1) 100%);
+  animation: buildingGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes buildingGlow {
+  0% {
+    box-shadow: 
+      0 8px 24px rgba(0,0,0,0.4),
+      0 0 15px rgba(212, 178, 74, 0.2),
+      inset 0 2px 0 rgba(255,255,255,0.1),
+      0 0 0 1px rgba(212, 178, 74, 0.3);
+  }
+  100% {
+    box-shadow: 
+      0 8px 24px rgba(0,0,0,0.4),
+      0 0 25px rgba(212, 178, 74, 0.5),
+      inset 0 2px 0 rgba(255,255,255,0.15),
+      0 0 0 1px rgba(212, 178, 74, 0.6);
+  }
+}
+
+.building-card.level-upgraded .building-pixel {
+  transform: scale(1.1);
+  transition: transform 0.3s ease;
+  filter: brightness(1.1) drop-shadow(0 0 8px rgba(212, 178, 74, 0.4));
+}
+
+.building-card.high-level {
+  border-color: var(--gold);
+  border-width: 4px;
+  box-shadow: 
+    0 12px 32px rgba(0,0,0,0.5),
+    0 0 30px rgba(212, 178, 74, 0.6),
+    inset 0 2px 0 rgba(255,255,255,0.2),
+    0 0 0 2px rgba(212, 178, 74, 0.5);
+  background: linear-gradient(180deg, 
+    rgba(212, 178, 74, 0.15) 0%, 
+    rgba(160, 122, 42, 0.1) 50%,
+    rgba(59, 58, 54, 1) 100%);
+  animation: buildingPulse 1.5s ease-in-out infinite;
+  position: relative;
+}
+
+.building-card.high-level::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  background: linear-gradient(45deg, 
+    rgba(212, 178, 74, 0.3),
+    rgba(255, 215, 0, 0.2),
+    rgba(212, 178, 74, 0.3));
+  z-index: -1;
+  animation: borderShine 3s linear infinite;
+}
+
+@keyframes buildingPulse {
+  0%, 100% {
+    box-shadow: 
+      0 12px 32px rgba(0,0,0,0.5),
+      0 0 25px rgba(212, 178, 74, 0.5),
+      inset 0 2px 0 rgba(255,255,255,0.2),
+      0 0 0 2px rgba(212, 178, 74, 0.4);
+  }
+  50% {
+    box-shadow: 
+      0 12px 32px rgba(0,0,0,0.5),
+      0 0 40px rgba(212, 178, 74, 0.8),
+      inset 0 2px 0 rgba(255,255,255,0.25),
+      0 0 0 2px rgba(212, 178, 74, 0.7);
+  }
+}
+
+@keyframes borderShine {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+.building-card.high-level .building-pixel {
+  transform: scale(1.2);
+  filter: brightness(1.3) drop-shadow(0 0 12px rgba(212, 178, 74, 0.6));
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+#stats-modal .modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 24px;
+  cursor: var(--shield-cursor);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+#stats-modal .modal-close:hover {
+  opacity: 1;
 }
 
 /* Конец файла: все элементы сохранены на своих местах, но визуально переработаны под AoE2 */

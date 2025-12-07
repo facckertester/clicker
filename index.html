@@ -171,6 +171,9 @@
           <button class="btn secondary" data-debug="addClickLevels">Add 100 levels to Click</button>
           <button class="btn secondary" data-debug="clickIncomeBoost">Click income x1000</button>
           <button class="btn secondary" data-debug="spawnSpider">Spawn spider</button>
+          <button class="btn secondary" data-debug="spawnKing">Spawn king</button>
+          <button class="btn secondary" data-debug="addUberLevels">+10 levels to Citadel</button>
+          <button class="btn secondary" data-debug="addMillionPoints">+1M points</button>
           <button class="btn secondary" data-debug="breakClick">Break click button</button>
           <button class="btn secondary" data-debug="goldenClick">Make click button golden</button>
           <button class="btn danger" data-debug="resetAll">Reset all levels and points</button>
@@ -206,6 +209,7 @@
 
       <div class="userbox">
         <span id="username-display"></span>
+        <button id="stats-btn" class="btn tiny">Stats</button>
         <button id="logout-btn" class="btn tiny">Logout</button>
         <button id="debug-open" class="btn tiny secondary">debug</button>
       </div>
@@ -346,6 +350,18 @@
   </div>
 </div>
 
+<!-- Statistics modal -->
+<div id="stats-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card" role="document" aria-labelledby="stats-title">
+    <div class="modal-header">
+      <h3 id="stats-title">Statistics</h3>
+      <button class="modal-close" id="stats-close" aria-label="Close statistics">✕</button>
+    </div>
+    <div class="modal-body" id="stats-body">
+      <!-- Statistics will be rendered here -->
+    </div>
+  </div>
+</div>
 
 <!-- King element (appears/disappears via script) -->
 <div id="king" class="king" title="King"></div>
