@@ -652,6 +652,104 @@ body.modal-open .game-columns {
   }
 }
 
+/* ---------- ACHIEVEMENTS ---------- */
+.achievements-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg,#3b322b,#2f2620);
+  border-radius: 8px;
+  padding: 12px;
+  border: 2px solid rgba(0,0,0,0.6);
+  box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  min-height: 200px;
+  max-height: 400px;
+}
+.achievements-title {
+  margin: 0 0 8px 0;
+  color: var(--gold);
+  font-weight: 800;
+  font-size: 1rem;
+}
+.achievements-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 6px;
+  max-height: 360px;
+}
+.achievement-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  background: linear-gradient(180deg,#2f2a22,#3b2f28);
+  border: 1px solid rgba(255,255,255,0.02);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+}
+.achievement-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+.achievement-item.locked {
+  filter: grayscale(100%);
+  opacity: 0.6;
+}
+.achievement-item.unlocked {
+  filter: none;
+  opacity: 1;
+  border-color: rgba(212,178,74,0.3);
+  box-shadow: 0 2px 4px rgba(212,178,74,0.1), inset 0 1px 0 rgba(255,255,255,0.02);
+}
+.achievement-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  background: linear-gradient(180deg,#3b322b,#2f2620);
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.3);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+.achievement-item.unlocked .achievement-icon {
+  background: linear-gradient(180deg, rgba(212,178,74,0.15), rgba(42,75,122,0.15));
+  border-color: rgba(212,178,74,0.4);
+}
+.achievement-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+.achievement-name {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.achievement-item.unlocked .achievement-name {
+  color: var(--text);
+}
+.achievement-reward {
+  font-size: 0.7rem;
+  color: var(--gold);
+  font-weight: 800;
+  font-family: var(--mono-font);
+}
+.achievement-item.locked .achievement-reward {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
 /* Align lock note styling to regular building notes */
 #uber-card .uber-lock-note {
   color: #9aa3b2;

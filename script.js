@@ -198,6 +198,15 @@ function newSave(username) {
       spiderMult: 1.0,
       spiderUntil: 0,
     },
+    achievements: {
+      unlocked: {}, // key: achievementId, value: true when unlocked
+      stats: {
+        totalClicks: 0,
+        totalPlayTime: 0, // в миллисекундах
+        totalDestructions: 0, // количество разрушений зданий
+        firstBuildingBought: false,
+      }
+    },
     lastTick: now()
   };
 }
@@ -445,6 +454,170 @@ function uberIncomeAt(level, upgradesCount) {
   return baseInc * Math.pow(1.22, level) * upgradeMult;
 }
 
+// ======= Achievements system =======
+const ACHIEVEMENTS = [
+  // Клики: 1, 46, 103, 542, 1084, 5844, 11111 (+1%)
+  { id: 'clicks_1', type: 'clicks', value: 1, reward: 0.01, name: 'First Click', icon: '👆' },
+  { id: 'clicks_46', type: 'clicks', value: 46, reward: 0.01, name: '46 Clicks', icon: '🖱️' },
+  { id: 'clicks_103', type: 'clicks', value: 103, reward: 0.01, name: '103 Clicks', icon: '👆' },
+  { id: 'clicks_542', type: 'clicks', value: 542, reward: 0.01, name: '542 Clicks', icon: '🖱️' },
+  { id: 'clicks_1084', type: 'clicks', value: 1084, reward: 0.01, name: '1084 Clicks', icon: '👆' },
+  { id: 'clicks_5844', type: 'clicks', value: 5844, reward: 0.01, name: '5844 Clicks', icon: '🖱️' },
+  { id: 'clicks_11111', type: 'clicks', value: 11111, reward: 0.01, name: '11111 Clicks', icon: '👆' },
+  // Клики: 25678, 54321, 101101, 333333 (+6%)
+  { id: 'clicks_25678', type: 'clicks', value: 25678, reward: 0.06, name: '25678 Clicks', icon: '⚡' },
+  { id: 'clicks_54321', type: 'clicks', value: 54321, reward: 0.06, name: '54321 Clicks', icon: '⚡' },
+  { id: 'clicks_101101', type: 'clicks', value: 101101, reward: 0.06, name: '101101 Clicks', icon: '⚡' },
+  { id: 'clicks_333333', type: 'clicks', value: 333333, reward: 0.06, name: '333333 Clicks', icon: '⚡' },
+  // Клики: 666666, 1000011 (+11%)
+  { id: 'clicks_666666', type: 'clicks', value: 666666, reward: 0.11, name: '666666 Clicks', icon: '🔥' },
+  { id: 'clicks_1000011', type: 'clicks', value: 1000011, reward: 0.11, name: '1M Clicks', icon: '🔥' },
+  // Клики: 5553535, 10000000 (+26%)
+  { id: 'clicks_5553535', type: 'clicks', value: 5553535, reward: 0.26, name: '5.5M Clicks', icon: '💎' },
+  { id: 'clicks_10000000', type: 'clicks', value: 10000000, reward: 0.26, name: '10M Clicks', icon: '💎' },
+  
+  // Здания: купить первое (+1%)
+  { id: 'building_first', type: 'first_building', value: 1, reward: 0.01, name: 'First Building', icon: '🏠' },
+  
+  // Здания: прокачать до 10 уровня (1, 7, 16, 37, 50 зданий) (+1%)
+  { id: 'buildings_10_1', type: 'buildings_level', level: 10, count: 1, reward: 0.01, name: '1 Building Lv10', icon: '🏘️' },
+  { id: 'buildings_10_7', type: 'buildings_level', level: 10, count: 7, reward: 0.01, name: '7 Buildings Lv10', icon: '🏘️' },
+  { id: 'buildings_10_16', type: 'buildings_level', level: 10, count: 16, reward: 0.01, name: '16 Buildings Lv10', icon: '🏘️' },
+  { id: 'buildings_10_37', type: 'buildings_level', level: 10, count: 37, reward: 0.01, name: '37 Buildings Lv10', icon: '🏘️' },
+  { id: 'buildings_10_50', type: 'buildings_level', level: 10, count: 50, reward: 0.01, name: '50 Buildings Lv10', icon: '🏘️' },
+  
+  // Здания: прокачать до 40 уровня (+2%)
+  { id: 'buildings_40_1', type: 'buildings_level', level: 40, count: 1, reward: 0.02, name: '1 Building Lv40', icon: '🏛️' },
+  { id: 'buildings_40_7', type: 'buildings_level', level: 40, count: 7, reward: 0.02, name: '7 Buildings Lv40', icon: '🏛️' },
+  { id: 'buildings_40_16', type: 'buildings_level', level: 40, count: 16, reward: 0.02, name: '16 Buildings Lv40', icon: '🏛️' },
+  { id: 'buildings_40_37', type: 'buildings_level', level: 40, count: 37, reward: 0.02, name: '37 Buildings Lv40', icon: '🏛️' },
+  { id: 'buildings_40_50', type: 'buildings_level', level: 40, count: 50, reward: 0.02, name: '50 Buildings Lv40', icon: '🏛️' },
+  
+  // Здания: прокачать до 90 уровня (+3%)
+  { id: 'buildings_90_1', type: 'buildings_level', level: 90, count: 1, reward: 0.03, name: '1 Building Lv90', icon: '🏰' },
+  { id: 'buildings_90_7', type: 'buildings_level', level: 90, count: 7, reward: 0.03, name: '7 Buildings Lv90', icon: '🏰' },
+  { id: 'buildings_90_16', type: 'buildings_level', level: 90, count: 16, reward: 0.03, name: '16 Buildings Lv90', icon: '🏰' },
+  { id: 'buildings_90_37', type: 'buildings_level', level: 90, count: 37, reward: 0.03, name: '37 Buildings Lv90', icon: '🏰' },
+  { id: 'buildings_90_50', type: 'buildings_level', level: 90, count: 50, reward: 0.03, name: '50 Buildings Lv90', icon: '🏰' },
+  
+  // Здания: прокачать до 170 уровня (+6%)
+  { id: 'buildings_170_1', type: 'buildings_level', level: 170, count: 1, reward: 0.06, name: '1 Building Lv170', icon: '🏯' },
+  { id: 'buildings_170_7', type: 'buildings_level', level: 170, count: 7, reward: 0.06, name: '7 Buildings Lv170', icon: '🏯' },
+  { id: 'buildings_170_16', type: 'buildings_level', level: 170, count: 16, reward: 0.06, name: '16 Buildings Lv170', icon: '🏯' },
+  { id: 'buildings_170_37', type: 'buildings_level', level: 170, count: 37, reward: 0.06, name: '37 Buildings Lv170', icon: '🏯' },
+  { id: 'buildings_170_50', type: 'buildings_level', level: 170, count: 50, reward: 0.06, name: '50 Buildings Lv170', icon: '🏯' },
+  
+  // Здания: прокачать до 310 уровня (+11%)
+  { id: 'buildings_310_1', type: 'buildings_level', level: 310, count: 1, reward: 0.11, name: '1 Building Lv310', icon: '🗼' },
+  { id: 'buildings_310_7', type: 'buildings_level', level: 310, count: 7, reward: 0.11, name: '7 Buildings Lv310', icon: '🗼' },
+  { id: 'buildings_310_16', type: 'buildings_level', level: 310, count: 16, reward: 0.11, name: '16 Buildings Lv310', icon: '🗼' },
+  { id: 'buildings_310_37', type: 'buildings_level', level: 310, count: 37, reward: 0.11, name: '37 Buildings Lv310', icon: '🗼' },
+  { id: 'buildings_310_50', type: 'buildings_level', level: 310, count: 50, reward: 0.11, name: '50 Buildings Lv310', icon: '🗼' },
+  
+  // Здания: прокачать до 520 уровня (+17%)
+  { id: 'buildings_520_1', type: 'buildings_level', level: 520, count: 1, reward: 0.17, name: '1 Building Lv520', icon: '🏗️' },
+  { id: 'buildings_520_7', type: 'buildings_level', level: 520, count: 7, reward: 0.17, name: '7 Buildings Lv520', icon: '🏗️' },
+  { id: 'buildings_520_16', type: 'buildings_level', level: 520, count: 16, reward: 0.17, name: '16 Buildings Lv520', icon: '🏗️' },
+  { id: 'buildings_520_37', type: 'buildings_level', level: 520, count: 37, reward: 0.17, name: '37 Buildings Lv520', icon: '🏗️' },
+  { id: 'buildings_520_50', type: 'buildings_level', level: 520, count: 50, reward: 0.17, name: '50 Buildings Lv520', icon: '🏗️' },
+  
+  // Здания: прокачать до 800 уровня (+22%)
+  { id: 'buildings_800_1', type: 'buildings_level', level: 800, count: 1, reward: 0.22, name: '1 Building Lv800', icon: '🏛️' },
+  { id: 'buildings_800_7', type: 'buildings_level', level: 800, count: 7, reward: 0.22, name: '7 Buildings Lv800', icon: '🏛️' },
+  { id: 'buildings_800_16', type: 'buildings_level', level: 800, count: 16, reward: 0.22, name: '16 Buildings Lv800', icon: '🏛️' },
+  { id: 'buildings_800_37', type: 'buildings_level', level: 800, count: 37, reward: 0.22, name: '37 Buildings Lv800', icon: '🏛️' },
+  { id: 'buildings_800_50', type: 'buildings_level', level: 800, count: 50, reward: 0.22, name: '50 Buildings Lv800', icon: '🏛️' },
+  
+  // Здания: прокачать до 1000 уровня (+27%)
+  { id: 'buildings_1000_1', type: 'buildings_level', level: 1000, count: 1, reward: 0.27, name: '1 Building Lv1000', icon: '👑' },
+  { id: 'buildings_1000_7', type: 'buildings_level', level: 1000, count: 7, reward: 0.27, name: '7 Buildings Lv1000', icon: '👑' },
+  { id: 'buildings_1000_16', type: 'buildings_level', level: 1000, count: 16, reward: 0.27, name: '16 Buildings Lv1000', icon: '👑' },
+  { id: 'buildings_1000_37', type: 'buildings_level', level: 1000, count: 37, reward: 0.27, name: '37 Buildings Lv1000', icon: '👑' },
+  { id: 'buildings_1000_50', type: 'buildings_level', level: 1000, count: 50, reward: 0.27, name: '50 Buildings Lv1000', icon: '👑' },
+  
+  // Uber: открыть (+50%)
+  { id: 'uber_unlock', type: 'uber_unlock', value: 1, reward: 0.50, name: 'Citadel Unlocked', icon: '🏰' },
+  // Uber: уровень 10 (+50%)
+  { id: 'uber_level_10', type: 'uber_level', value: 10, reward: 0.50, name: 'Citadel Lv10', icon: '👑' },
+  
+  // Разрушения: 1, 6, 26, 44, 72, 147, 502, 1033 (+1%)
+  { id: 'destructions_1', type: 'destructions', value: 1, reward: 0.01, name: '1 Destruction', icon: '💥' },
+  { id: 'destructions_6', type: 'destructions', value: 6, reward: 0.01, name: '6 Destructions', icon: '💥' },
+  { id: 'destructions_26', type: 'destructions', value: 26, reward: 0.01, name: '26 Destructions', icon: '💥' },
+  { id: 'destructions_44', type: 'destructions', value: 44, reward: 0.01, name: '44 Destructions', icon: '💥' },
+  { id: 'destructions_72', type: 'destructions', value: 72, reward: 0.01, name: '72 Destructions', icon: '💥' },
+  { id: 'destructions_147', type: 'destructions', value: 147, reward: 0.01, name: '147 Destructions', icon: '💥' },
+  { id: 'destructions_502', type: 'destructions', value: 502, reward: 0.01, name: '502 Destructions', icon: '💥' },
+  { id: 'destructions_1033', type: 'destructions', value: 1033, reward: 0.01, name: '1033 Destructions', icon: '💥' },
+  
+  // Время игры: 8, 17, 39, 189, 455, 987, 1337, 2025, 5050, 9999 минут (+1%)
+  { id: 'playtime_8', type: 'playtime', value: 8 * 60 * 1000, reward: 0.01, name: '8 Minutes', icon: '⏱️' },
+  { id: 'playtime_17', type: 'playtime', value: 17 * 60 * 1000, reward: 0.01, name: '17 Minutes', icon: '⏱️' },
+  { id: 'playtime_39', type: 'playtime', value: 39 * 60 * 1000, reward: 0.01, name: '39 Minutes', icon: '⏱️' },
+  { id: 'playtime_189', type: 'playtime', value: 189 * 60 * 1000, reward: 0.01, name: '189 Minutes', icon: '⏱️' },
+  { id: 'playtime_455', type: 'playtime', value: 455 * 60 * 1000, reward: 0.01, name: '455 Minutes', icon: '⏱️' },
+  { id: 'playtime_987', type: 'playtime', value: 987 * 60 * 1000, reward: 0.01, name: '987 Minutes', icon: '⏱️' },
+  { id: 'playtime_1337', type: 'playtime', value: 1337 * 60 * 1000, reward: 0.01, name: '1337 Minutes', icon: '⏱️' },
+  { id: 'playtime_2025', type: 'playtime', value: 2025 * 60 * 1000, reward: 0.01, name: '2025 Minutes', icon: '⏱️' },
+  { id: 'playtime_5050', type: 'playtime', value: 5050 * 60 * 1000, reward: 0.01, name: '5050 Minutes', icon: '⏱️' },
+  { id: 'playtime_9999', type: 'playtime', value: 9999 * 60 * 1000, reward: 0.01, name: '9999 Minutes', icon: '⏱️' },
+];
+
+// Получить общий бонус от всех достижений
+function getAchievementBonus() {
+  if (!save || !save.achievements) return 1.0;
+  let bonus = 1.0;
+  ACHIEVEMENTS.forEach(ach => {
+    if (save.achievements.unlocked[ach.id]) {
+      bonus += ach.reward;
+    }
+  });
+  return bonus;
+}
+
+// Проверить условие достижения
+function checkAchievementCondition(ach) {
+  if (!save || !save.achievements) return false;
+  
+  switch(ach.type) {
+    case 'clicks':
+      return save.achievements.stats.totalClicks >= ach.value;
+    case 'first_building':
+      return save.achievements.stats.firstBuildingBought;
+    case 'buildings_level':
+      const count = save.buildings.filter(b => b.level >= ach.level).length;
+      return count >= ach.count;
+    case 'uber_unlock':
+      return save.uber.unlocked;
+    case 'uber_level':
+      return save.uber.level >= ach.value;
+    case 'destructions':
+      return save.achievements.stats.totalDestructions >= ach.value;
+    case 'playtime':
+      return save.achievements.stats.totalPlayTime >= ach.value;
+    default:
+      return false;
+  }
+}
+
+// Проверить и разблокировать достижения
+function checkAchievements() {
+  if (!save || !save.achievements) return;
+  
+  let anyUnlocked = false;
+  ACHIEVEMENTS.forEach(ach => {
+    if (!save.achievements.unlocked[ach.id] && checkAchievementCondition(ach)) {
+      save.achievements.unlocked[ach.id] = true;
+      anyUnlocked = true;
+      toast(`Achievement unlocked: ${ach.name} (+${(ach.reward * 100).toFixed(0)}% income)!`, 'good');
+    }
+  });
+  
+  if (anyUnlocked) {
+    renderAchievements();
+  }
+}
+
 // ======= Game state helpers =======
 function totalPPC() {
   let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
@@ -453,7 +626,9 @@ function totalPPC() {
   const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
   // Spider modifier
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
-  return ppc * goldenMult * spiderMult;
+  // Achievement bonus
+  const achievementMult = getAchievementBonus();
+  return ppc * goldenMult * spiderMult * achievementMult;
 }
 
 function totalPPS() {
@@ -470,7 +645,9 @@ function totalPPS() {
   }
   // Spider modifier
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
-  return pps * spiderMult;
+  // Achievement bonus
+  const achievementMult = getAchievementBonus();
+  return pps * spiderMult * achievementMult;
 }
 
 function canBuyNextBuilding(i) {
@@ -772,12 +949,63 @@ function renderEffects() {
 }
 
 
+function renderAchievements() {
+  const container = document.getElementById('achievements-list');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  // Разделяем достижения на полученные и неполученные
+  const unlocked = [];
+  const locked = [];
+  
+  ACHIEVEMENTS.forEach(ach => {
+    const isUnlocked = save.achievements.unlocked[ach.id] || false;
+    if (isUnlocked) {
+      unlocked.push(ach);
+    } else {
+      locked.push(ach);
+    }
+  });
+  
+  // Сортируем: сначала полученные, потом неполученные
+  const sorted = [...unlocked, ...locked];
+  
+  sorted.forEach(ach => {
+    const isUnlocked = save.achievements.unlocked[ach.id] || false;
+    const item = document.createElement('div');
+    item.className = 'achievement-item' + (isUnlocked ? ' unlocked' : ' locked');
+    item.title = `${ach.name} (+${(ach.reward * 100).toFixed(0)}% income)`;
+    
+    const icon = document.createElement('div');
+    icon.className = 'achievement-icon';
+    icon.textContent = ach.icon;
+    
+    const info = document.createElement('div');
+    info.className = 'achievement-info';
+    const name = document.createElement('div');
+    name.className = 'achievement-name';
+    name.textContent = ach.name;
+    const reward = document.createElement('div');
+    reward.className = 'achievement-reward';
+    reward.textContent = `+${(ach.reward * 100).toFixed(0)}%`;
+    
+    info.appendChild(name);
+    info.appendChild(reward);
+    
+    item.appendChild(icon);
+    item.appendChild(info);
+    container.appendChild(item);
+  });
+}
+
 function renderAll() {
   renderTopStats();
   renderClick();
   renderBuildings();
   renderUber();
   renderEffects();
+  renderAchievements();
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk
   startAutosave();
 
@@ -939,11 +1167,23 @@ function buyBuildingLevels(i) {
       b.blockedUntil = now() + 164000;
       // Points already spent (kept), no level increase
       toast(`${b.name} construction failed. Repairs for 164s.`, 'bad');
+      // Отслеживаем разрушения для достижений
+      if (save.achievements) {
+        save.achievements.stats.totalDestructions += 1;
+        checkAchievements();
+      }
     } else {
       b.level = Math.min(b.level + 1, b.max);
     }
+    // Отслеживаем покупку первого здания (когда любое здание достигает уровня 1)
+    if (save.achievements && !save.achievements.stats.firstBuildingBought && b.level >= 1) {
+      save.achievements.stats.firstBuildingBought = true;
+      checkAchievements();
+    }
   };
   buyBulkLevels('building', computeFn, applyFn);
+  // Проверяем достижения после покупки уровней зданий
+  checkAchievements();
 }
 
 function buyBuildingSegUpgrade(i, segIndex) {
@@ -981,6 +1221,12 @@ clickBtn.addEventListener('click', () => {
   // Apply points
   const ppc = totalPPC();
   addPoints(ppc);
+
+  // Отслеживаем клики для достижений
+  if (save.achievements) {
+    save.achievements.stats.totalClicks += 1;
+    checkAchievements();
+  }
 
   // After >100 continuous, 101st click triggers outcomes
   if (save.streak.count === 101) {
@@ -1445,6 +1691,7 @@ window.addEventListener('resize', () => {
 });
 
 // ======= Ticker =======
+let _lastAchievementCheck = 0;
 function tick() {
   const t = now();
   const dt = (t - save.lastTick) / 1000; // seconds
@@ -1453,6 +1700,16 @@ function tick() {
   // Real-time income
   const pps = totalPPS();
   addPoints(pps * dt);
+
+  // Отслеживаем время игры для достижений
+  if (save.achievements) {
+    save.achievements.stats.totalPlayTime += dt * 1000; // в миллисекундах
+    // Проверяем достижения раз в секунду (не каждый тик)
+    if (t - _lastAchievementCheck >= 1000) {
+      checkAchievements();
+      _lastAchievementCheck = t;
+    }
+  }
 
   // Spider spawn check
   maybeSpawnSpider();
@@ -1475,6 +1732,7 @@ function checkUberUnlock() {
     save.uber.unlocked = true;
     uberBuyBtn.disabled = false;
     toast('Uber Turbo Building unlocked!', 'good');
+    checkAchievements(); // Проверяем достижения после разблокировки Uber
   }
 }
 function updateEndgameButtons() {
@@ -1506,6 +1764,7 @@ uberBuyBtn.addEventListener('click', () => {
   save.uber.pendingSegmentCost[seg] = (save.uber.pendingSegmentCost[seg] || 0) + cost;
   save.uber.level = Math.min(save.uber.level + 1, save.uber.max);
   toast('Citadel level increased.', 'good');
+  checkAchievements(); // Проверяем достижения после покупки уровня Uber
   renderAll();
 });
 uberSegBtn.addEventListener('click', () => {
@@ -1645,6 +1904,18 @@ loginBtn.addEventListener('click', () => {
   save = stored.data;
   // If buildings missing (first run), init
   if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+  // Инициализируем достижения, если их нет в старом сохранении
+  if (!save.achievements) {
+    save.achievements = {
+      unlocked: {},
+      stats: {
+        totalClicks: 0,
+        totalPlayTime: 0,
+        totalDestructions: 0,
+        firstBuildingBought: false,
+      }
+    };
+  }
   showGame();
 });
 
@@ -1657,6 +1928,18 @@ registerBtn.addEventListener('click', () => {
   currentUser = { username: u, password: p };
   save = newSave(u);
   initBuildings(save);
+  // Инициализируем достижения (уже есть в newSave, но на всякий случай)
+  if (!save.achievements) {
+    save.achievements = {
+      unlocked: {},
+      stats: {
+        totalClicks: 0,
+        totalPlayTime: 0,
+        totalDestructions: 0,
+        firstBuildingBought: false,
+      }
+    };
+  }
   saveNow();
   toast('Account created.', 'good');
   showGame();
@@ -1986,25 +2269,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 
-// Встраиваем в игровой цикл
-function tick() {
-  const t = now();
-  const dt = (t - save.lastTick) / 1000;
-  save.lastTick = t;
-
-  // Реальный доход
-  const pps = totalPPS();
-  addPoints(pps * dt);
-
-  // Проверка паука
-  maybeSpawnSpider();
-
-  // Обновление UI
-  renderTopStats();
-  renderEffects(); // <-- добавили сюда
-}
-
-
 // ======= Boot =======
 (function boot() {
   const stored = load();
@@ -2013,6 +2277,23 @@ function tick() {
     currentUser = stored.user;
     save = stored.data;
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+    // Инициализируем достижения, если их нет
+    if (!save.achievements) {
+      save.achievements = {
+        unlocked: {},
+        stats: {
+          totalClicks: 0,
+          totalPlayTime: 0,
+          totalDestructions: 0,
+          firstBuildingBought: false,
+        }
+      };
+    }
+    // Инициализируем время игры, если его нет (для старых сохранений)
+    if (save.achievements.stats.totalPlayTime === 0 && save.meta && save.meta.created) {
+      // Приблизительное время игры = разница между текущим временем и временем создания
+      save.achievements.stats.totalPlayTime = now() - save.meta.created;
+    }
     // Show auth; user can log in. Or auto-login? Keep manual per request.
   }
   autosaveLoop();
