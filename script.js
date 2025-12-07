@@ -191,7 +191,7 @@ function newSave(username) {
       level: 0,
       max: 19,
     },
-    streak: { count: 0, lastClickTs: 0 },
+    streak: { count: 0, lastClickTs: 0, multiplier: 1.0 },
     modifiers: {
       spiderMult: 1.0,
       spiderUntil: 0,
@@ -659,7 +659,9 @@ function totalPPC() {
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
   // Achievement bonus
   const achievementMult = getAchievementBonus();
-  return ppc * goldenMult * spiderMult * achievementMult;
+  // Streak multiplier
+  const streakMult = save.streak ? save.streak.multiplier : 1.0;
+  return ppc * goldenMult * spiderMult * achievementMult * streakMult;
 }
 
 function totalPPS() {
@@ -1359,7 +1361,58 @@ function buyBuildingSegUpgrade(i, segIndex) {
 }
 
 // ======= Clicking mechanics =======
-clickBtn.addEventListener('click', () => {
+// Функция для показа критического урона над курсором
+function showCritDamage(multiplier, event) {
+  const critEl = document.createElement('div');
+  critEl.className = 'crit-damage';
+  critEl.textContent = `x${multiplier.toFixed(2)}`;
+  
+  // Определяем размер и яркость в зависимости от множителя
+  let size = 24;
+  let brightness = 1.0;
+  if (multiplier >= 1.10) {
+    size = 48;
+    brightness = 1.5;
+    critEl.classList.add('crit-max');
+  } else if (multiplier >= 1.06) {
+    size = 40;
+    brightness = 1.3;
+    critEl.classList.add('crit-high');
+  } else if (multiplier >= 1.03) {
+    size = 32;
+    brightness = 1.15;
+    critEl.classList.add('crit-medium');
+  } else {
+    size = 28;
+    brightness = 1.05;
+    critEl.classList.add('crit-low');
+  }
+  
+  critEl.style.fontSize = `${size}px`;
+  critEl.style.filter = `brightness(${brightness})`;
+  
+  // Позиционируем над курсором
+  const x = event.clientX || window.innerWidth / 2;
+  const y = event.clientY || window.innerHeight / 2;
+  critEl.style.left = `${x}px`;
+  critEl.style.top = `${y - 50}px`;
+  
+  document.body.appendChild(critEl);
+  
+  // Анимация появления и исчезновения
+  requestAnimationFrame(() => {
+    critEl.classList.add('active');
+  });
+  
+  setTimeout(() => {
+    critEl.classList.add('fade-out');
+    setTimeout(() => {
+      critEl.remove();
+    }, 500);
+  }, 1500);
+}
+
+clickBtn.addEventListener('click', (event) => {
   // Broken or golden states
   if (save.click.brokenUntil > now()) {
     toast('Click button is broken.', 'warn');
@@ -1368,13 +1421,34 @@ clickBtn.addEventListener('click', () => {
   }
 
   const ts = now();
-  // Streak logic
-  if (ts - save.streak.lastClickTs <= 2000) {
+  // Streak logic - разрыв стрика при паузе более 1 секунды
+  if (ts - save.streak.lastClickTs <= 1000) {
     save.streak.count += 1;
   } else {
     save.streak.count = 1;
+    save.streak.multiplier = 1.0; // Сбрасываем множитель при разрыве стрика
   }
   save.streak.lastClickTs = ts;
+
+  // Проверяем пороги стрика и обновляем множитель
+  let newMultiplier = save.streak.multiplier;
+  if (save.streak.count === 59) {
+    newMultiplier = 1.01;
+    save.streak.multiplier = newMultiplier;
+    showCritDamage(newMultiplier, event);
+  } else if (save.streak.count === 103) {
+    newMultiplier = 1.03;
+    save.streak.multiplier = newMultiplier;
+    showCritDamage(newMultiplier, event);
+  } else if (save.streak.count === 148) {
+    newMultiplier = 1.06;
+    save.streak.multiplier = newMultiplier;
+    showCritDamage(newMultiplier, event);
+  } else if (save.streak.count === 202) {
+    newMultiplier = 1.10;
+    save.streak.multiplier = newMultiplier;
+    showCritDamage(newMultiplier, event);
+  }
 
   // Apply points
   const ppc = totalPPC();
@@ -1386,17 +1460,25 @@ clickBtn.addEventListener('click', () => {
     checkAchievements();
   }
 
-  // After >100 continuous, 101st click triggers outcomes
-  if (save.streak.count === 101) {
-    const roll = Math.random();
-    if (roll < 0.66) {
-      // Break for 26s
+  // 0.5% шанс на золотую или сломанную кнопку при каждом клике
+  const roll = Math.random();
+  if (roll < 0.005) {
+    // 0.5% шанс - определяем золотую или сломанную
+    const outcomeRoll = Math.random();
+    if (outcomeRoll < 0.66) {
+      // 66% из 0.5% = сломанная кнопка (0.33% общий шанс)
       save.click.brokenUntil = now() + 26000;
+      // Сбрасываем стрик при сломанной кнопке
+      save.streak.count = 0;
+      save.streak.multiplier = 1.0;
       toast('Click button broke for 26s.', 'bad');
       renderClick(); // обновляем статус сразу
     } else {
-      // Golden for 8s then break for 11s
+      // 34% из 0.5% = золотая кнопка (0.17% общий шанс)
       save.click.goldenUntil = now() + 8000;
+      // Сбрасываем стрик при золотой кнопке
+      save.streak.count = 0;
+      save.streak.multiplier = 1.0;
       toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
       renderClick(); // обновляем статус сразу
 
@@ -1414,6 +1496,21 @@ clickBtn.addEventListener('click', () => {
   renderClick();
 });
 
+// Сбрасываем стрик при клике на любой элемент кроме кнопки Click
+document.addEventListener('click', (event) => {
+  if (!save || !save.streak) return;
+  
+  // Проверяем, что клик был не на кнопке Click
+  const target = event.target;
+  const clickedOnClickBtn = target === clickBtn || clickBtn.contains(target);
+  
+  if (!clickedOnClickBtn) {
+    // Сбрасываем стрик при клике на что угодно кроме кнопки Click
+    save.streak.count = 0;
+    save.streak.multiplier = 1.0;
+    save.streak.lastClickTs = 0;
+  }
+}, true); // Используем capture phase, чтобы сработало до других обработчиков
 
 // ======= Bulk controls =======
 function updateBulkButtons() {
@@ -1547,13 +1644,14 @@ function _stopSpiderMovement() {
 }
 
 // spawn scheduling preserved, but spawn now places spider randomly and starts movement
-let nextSpiderTs = now() + 180000; // 3 minutes
+// Случайный интервал от 4 до 10 минут (240000-600000 мс)
+let nextSpiderTs = now() + _randInt(240000, 600000);
 function maybeSpawnSpider() {
   const t = now();
   if (t >= nextSpiderTs) {
     spawnSpider();
-    // small variation so schedule isn't rigid
-    nextSpiderTs = t + 180000 + _randInt(-30000, 30000);
+    // Случайный интервал от 4 до 10 минут для следующего появления
+    nextSpiderTs = t + _randInt(240000, 600000);
   }
 }
 
@@ -1846,6 +1944,7 @@ if (spiderEl) {
     // Сбрасываем streak при клике на паука, чтобы предотвратить случайную активацию золотого состояния
     save.streak.count = 0;
     save.streak.lastClickTs = 0;
+    save.streak.multiplier = 1.0;
 
     const roll = Math.random();
     if (roll < 0.25) {
@@ -2163,6 +2262,12 @@ loginBtn.addEventListener('click', () => {
   if (save.bulk !== 'max') {
     const parsed = parseInt(save.bulk, 10);
     save.bulk = isNaN(parsed) ? 1 : parsed;
+  }
+  // Мигрируем streak.multiplier для старых сохранений
+  if (!save.streak) {
+    save.streak = { count: 0, lastClickTs: 0, multiplier: 1.0 };
+  } else if (save.streak.multiplier === undefined) {
+    save.streak.multiplier = 1.0;
   }
   // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
   migrateAchievements();
@@ -2689,6 +2794,12 @@ document.addEventListener('keydown', (e) => {
     if (save.bulk !== 'max') {
       const parsed = parseInt(save.bulk, 10);
       save.bulk = isNaN(parsed) ? 1 : parsed;
+    }
+    // Мигрируем streak.multiplier для старых сохранений
+    if (!save.streak) {
+      save.streak = { count: 0, lastClickTs: 0, multiplier: 1.0 };
+    } else if (save.streak.multiplier === undefined) {
+      save.streak.multiplier = 1.0;
     }
     // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
     migrateAchievements();
