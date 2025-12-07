@@ -512,7 +512,6 @@ function renderClick() {
   const bulk = save.bulk;
 
   const { totalCost, totalLevels } = computeBulkCostForClick(bulk);
-  clickCostEl.textContent = fmt(totalCost);
 
   // Segment upgrade visibility for Click
   const seg = segmentIndex(save.click.level);
@@ -522,6 +521,9 @@ function renderClick() {
 
   if (needUpgrade) {
     // Показываем апгрейд вместо покупки
+    const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+    const upgradeCost = prevCostSum / 2;
+    clickCostEl.textContent = fmt(upgradeCost); // Показываем цену апгрейда в строке стоимости
     clickSegInfo.textContent = 'Segment upgrade required to progress';
     clickBuyBtn.classList.add('hidden');
     clickBuyBtn.setAttribute('aria-hidden', 'true');
@@ -530,11 +532,11 @@ function renderClick() {
     clickSegBtn.removeAttribute('aria-hidden');
     // Визуально сделать похожей на primary (если нужно)
     clickSegBtn.classList.add('primary');
-    const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
-    clickSegBtn.textContent = `Upgrade (${fmt(prevCostSum/2)})`;
-    clickSegBtn.disabled = save.points < (prevCostSum/2);
+    clickSegBtn.textContent = `Upgrade (${fmt(upgradeCost)})`;
+    clickSegBtn.disabled = save.points < upgradeCost;
   } else {
     // Показываем покупку, скрываем апгрейд
+    clickCostEl.textContent = fmt(totalCost); // Показываем обычную стоимость покупки
     clickSegBtn.classList.add('hidden');
     clickSegBtn.setAttribute('aria-hidden', 'true');
     clickSegBtn.classList.remove('primary');
@@ -588,10 +590,21 @@ function renderBuildings() {
     const incEl = document.createElement('div');
     incEl.innerHTML = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(b, b.level, b.upgradeBonus))}`;
     const nextCost = computeBulkCostForBuilding(i, save.bulk);
-    const costEl = document.createElement('div');
-    costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
     const seg = segmentIndex(b.level);
     const within = withinSegment(b.level);
+    const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
+    const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+    
+    const costEl = document.createElement('div');
+    if (needUpgrade) {
+      // Показываем цену апгрейда в строке стоимости
+      const upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+    } else {
+      // Показываем обычную стоимость покупки
+      costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+    }
+    
     const segInfo = document.createElement('div');
     segInfo.innerHTML = `<strong>Segment:</strong> ${seg}, within ${within}/9`;
 
@@ -608,18 +621,18 @@ function renderBuildings() {
     const buyBtn = document.createElement('button');
     buyBtn.className = 'btn primary small';
     buyBtn.textContent = 'Buy levels';
-    buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i);
+    buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
     buyBtn.addEventListener('click', () => buyBuildingLevels(i));
 
     // Segment upgrade button
     const segBtn = document.createElement('button');
     segBtn.className = 'btn small';
-    const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
 
-    if (within === 0 && seg > 0 && !prevSegBought) {
+    if (needUpgrade) {
       // Требуется сегментный апгрейд — показываем только segBtn
       const prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
       segBtn.textContent = `Upgrade (${fmt(prevCost)})`;
+      segBtn.disabled = save.points < prevCost;
       segBtn.classList.remove('hidden');
       segBtn.addEventListener('click', ()=> buyBuildingSegUpgrade(i, seg-1));
 
@@ -688,7 +701,6 @@ function renderUber() {
   uberLevelEl.textContent = save.uber.level;
   uberMaxEl.textContent = save.uber.max;
   uberIncomeEl.textContent = fmt(uberIncomeAt(save.uber.level, Object.keys(save.uber.segUpgrades).length || 0));
-  uberCostEl.textContent = fmt(uberCostAt(save.uber.level));
 
   uberBuyBtn.disabled = !save.uber.unlocked;
   uberCard.classList.toggle('locked', !save.uber.unlocked);
@@ -700,24 +712,30 @@ function renderUber() {
   const needSegUpgrade = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) || (within === 9 && !save.uber.segUpgrades[seg]);
 
   if (needSegUpgrade) {
+    // Показываем цену апгрейда в строке стоимости
+    const prevIndex = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) ? seg-1 : seg;
+    const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
+    const upgradeCost = prevCostSum / 2;
+    uberCostEl.textContent = fmt(upgradeCost); // Показываем цену апгрейда
     uberSegInfo.textContent = 'Segment upgrade required to progress';
     uberBuyBtn.classList.add('hidden');
     uberBuyBtn.setAttribute('aria-hidden', 'true');
 
     uberSegBtn.classList.remove('hidden');
     uberSegBtn.removeAttribute('aria-hidden');
-    const prevIndex = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) ? seg-1 : seg;
-    const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
-    uberSegBtn.textContent = `Upgrade (${fmt(prevCostSum/2)})`;
-    uberSegBtn.disabled = save.points < (prevCostSum/2);
+    uberSegBtn.textContent = `Upgrade (${fmt(upgradeCost)})`;
+    uberSegBtn.disabled = save.points < upgradeCost;
   } else {
+    // Показываем обычную стоимость покупки
+    const uberCost = uberCostAt(save.uber.level);
+    uberCostEl.textContent = fmt(uberCost); // Показываем обычную стоимость
     uberSegInfo.textContent = 'Buy 10 levels to unlock';
     uberSegBtn.classList.add('hidden');
     uberSegBtn.setAttribute('aria-hidden', 'true');
 
     uberBuyBtn.classList.remove('hidden');
     uberBuyBtn.removeAttribute('aria-hidden');
-    uberBuyBtn.disabled = !save.uber.unlocked;
+    uberBuyBtn.disabled = !save.uber.unlocked || (save.points < uberCost);
   }
 
   // Draw pixel citadel
@@ -768,6 +786,78 @@ function renderAll() {
 // ======= Actions =======
 function addPoints(n) {
   save.points += n;
+  // Обновляем состояние кнопок после изменения поинтов
+  updateButtonStates();
+}
+
+// Обновляет состояние disabled для всех кнопок покупки/апгрейда
+// Вызывается автоматически при изменении поинтов и в игровом цикле
+function updateButtonStates() {
+  if (!save) return;
+
+  // Обновляем кнопки Click
+  const seg = segmentIndex(save.click.level);
+  const within = withinSegment(save.click.level);
+  const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
+  const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+
+  if (needUpgrade) {
+    const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+    if (clickSegBtn && !clickSegBtn.classList.contains('hidden')) {
+      clickSegBtn.disabled = save.points < (prevCostSum/2);
+    }
+  } else {
+    const { totalCost, totalLevels } = computeBulkCostForClick(save.bulk);
+    if (clickBuyBtn && !clickBuyBtn.classList.contains('hidden')) {
+      clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
+    }
+  }
+
+  // Обновляем кнопки зданий
+  save.buildings.forEach((b, i) => {
+    const card = buildingsList?.children[i];
+    if (!card) return;
+
+    const buyBtn = card.querySelector('.building-actions .btn.primary');
+    const segBtn = card.querySelector('.building-actions .btn:not(.primary)');
+    
+    const buildingSeg = segmentIndex(b.level);
+    const buildingWithin = withinSegment(b.level);
+    const buildingPrevSegBought = buildingSeg === 0 ? true : !!b.segUpgrades[buildingSeg-1];
+    const buildingNeedUpgrade = buildingWithin === 0 && buildingSeg > 0 && !buildingPrevSegBought;
+
+    if (buildingNeedUpgrade) {
+      const prevCost = (b.pendingSegmentCost[buildingSeg-1] || 0) / 2;
+      if (segBtn && !segBtn.classList.contains('hidden')) {
+        segBtn.disabled = save.points < prevCost;
+      }
+    } else {
+      const nextCost = computeBulkCostForBuilding(i, save.bulk);
+      if (buyBtn && !buyBtn.classList.contains('hidden')) {
+        buyBtn.disabled = (now() < b.blockedUntil) || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
+      }
+    }
+  });
+
+  // Обновляем кнопки Uber
+  if (save.uber.unlocked) {
+    const uberSeg = segmentIndex(save.uber.level);
+    const uberWithin = withinSegment(save.uber.level);
+    const needSegUpgrade = (uberWithin === 0 && uberSeg > 0 && !save.uber.segUpgrades[uberSeg-1]) || (uberWithin === 9 && !save.uber.segUpgrades[uberSeg]);
+
+    if (needSegUpgrade) {
+      const prevIndex = (uberWithin === 0 && uberSeg > 0 && !save.uber.segUpgrades[uberSeg-1]) ? uberSeg-1 : uberSeg;
+      const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
+      if (uberSegBtn && !uberSegBtn.classList.contains('hidden')) {
+        uberSegBtn.disabled = save.points < (prevCostSum/2);
+      }
+    } else {
+      const uberCost = uberCostAt(save.uber.level);
+      if (uberBuyBtn && !uberBuyBtn.classList.contains('hidden')) {
+        uberBuyBtn.disabled = save.points < uberCost;
+      }
+    }
+  }
 }
 
 function buyBulkLevels(entity, computeFn, applyFn) {
@@ -1359,6 +1449,8 @@ function tick() {
   // Update UI
   renderTopStats();
   renderEffects();
+  // Обновляем состояние кнопок (disabled/enabled) в зависимости от поинтов
+  updateButtonStates();
 
   // Render some parts less often
 }
