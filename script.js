@@ -778,6 +778,7 @@ function renderAll() {
   renderBuildings();
   renderUber();
   renderEffects();
+  updateBulkButtons(); // Обновляем активное состояние кнопок bulk
   startAutosave();
 
   updateEndgameButtons();
@@ -1011,11 +1012,21 @@ clickBtn.addEventListener('click', () => {
 
 
 // ======= Bulk controls =======
+function updateBulkButtons() {
+  bulkButtons.forEach(btn => {
+    const btnBulk = btn.dataset.bulk === 'max' ? 'max' : parseInt(btn.dataset.bulk, 10);
+    if (btnBulk === save.bulk) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
 bulkButtons.forEach(btn => {
   btn.addEventListener('click', () => {
-    bulkButtons.forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
     save.bulk = btn.dataset.bulk === 'max' ? 'max' : parseInt(btn.dataset.bulk, 10);
+    updateBulkButtons();
     renderAll();
   });
 });

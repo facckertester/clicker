@@ -418,10 +418,10 @@ body.modal-open .game-columns {
 </svg>");
 }
 
-/* Top row: click button + status + optional quick actions */
+/* Top row: click button + status + bulk buttons + quick actions */
 .click-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 12px;
   align-items: center;
   width: 100%;
@@ -509,25 +509,35 @@ body.modal-open .game-columns {
   justify-self: end;
 }
 
-/* Bulk row */
-.bulk-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 12px;
+/* Bulk buttons - теперь в click-row */
+.bulk-buttons { 
+  display: flex; 
+  gap: 8px; 
   align-items: center;
-  width: 100%;
-  padding-top: 6px;
 }
-.bulk-row .bulk-label { color: var(--muted); font-weight:700; }
-.bulk-buttons { display:flex; gap:8px; justify-self: center; }
+.bulk-buttons .btn.bulk {
+  min-width: 44px;
+  padding: 6px 10px;
+}
+/* Подсветка активной кнопки bulk */
+.bulk-buttons .btn.bulk.active {
+  background: linear-gradient(180deg, var(--gold), var(--heraldic-blue));
+  color: #0b0b0b;
+  border-color: rgba(0,0,0,0.7);
+  box-shadow: 0 8px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.02);
+}
 #click-buy { justify-self: end; min-width: 140px; }
 
 /* Responsive adjustments */
 @media (max-width: 980px) {
-  .click-area { grid-template-rows: auto auto auto; }
+  .click-area { grid-template-rows: auto auto; }
   .click-row { grid-template-columns: 1fr auto; }
   .click-row #click-btn { width: 140px; height: 56px; }
-  .bulk-row { grid-template-columns: 1fr; gap:8px; }
+  .click-row .bulk-buttons { 
+    grid-column: 1 / -1; 
+    justify-self: center;
+    margin-top: 8px;
+  }
   .click-info .info-item { grid-template-columns: 1fr; text-align:left; }
   .click-info .info-item span { text-align:left; }
 }
