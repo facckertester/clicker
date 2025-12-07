@@ -386,10 +386,108 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   width: calc(100% - 40px);
   margin: 0 20px;
   box-sizing: border-box;
+  background: linear-gradient(180deg,#3b352f,#2f2a24); /* тёплый камень AoE2 */
+  border: 5px solid var(--border);
+  box-shadow: 0 20px 50px var(--shadow-strong), inset 0 2px 0 rgba(255,255,255,0.02);
+  background-image: 
+    linear-gradient(180deg,#3b352f,#2f2a24),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><g opacity='0.03' fill='%23000000'><path d='M0 0 L200 0 L200 200 L0 200 Z'/></g></svg>");
+  border-radius: 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* класс для показа модалки */
 #updates-modal.open { display: flex; }
+
+/* Confirmation modal - same styles as updates modal */
+#confirm-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 12000;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(2px);
+}
+
+#confirm-modal .modal-card {
+  max-width: 520px;
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg,#3b352f,#2f2a24); /* тёплый камень AoE2 */
+  border: 6px solid var(--border);
+  box-shadow: 
+    0 25px 60px var(--shadow-strong), 
+    inset 0 2px 0 rgba(255,255,255,0.03),
+    inset 0 -2px 0 rgba(0,0,0,0.6),
+    0 0 0 1px rgba(212, 178, 74, 0.1);
+  background-image: 
+    linear-gradient(180deg,#3b352f,#2f2a24),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><g opacity='0.04' fill='%23000000'><path d='M0 0 L200 0 L200 200 L0 200 Z'/></g></svg>");
+  border-radius: 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.3s ease-out;
+}
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+#confirm-modal.open { display: flex; }
+
+#confirm-modal .modal-footer,
+#updates-modal .modal-footer {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  padding: 20px 24px;
+  border-top: 3px solid rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.3));
+  position: relative;
+}
+#confirm-modal .modal-footer::before,
+#updates-modal .modal-footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 178, 74, 0.3), transparent);
+}
+#confirm-modal .modal-footer .btn {
+  min-width: 100px;
+  padding: 10px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: all 0.2s;
+}
+#confirm-modal .modal-footer .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+#confirm-modal .modal-footer .btn.primary {
+  background: linear-gradient(180deg, #4a5a2a, #3a4a1a);
+  border: 2px solid #5a6a3a;
+}
+#confirm-modal .modal-footer .btn.primary:hover {
+  background: linear-gradient(180deg, #5a6a3a, #4a5a2a);
+  border-color: #6a7a4a;
+}
 
 /* 4. Когда модалка открыта — блокируем прокрутку страницы без "скачка" */
 body.modal-open {
@@ -1297,49 +1395,59 @@ input, textarea, select { cursor: text; }
   padding: 20px;
 }
 
-/* Modal card */
+/* Modal card - updated styles (duplicate, will be overridden by earlier styles) */
 #updates-modal .modal-card {
   width: 720px;
   max-width: calc(100% - 40px);
   max-height: 80vh;
   overflow: hidden;
-  background: linear-gradient(180deg,#0f1112,#17181a);
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.04);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  /* Background is set in earlier styles */
   display: flex;
   flex-direction: column;
 }
 
-/* Header */
+/* Header - updated styles (duplicate, will be overridden by earlier styles) */
 #updates-modal .modal-header {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  /* Padding and border are set in earlier styles */
 }
 #updates-modal .modal-header h3 {
   margin:0;
-  font-size:16px;
-  color:#fff;
+  /* Font size and color are set in earlier styles */
 }
-#updates-modal .modal-close {
+#updates-modal .modal-close,
+#confirm-modal .modal-close {
   background:transparent;
   border:none;
-  color:#cfcfcf;
-  font-size:18px;
+  color:var(--text);
+  font-size:20px;
   cursor:pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+#updates-modal .modal-close:hover,
+#confirm-modal .modal-close:hover {
+  background: rgba(0,0,0,0.3);
 }
 
 /* Content (scrollable) */
-#updates-modal .modal-body {
-  padding: 12px 16px;
+#updates-modal .modal-body,
+#confirm-modal .modal-body {
+  padding: 24px;
   overflow-y: auto;
   flex: 1 1 auto;
-  color: #dfe6ee;
-  font-size: 14px;
-  line-height: 1.45;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.7;
+  text-align: center;
+}
+#confirm-modal .modal-body p {
+  margin: 0;
+  font-size: 17px;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
 }
 
 /* Each update item */

@@ -189,9 +189,7 @@ function newSave(username) {
     uber: {
       unlocked: false,
       level: 0,
-      max: 10,
-      segUpgrades: {},
-      pendingSegmentCost: {},
+      max: 19,
     },
     streak: { count: 0, lastClickTs: 0 },
     modifiers: {
@@ -366,7 +364,7 @@ const bulkButtons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'))
 const buildingsList = document.getElementById('buildings-list');
 
 const endgameBtn = document.getElementById('endgame-btn');
-const continueBtn = document.getElementById('continue-btn');
+const uberModeBtn = document.getElementById('uber-mode-btn');
 
 const uberCard = document.getElementById('uber-card');
 const uberBuyBtn = document.getElementById('uber-buy');
@@ -374,8 +372,6 @@ const uberLevelEl = document.getElementById('uber-level');
 const uberMaxEl = document.getElementById('uber-max');
 const uberIncomeEl = document.getElementById('uber-income');
 const uberCostEl = document.getElementById('uber-cost');
-const uberSegInfo = document.getElementById('uber-seg-info');
-const uberSegBtn = document.getElementById('uber-seg-upgrade');
 
 const spiderEl = document.getElementById('spider');
 
@@ -448,10 +444,9 @@ function uberCostAt(level) {
   const base = 3712345678901234567890.0999;
   return base * Math.pow(1.35, level);
 }
-function uberIncomeAt(level, upgradesCount) {
+function uberIncomeAt(level) {
   const baseInc = 432109876543210.3333;
-  const upgradeMult = Math.pow(1.13, upgradesCount || 0);
-  return baseInc * Math.pow(1.22, level) * upgradeMult;
+  return baseInc * Math.pow(1.22, level);
 }
 
 // ======= Achievements system =======
@@ -677,7 +672,7 @@ function totalPPS() {
 
   // Uber income
   if (save.uber.unlocked) {
-    pps += uberIncomeAt(save.uber.level, Object.keys(save.uber.segUpgrades).length || 0);
+    pps += uberIncomeAt(save.uber.level);
   }
   // Spider modifier
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
@@ -925,44 +920,65 @@ function computeBulkCostForBuilding(i, bulk) {
 }
 
 function renderUber() {
+  if (!save) return;
+  
+  // Убеждаемся, что max = 19 до перехода в убер мод (не трогаем если уже в убер моде - 1881)
+  // НЕ изменяем max если он уже установлен в 1881 (убер мод активен)
+  if (save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
+    save.uber.max = 19;
+  }
+  
   uberLevelEl.textContent = save.uber.level;
   uberMaxEl.textContent = save.uber.max;
-  uberIncomeEl.textContent = fmt(uberIncomeAt(save.uber.level, Object.keys(save.uber.segUpgrades).length || 0));
+  uberIncomeEl.textContent = fmt(uberIncomeAt(save.uber.level));
 
-  uberBuyBtn.disabled = !save.uber.unlocked;
+  // Обновляем состояние блокировки карточки
   uberCard.classList.toggle('locked', !save.uber.unlocked);
+  
+  // Скрываем/показываем сообщение о блокировке
+  const lockNote = document.querySelector('.uber-lock-note');
+  if (lockNote) {
+    if (save.uber.unlocked) {
+      lockNote.classList.add('hidden');
+    } else {
+      lockNote.classList.remove('hidden');
+    }
+  }
+  
+  // Если не разблокировано, кнопка должна быть disabled и скрыта
+  if (!save.uber.unlocked) {
+    if (uberBuyBtn) {
+      uberBuyBtn.disabled = true;
+      uberBuyBtn.classList.add('hidden');
+      uberBuyBtn.setAttribute('aria-hidden', 'true');
+    }
+    // Draw pixel citadel даже если не разблокировано
+    drawCitadelPixel(document.getElementById('uber-pixel'));
+    return; // Не показываем остальную информацию, если не разблокировано
+  }
 
-  const seg = segmentIndex(save.uber.level);
-  const within = withinSegment(save.uber.level);
-
-  // Determine if a segment upgrade is required (entering new segment or at boundary)
-  const needSegUpgrade = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) || (within === 9 && !save.uber.segUpgrades[seg]);
-
-  if (needSegUpgrade) {
-    // Показываем цену апгрейда в строке стоимости
-    const prevIndex = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) ? seg-1 : seg;
-    const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
-    const upgradeCost = prevCostSum / 2;
-    uberCostEl.textContent = fmt(upgradeCost); // Показываем цену апгрейда
-    uberSegInfo.textContent = 'Segment upgrade required to progress';
-    uberBuyBtn.classList.add('hidden');
-    uberBuyBtn.setAttribute('aria-hidden', 'true');
-
-    uberSegBtn.classList.remove('hidden');
-    uberSegBtn.removeAttribute('aria-hidden');
-    uberSegBtn.textContent = `Upgrade (${fmt(upgradeCost)})`;
-    uberSegBtn.disabled = save.points < upgradeCost;
+  // Если достигнут максимальный уровень (19 до убер мода, 1881 в убер моде), скрываем кнопку покупки
+  const maxLevel = save.uber.max === 9999 ? 9999 : (save.uber.max === 1881 ? 1881 : 19);
+  if (save.uber.level >= maxLevel) {
+    if (uberBuyBtn) {
+      uberBuyBtn.classList.add('hidden');
+      uberBuyBtn.setAttribute('aria-hidden', 'true');
+    }
+    // Обновляем состояние кнопок завершения игры и убер мода
+    updateEndgameButtons();
   } else {
     // Показываем обычную стоимость покупки
     const uberCost = uberCostAt(save.uber.level);
-    uberCostEl.textContent = fmt(uberCost); // Показываем обычную стоимость
-    uberSegInfo.textContent = 'Buy 10 levels to unlock';
-    uberSegBtn.classList.add('hidden');
-    uberSegBtn.setAttribute('aria-hidden', 'true');
-
-    uberBuyBtn.classList.remove('hidden');
-    uberBuyBtn.removeAttribute('aria-hidden');
-    uberBuyBtn.disabled = !save.uber.unlocked || (save.points < uberCost);
+    uberCostEl.textContent = fmt(uberCost);
+    
+    if (uberBuyBtn) {
+      uberBuyBtn.classList.remove('hidden');
+      uberBuyBtn.removeAttribute('aria-hidden');
+      // Кнопка активна только если разблокировано И достаточно поинтов
+      uberBuyBtn.disabled = save.points < uberCost;
+    }
+    // Скрываем кнопки завершения игры, если уровень < 19
+    updateEndgameButtons();
   }
 
   // Draw pixel citadel
@@ -1151,7 +1167,9 @@ function renderAll() {
   renderTopStats();
   renderClick();
   renderBuildings();
-  renderUber();
+  // Сначала проверяем разблокировку Uber здания, потом рендерим
+  checkUberUnlock(); // Проверяем разблокировку Uber здания
+  renderUber(); // Рендерим Uber здание (после проверки разблокировки)
   renderEffects();
   renderAchievements();
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk
@@ -1217,22 +1235,10 @@ function updateButtonStates() {
   });
 
   // Обновляем кнопки Uber
-  if (save.uber.unlocked) {
-    const uberSeg = segmentIndex(save.uber.level);
-    const uberWithin = withinSegment(save.uber.level);
-    const needSegUpgrade = (uberWithin === 0 && uberSeg > 0 && !save.uber.segUpgrades[uberSeg-1]) || (uberWithin === 9 && !save.uber.segUpgrades[uberSeg]);
-
-    if (needSegUpgrade) {
-      const prevIndex = (uberWithin === 0 && uberSeg > 0 && !save.uber.segUpgrades[uberSeg-1]) ? uberSeg-1 : uberSeg;
-      const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
-      if (uberSegBtn && !uberSegBtn.classList.contains('hidden')) {
-        uberSegBtn.disabled = save.points < (prevCostSum/2);
-      }
-    } else {
-      const uberCost = uberCostAt(save.uber.level);
-      if (uberBuyBtn && !uberBuyBtn.classList.contains('hidden')) {
-        uberBuyBtn.disabled = save.points < uberCost;
-      }
+  if (save.uber.unlocked && save.uber.level < save.uber.max) {
+    const uberCost = uberCostAt(save.uber.level);
+    if (uberBuyBtn && !uberBuyBtn.classList.contains('hidden')) {
+      uberBuyBtn.disabled = save.points < uberCost;
     }
   }
 }
@@ -1256,6 +1262,8 @@ function buyBulkLevels(entity, computeFn, applyFn) {
 
   // After buy, re-render
   renderAll();
+  // Проверяем разблокировку Uber здания после покупки уровней
+  checkUberUnlock();
 }
 
 function buyClickLevels() {
@@ -1332,6 +1340,8 @@ function buyBuildingLevels(i) {
   buyBulkLevels('building', computeFn, applyFn);
   // Проверяем достижения после покупки уровней зданий
   checkAchievements();
+  // Проверяем разблокировку Uber здания
+  checkUberUnlock();
 }
 
 function buyBuildingSegUpgrade(i, segIndex) {
@@ -1408,6 +1418,11 @@ clickBtn.addEventListener('click', () => {
 // ======= Bulk controls =======
 function updateBulkButtons() {
   if (!save) return;
+  
+  // Инициализируем bulk, если его нет
+  if (save.bulk === undefined || save.bulk === null) {
+    save.bulk = 1;
+  }
   
   // Пересоздаем массив кнопок на случай, если DOM изменился
   const buttons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'));
@@ -1901,74 +1916,107 @@ setInterval(tick, 100); // 10x per second for smoothness
 
 // ======= Endgame & caps =======
 function checkUberUnlock() {
-  if (save.uber.unlocked) return;
-  const all800 = save.buildings.every(b => b.level >= 800) && save.click.level >= 800;
-  if (all800) {
+  if (!save) return;
+  
+  // Если уже разблокировано, просто обновляем состояние кнопки
+  if (save.uber.unlocked) {
+    if (uberBuyBtn && !uberBuyBtn.classList.contains('hidden')) {
+      const uberCost = uberCostAt(save.uber.level);
+      uberBuyBtn.disabled = save.points < uberCost;
+    }
+    return;
+  }
+  
+  // Проверяем, что массив зданий существует и не пустой
+  if (!save.buildings || save.buildings.length === 0) return;
+  
+  // Проверяем, что все здания достигли уровня 800 и Click тоже
+  // Важно: every() возвращает true для пустого массива, поэтому проверяем length > 0
+  let allBuildings800 = true;
+  for (let i = 0; i < save.buildings.length; i++) {
+    const b = save.buildings[i];
+    if (!b || typeof b.level !== 'number' || b.level < 800) {
+      allBuildings800 = false;
+      break;
+    }
+  }
+  
+  const click800 = save.click && typeof save.click.level === 'number' && save.click.level >= 800;
+  
+  if (allBuildings800 && click800) {
     save.uber.unlocked = true;
-    uberBuyBtn.disabled = false;
     toast('Uber Turbo Building unlocked!', 'good');
     checkAchievements(); // Проверяем достижения после разблокировки Uber
+    // renderUber() будет вызван после этой функции в renderAll()
   }
 }
 function updateEndgameButtons() {
-  // When uber reaches level 10, show endgame or continue
-  if (save.uber.level >= 10 && !save.meta.extendedCaps) {
-    endgameBtn.classList.remove('hidden');
-    continueBtn.classList.remove('hidden');
+  // When uber reaches level 19 (and not in uber mode yet), show endgame buttons
+  // Кнопки показываются только если уровень >= 19 и max === 19 (еще не в убер моде)
+  if (save && save.uber.unlocked && save.uber.level >= 19 && save.uber.max === 19) {
+    if (endgameBtn) endgameBtn.classList.remove('hidden');
+    if (uberModeBtn) uberModeBtn.classList.remove('hidden');
   } else {
-    endgameBtn.classList.add('hidden');
-    continueBtn.classList.add('hidden');
+    // Скрываем кнопки во всех остальных случаях (уровень < 19, или уже в убер моде)
+    if (endgameBtn) endgameBtn.classList.add('hidden');
+    if (uberModeBtn) uberModeBtn.classList.add('hidden');
   }
 }
 uberBuyBtn.addEventListener('click', () => {
   if (!save.uber.unlocked) return;
-  // Respect segment gating
-  const seg = segmentIndex(save.uber.level);
-  const within = withinSegment(save.uber.level);
-  if (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) {
-    toast('Segment upgrade required to progress.', 'warn');
-    return;
-  }
+  if (save.uber.level >= save.uber.max) return;
+  
   const cost = uberCostAt(save.uber.level);
   if (save.points < cost) {
     toast('Not enough points.', 'warn');
     return;
   }
   save.points -= cost;
-  // Track segment cost
-  save.uber.pendingSegmentCost[seg] = (save.uber.pendingSegmentCost[seg] || 0) + cost;
   save.uber.level = Math.min(save.uber.level + 1, save.uber.max);
   toast('Citadel level increased.', 'good');
   checkAchievements(); // Проверяем достижения после покупки уровня Uber
   renderAll();
 });
-uberSegBtn.addEventListener('click', () => {
-  const seg = segmentIndex(save.uber.level);
-  const within = withinSegment(save.uber.level);
-  const targetSeg = within === 0 ? seg-1 : seg;
-  const costSum = (save.uber.pendingSegmentCost[targetSeg] || 0) / 2;
-  if (save.points < costSum) {
-    toast('Not enough points for segment upgrade.', 'warn');
-    return;
-  }
-  save.points -= costSum;
-  save.uber.segUpgrades[targetSeg] = true;
-  toast('Citadel segment upgraded: +13% income.', 'good');
-  renderAll();
-});
 
+if (endgameBtn) {
 endgameBtn.addEventListener('click', () => {
-  save.meta.endgameUnlocked = true;
-  toast('You completed the game! Take a victory pause.', 'good');
+  // Показываем модальное окно подтверждения
+  showConfirmModal(
+    'The game will be completely reset. Are you sure?',
+    () => {
+      // Полный сброс игры
+      const username = save ? save.meta.username : 'Player';
+      save = newSave(username);
+      initBuildings(save);
+      currentUser = { username, password: '' }; // Сохраняем пользователя для автологина
+      toast('Game completely reset.', 'info');
+      updateEndgameButtons(); // Скрываем кнопки после сброса
+      renderAll();
+    }
+  );
 });
-continueBtn.addEventListener('click', () => {
-  save.meta.extendedCaps = true;
-  toast('Extended caps unlocked. You may level Click/buildings to 9922, Citadel to 99.', 'good');
-  save.click.max = 9922;
-  save.buildings.forEach(b => b.max = 9922);
-  save.uber.max = 99;
-  renderAll();
+}
+
+if (uberModeBtn) {
+uberModeBtn.addEventListener('click', () => {
+  // Показываем модальное окно подтверждения
+  showConfirmModal(
+    'Enter Uber Mode?',
+    () => {
+      // Переход в убер мод - увеличиваем max до 9999 для зданий и клика, до 1881 для убер здания
+      save.buildings.forEach(b => {
+        b.max = Math.max(b.max, 9999); // Увеличиваем максимальный уровень до 9999
+      });
+      save.click.max = Math.max(save.click.max, 9999); // Увеличиваем максимальный уровень клика до 9999
+      save.uber.max = Math.max(save.uber.max, 1881); // Увеличиваем максимум для убер здания до 1881
+      toast('Entered Uber Mode!', 'good');
+      saveNow(); // Сохраняем состояние убер мода немедленно
+      updateEndgameButtons(); // Скрываем кнопки после перехода в убер мод
+      renderAll();
+    }
+  );
 });
+}
 
 // ======= Pixel art drawing (procedural) =======
 function drawHousePixel(canvas, seed) {
@@ -2064,6 +2112,10 @@ function showGame() {
   authScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
   usernameDisplay.textContent = save.meta.username;
+  // Инициализируем bulk, если его нет
+  if (save.bulk === undefined || save.bulk === null) {
+    save.bulk = 1;
+  }
   // Убеждаемся, что bulk нормализован перед рендером
   if (save.bulk !== 'max') {
     const parsed = parseInt(save.bulk, 10);
@@ -2076,6 +2128,7 @@ function showAuth() {
   authScreen.classList.remove('hidden');
 }
 
+if (loginBtn) {
 loginBtn.addEventListener('click', () => {
   const u = loginUsername.value.trim();
   const p = loginPassword.value;
@@ -2102,6 +2155,10 @@ loginBtn.addEventListener('click', () => {
       }
     };
   }
+  // Инициализируем bulk, если его нет (для старых сохранений)
+  if (save.bulk === undefined || save.bulk === null) {
+    save.bulk = 1;
+  }
   // Нормализуем bulk при загрузке (может быть строкой из localStorage)
   if (save.bulk !== 'max') {
     const parsed = parseInt(save.bulk, 10);
@@ -2109,9 +2166,15 @@ loginBtn.addEventListener('click', () => {
   }
   // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
   migrateAchievements();
+  // Мигрируем uber.max: если не в убер моде и не в убер мод (1881), устанавливаем 19
+  if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
+    save.uber.max = 19;
+  }
   showGame();
 });
+}
 
+if (registerBtn) {
 registerBtn.addEventListener('click', () => {
   const u = registerUsername.value.trim();
   const p = registerPassword.value;
@@ -2137,7 +2200,9 @@ registerBtn.addEventListener('click', () => {
   toast('Account created.', 'good');
   showGame();
 });
+}
 
+if (logoutBtn) {
 logoutBtn.addEventListener('click', () => {
   saveNow();
   currentUser = null;
@@ -2145,6 +2210,7 @@ logoutBtn.addEventListener('click', () => {
   toast('Logged out.', 'info');
   showAuth();
 });
+}
 
 // Tab switching
 tabBtns.forEach(btn => {
@@ -2298,6 +2364,13 @@ const updatesModal = document.getElementById('updates-modal');
 const updatesBody = document.getElementById('updates-body');
 const updatesClose = document.getElementById('updates-close');
 const updatesClose2 = document.getElementById('updates-close-2');
+
+// Confirmation modal elements
+const confirmModal = document.getElementById('confirm-modal');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmYes = document.getElementById('confirm-yes');
+const confirmNo = document.getElementById('confirm-no');
+let confirmCallback = null;
 
 // Рендер списка апдейтов в модалке
 function _renderUpdatesList() {
@@ -2453,6 +2526,132 @@ if (updatesModal) {
 // Инициализация: рендерим список заранее (необязательно, но удобно)
 _renderUpdatesList();
 
+// ===== Confirmation modal logic =====
+function showConfirmModal(message, onConfirm) {
+  if (!confirmModal || !confirmMessage) return;
+  
+  confirmMessage.textContent = message;
+  confirmCallback = onConfirm;
+  
+  // Пометка aria
+  confirmModal.setAttribute('aria-hidden', 'false');
+  
+  // Сохраняем реальную ширину grid ДО любых изменений layout
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    _savedGameColumnsWidth = rect.width;
+  }
+  
+  // Вычисляем ширину скроллбара ДО любых изменений layout
+  _savedBodyPaddingRight = document.body.style.paddingRight || '';
+  const sbw = _getScrollbarWidth();
+  
+  // Применяем компенсацию скроллбара ПЕРЕД блокировкой прокрутки
+  if (sbw > 0) {
+    document.body.style.paddingRight = `${sbw}px`;
+  }
+  
+  // Блокируем прокрутку страницы
+  document.body.classList.add('modal-open');
+  
+  // Восстанавливаем сохраненную ширину grid
+  if (gameColumns && _savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      if (gameColumns && _savedGameColumnsWidth !== null) {
+        gameColumns.style.width = `${_savedGameColumnsWidth}px`;
+        gameColumns.style.minWidth = `${_savedGameColumnsWidth}px`;
+        gameColumns.style.maxWidth = `${_savedGameColumnsWidth}px`;
+      }
+    });
+  }
+  
+  // Показываем модалку
+  confirmModal.classList.add('open');
+  
+  // Фокусируем кнопку "No" для доступности
+  if (confirmNo && typeof confirmNo.focus === 'function') confirmNo.focus();
+  
+  // Слушатель клавиши Escape для закрытия
+  document.addEventListener('keydown', _confirmKeyHandler);
+}
+
+function closeConfirmModal() {
+  if (!confirmModal) return;
+  
+  // Скрываем модалку
+  confirmModal.classList.remove('open');
+  confirmModal.setAttribute('aria-hidden', 'true');
+  
+  // Дополнительная проверка: убеждаемся, что модалка скрыта
+  if (confirmModal.classList.contains('open')) {
+    // Если класс все еще есть, принудительно удаляем его
+    confirmModal.classList.remove('open');
+  }
+  
+  // Восстанавливаем padding-right ПЕРЕД удалением overflow: hidden
+  document.body.style.paddingRight = _savedBodyPaddingRight || '';
+  
+  // Убираем блокировку прокрутки
+  document.body.classList.remove('modal-open');
+  
+  // Восстанавливаем исходную ширину grid
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns && _savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (gameColumns && _savedGameColumnsWidth !== null) {
+          gameColumns.style.width = '';
+          gameColumns.style.minWidth = '';
+          gameColumns.style.maxWidth = '';
+        }
+        _savedGameColumnsWidth = null;
+      });
+    });
+  }
+  
+  // Удаляем обработчик Escape
+  document.removeEventListener('keydown', _confirmKeyHandler);
+  
+  // Очищаем callback
+  confirmCallback = null;
+}
+
+function _confirmKeyHandler(e) {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeConfirmModal();
+  }
+}
+
+// Подключаем обработчики для модального окна подтверждения
+if (confirmYes) {
+  confirmYes.addEventListener('click', () => {
+    // Выполняем callback, если он есть
+    if (confirmCallback) {
+      try {
+        confirmCallback();
+      } catch (e) {
+        console.error('Error in confirm callback:', e);
+      }
+    }
+    // Всегда закрываем модальное окно после выполнения callback
+    closeConfirmModal();
+  });
+}
+
+if (confirmNo) {
+  confirmNo.addEventListener('click', () => {
+    closeConfirmModal();
+  });
+}
+
+// Закрытие при клике по фону модалки
+if (confirmModal) {
+  confirmModal.addEventListener('click', (ev) => {
+    if (ev.target === confirmModal) closeConfirmModal();
+  });
+}
+
 // Дополнительный обработчик Escape (как резервный, если основной не сработает)
 // Основной обработчик добавляется в openUpdatesModal через _updatesKeyHandler
 document.addEventListener('keydown', (e) => {
@@ -2482,6 +2681,10 @@ document.addEventListener('keydown', (e) => {
         }
       };
     }
+    // Инициализируем bulk, если его нет (для старых сохранений)
+    if (save.bulk === undefined || save.bulk === null) {
+      save.bulk = 1;
+    }
     // Нормализуем bulk при загрузке (может быть строкой из localStorage)
     if (save.bulk !== 'max') {
       const parsed = parseInt(save.bulk, 10);
@@ -2489,6 +2692,11 @@ document.addEventListener('keydown', (e) => {
     }
     // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
     migrateAchievements();
+    // Мигрируем uber.max: если не в убер моде и не в убер мод (1881), устанавливаем 19
+    // НЕ изменяем max если он уже установлен в 1881 (убер мод активен)
+    if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
+      save.uber.max = 19;
+    }
     // Show auth; user can log in. Or auto-login? Keep manual per request.
   }
   autosaveLoop();
@@ -2496,7 +2704,20 @@ document.addEventListener('keydown', (e) => {
 // Рендерим достижения всегда, даже если игра не загружена
 renderAchievements();
 if (save) {
+  // Убеждаемся, что bulk инициализирован
+  if (save.bulk === undefined || save.bulk === null) {
+    save.bulk = 1;
+  }
+  // Нормализуем bulk
+  if (save.bulk !== 'max') {
+    const parsed = parseInt(save.bulk, 10);
+    save.bulk = isNaN(parsed) ? 1 : parsed;
+  }
   renderAll();
+  // Дополнительно обновляем кнопки bulk после полной загрузки DOM
+  setTimeout(() => {
+    if (save) updateBulkButtons();
+  }, 100);
 }
 startCountdownLoop();
 
