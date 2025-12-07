@@ -531,7 +531,7 @@ function renderClick() {
     // Визуально сделать похожей на primary (если нужно)
     clickSegBtn.classList.add('primary');
     const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
-    clickSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+    clickSegBtn.textContent = `Upgrade (${fmt(prevCostSum/2)})`;
     clickSegBtn.disabled = save.points < (prevCostSum/2);
   } else {
     // Показываем покупку, скрываем апгрейд
@@ -619,7 +619,7 @@ function renderBuildings() {
     if (within === 0 && seg > 0 && !prevSegBought) {
       // Требуется сегментный апгрейд — показываем только segBtn
       const prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
-      segBtn.textContent = `Upgrade (cost: ${fmt(prevCost)})`;
+      segBtn.textContent = `Upgrade (${fmt(prevCost)})`;
       segBtn.classList.remove('hidden');
       segBtn.addEventListener('click', ()=> buyBuildingSegUpgrade(i, seg-1));
 
@@ -708,7 +708,7 @@ function renderUber() {
     uberSegBtn.removeAttribute('aria-hidden');
     const prevIndex = (within === 0 && seg > 0 && !save.uber.segUpgrades[seg-1]) ? seg-1 : seg;
     const prevCostSum = save.uber.pendingSegmentCost[prevIndex] || 0;
-    uberSegBtn.textContent = `Upgrade (cost: ${fmt(prevCostSum/2)})`;
+    uberSegBtn.textContent = `Upgrade (${fmt(prevCostSum/2)})`;
     uberSegBtn.disabled = save.points < (prevCostSum/2);
   } else {
     uberSegInfo.textContent = 'Buy 10 levels to unlock';
@@ -1701,11 +1701,18 @@ function _updateBuildingCountdowns() {
 // Каждый элемент: { title: 'Заголовок', date: '2025-12-05', body: 'Текст апдейта' }
 const GAME_UPDATES = [
   {
-     title: 'Patch Alpha 0.1a',
+    title: 'Patch Alpha 0.1b',
+    date: '2025-12-07',
+    body: 'Fixed Uber building card.\n\nBuilding cards no longer break after opening/closing the Updates window.\n\nNumbers now use abbreviations like: k, M, B, etc.\n\nRemoved the word "cost" during any upgrade operations.'
+  },
+
+  {
+    title: 'Patch Alpha 0.1a',
     date: '2025-12-05',
     body: 'Hotfix: Building downtime.\n\nFixed a bug with building repair timers; buttons now correctly become active again.\n\nAdded Updates button.\n\nBuilding repair downtime increased from 82s to 164s.'
   }
 ];
+
 
 const updatesBtn = document.getElementById('updates-btn');
 const updatesModal = document.getElementById('updates-modal');
@@ -1751,6 +1758,8 @@ function _renderUpdatesList() {
   - при закрытии восстанавливаем исходные значения
 */
 let _savedBodyPaddingRight = '';
+let _savedGameColumnsWidth = null;
+
 function _getScrollbarWidth() {
   return window.innerWidth - document.documentElement.clientWidth;
 }
@@ -1761,19 +1770,40 @@ function openUpdatesModal() {
   // Пометка aria
   updatesModal.setAttribute('aria-hidden', 'false');
 
-  // Показываем модалку через класс (CSS управляет display)
-  updatesModal.classList.add('open');
+  // КРИТИЧНО: Сохраняем реальную ширину grid ДО любых изменений layout
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    _savedGameColumnsWidth = rect.width;
+  }
 
-  // Сохраняем текущий padding-right тела и добавляем компенсацию скролла,
-  // чтобы не происходил сдвиг ширины контента при скрытии скролла.
+  // ВАЖНО: Сначала вычисляем ширину скроллбара ДО любых изменений layout
+  // Сохраняем текущий padding-right тела
   _savedBodyPaddingRight = document.body.style.paddingRight || '';
   const sbw = _getScrollbarWidth();
+  
+  // Применяем компенсацию скроллбара ПЕРЕД блокировкой прокрутки
   if (sbw > 0) {
     document.body.style.paddingRight = `${sbw}px`;
   }
 
   // Блокируем прокрутку страницы через класс (CSS: body.modal-open { overflow: hidden; })
   document.body.classList.add('modal-open');
+
+  // ВАЖНО: Восстанавливаем сохраненную ширину grid как фиксированное значение в пикселях
+  // Используем requestAnimationFrame для синхронизации с браузерным рендерингом
+  if (gameColumns && _savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      if (gameColumns && _savedGameColumnsWidth !== null) {
+        gameColumns.style.width = `${_savedGameColumnsWidth}px`;
+        gameColumns.style.minWidth = `${_savedGameColumnsWidth}px`;
+        gameColumns.style.maxWidth = `${_savedGameColumnsWidth}px`;
+      }
+    });
+  }
+
+  // Показываем модалку ПОСЛЕ компенсации скроллбара (CSS управляет display)
+  updatesModal.classList.add('open');
 
   // Фокусируем кнопку закрытия для доступности
   if (updatesClose && typeof updatesClose.focus === 'function') updatesClose.focus();
@@ -1787,11 +1817,28 @@ function closeUpdatesModal() {
   updatesModal.classList.remove('open');
   updatesModal.setAttribute('aria-hidden', 'true');
 
+  // Восстанавливаем padding-right ПЕРЕД удалением overflow: hidden
+  document.body.style.paddingRight = _savedBodyPaddingRight || '';
+
   // Убираем блокировку прокрутки
   document.body.classList.remove('modal-open');
 
-  // Восстанавливаем padding-right, если мы его меняли
-  document.body.style.paddingRight = _savedBodyPaddingRight || '';
+  // ВАЖНО: Восстанавливаем исходную ширину grid ПОСЛЕ того, как браузер пересчитал layout
+  // Используем двойной requestAnimationFrame для гарантии, что layout пересчитан
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns && _savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Теперь безопасно удаляем фиксированные значения
+        if (gameColumns) {
+          gameColumns.style.width = '';
+          gameColumns.style.minWidth = '';
+          gameColumns.style.maxWidth = '';
+        }
+        _savedGameColumnsWidth = null;
+      });
+    });
+  }
 
   // Возвращаем фокус на кнопку Updates
   if (updatesBtn && typeof updatesBtn.focus === 'function') updatesBtn.focus();
@@ -1806,10 +1853,9 @@ function _updatesKeyHandler(e) {
   }
 }
 
-// Подключаем обработчики кликов (без изменения логики открытия/закрытия)
+// Подключаем обработчики кликов
 if (updatesBtn) {
   updatesBtn.addEventListener('click', (ev) => {
-    // предотвращаем возможные побочные эффекты (например, если кнопка внутри flex)
     ev.preventDefault();
     openUpdatesModal();
   });
@@ -1828,20 +1874,10 @@ if (updatesModal) {
 // Инициализация: рендерим список заранее (необязательно, но удобно)
 _renderUpdatesList();
 
-
-// Events
-updatesBtn.addEventListener('click', openUpdatesModal);
-updatesClose.addEventListener('click', closeUpdatesModal);
-updatesClose2.addEventListener('click', closeUpdatesModal);
-
-// Close when clicking backdrop (but not when clicking inside modal-card)
-updatesModal.addEventListener('click', (e) => {
-  if (e.target === updatesModal) closeUpdatesModal();
-});
-
-// Close on Escape
+// Дополнительный обработчик Escape (как резервный, если основной не сработает)
+// Основной обработчик добавляется в openUpdatesModal через _updatesKeyHandler
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && updatesModal.style.display === 'flex') {
+  if (e.key === 'Escape' && updatesModal.classList.contains('open')) {
     closeUpdatesModal();
   }
 });
