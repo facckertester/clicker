@@ -618,6 +618,42 @@ function checkAchievements() {
   }
 }
 
+// Миграция старых сохранений: восстановление статистики и разблокировка достижений
+function migrateAchievements() {
+  if (!save || !save.achievements) return;
+  
+  // Восстанавливаем статистику из текущего состояния игры
+  // Время игры - если не было отслеживания, вычисляем из даты создания
+  if (save.achievements.stats.totalPlayTime === 0 && save.meta && save.meta.created) {
+    const estimatedPlayTime = Math.max(0, now() - save.meta.created);
+    save.achievements.stats.totalPlayTime = estimatedPlayTime;
+  }
+  
+  // Проверяем, было ли куплено первое здание
+  if (!save.achievements.stats.firstBuildingBought) {
+    const hasAnyBuilding = save.buildings && save.buildings.some(b => b && b.level >= 1);
+    if (hasAnyBuilding) {
+      save.achievements.stats.firstBuildingBought = true;
+    }
+  }
+  
+  // Проверяем и разблокируем все достижения, которые уже должны быть получены
+  // (без показа toast, так как это миграция старых сохранений)
+  let migratedCount = 0;
+  ACHIEVEMENTS.forEach(ach => {
+    if (!save.achievements.unlocked[ach.id] && checkAchievementCondition(ach)) {
+      save.achievements.unlocked[ach.id] = true;
+      migratedCount++;
+    }
+  });
+  
+  // Если были разблокированы достижения при миграции, обновляем рендер
+  if (migratedCount > 0) {
+    // Не показываем toast для миграции, но обновляем UI
+    renderAchievements();
+  }
+}
+
 // ======= Game state helpers =======
 function totalPPC() {
   let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
@@ -676,11 +712,24 @@ function renderTopStats() {
 }
 
 function renderClick() {
+  if (!save || !clickBtn) return;
+  
   const brokenActive = save.click.brokenUntil > now();
   const goldenActive = save.click.goldenUntil > now();
 
-  clickBtn.classList.toggle('broken', brokenActive);
-  clickBtn.classList.toggle('golden', goldenActive);
+  // Явно удаляем и добавляем классы для гарантированного обновления
+  if (brokenActive) {
+    clickBtn.classList.add('broken');
+  } else {
+    clickBtn.classList.remove('broken');
+  }
+  
+  if (goldenActive) {
+    clickBtn.classList.add('golden');
+  } else {
+    clickBtn.classList.remove('golden');
+  }
+  
   clickStatus.textContent = brokenActive ? 'Broken' : (goldenActive ? 'Golden' : 'Ready');
 
   clickLevelEl.textContent = save.click.level;
@@ -752,6 +801,7 @@ function renderBuildings() {
     const card = document.createElement('div');
     card.className = 'building-card';
 
+    // Используем пиксельную canvas-иконку
     const pixel = document.createElement('canvas');
     pixel.width = 56; pixel.height = 56;
     pixel.className = 'building-pixel';
@@ -949,18 +999,113 @@ function renderEffects() {
 }
 
 
+// Рисует пиксельную иконку для достижения
+function drawAchievementPixel(canvas, ach) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Размер пикселя для сетки 12x12
+  const px = 4;
+  const size = 48; // 12x12 пикселей по 4px
+  
+  // Палитра (средневековые тона)
+  const unlockedColors = {
+    bg: '#3b322b',
+    primary: '#d4b24a',
+    secondary: '#2a4b7a',
+    accent: '#b8893d',
+    dark: '#1f1b1a'
+  };
+  
+  const lockedColors = {
+    bg: '#2a1f1a',
+    primary: '#4a4a4a',
+    secondary: '#3a3a3a',
+    accent: '#2a2a2a',
+    dark: '#1a1a1a'
+  };
+  
+  const isUnlocked = save && save.achievements && save.achievements.unlocked[ach.id];
+  const colors = isUnlocked ? unlockedColors : lockedColors;
+  
+  // Фон
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, 0, size, size);
+  
+  // Рисуем иконку в зависимости от типа достижения
+  ctx.fillStyle = colors.primary;
+  
+  // Простые пиксельные паттерны для разных типов
+  if (ach.type === 'clicks') {
+    // Иконка клика - стрелка вверх
+    ctx.fillRect(px * 5, px * 2, px * 2, px * 3);
+    ctx.fillRect(px * 4, px * 5, px * 4, px * 2);
+    ctx.fillRect(px * 3, px * 7, px * 6, px);
+  } else if (ach.type === 'first_building' || ach.type === 'buildings_level') {
+    // Иконка здания - простой домик
+    ctx.fillRect(px * 4, px * 6, px * 4, px * 4);
+    ctx.fillRect(px * 3, px * 4, px * 6, px * 2);
+    ctx.fillRect(px * 5, px * 7, px * 2, px * 2);
+  } else if (ach.type === 'uber_unlock' || ach.type === 'uber_level') {
+    // Иконка замка - башни
+    ctx.fillRect(px * 2, px * 4, px * 2, px * 6);
+    ctx.fillRect(px * 5, px * 3, px * 2, px * 7);
+    ctx.fillRect(px * 8, px * 4, px * 2, px * 6);
+    ctx.fillRect(px * 3, px * 3, px * 6, px);
+  } else if (ach.type === 'destructions') {
+    // Иконка разрушения - крест/взрыв
+    ctx.fillRect(px * 4, px * 2, px * 4, px);
+    ctx.fillRect(px * 4, px * 9, px * 4, px);
+    ctx.fillRect(px * 2, px * 4, px, px * 4);
+    ctx.fillRect(px * 9, px * 4, px, px * 4);
+    ctx.fillRect(px * 5, px * 5, px * 2, px * 2);
+  } else if (ach.type === 'playtime') {
+    // Иконка времени - часы
+    ctx.fillRect(px * 3, px * 3, px * 6, px * 6);
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(px * 4, px * 4, px * 4, px * 4);
+    ctx.fillStyle = colors.primary;
+    ctx.fillRect(px * 5, px * 5, px * 2, px);
+    ctx.fillRect(px * 6, px * 5, px, px * 2);
+  } else {
+    // Дефолтная иконка - звезда
+    ctx.fillRect(px * 5, px * 2, px * 2, px);
+    ctx.fillRect(px * 4, px * 3, px * 4, px);
+    ctx.fillRect(px * 3, px * 4, px * 6, px);
+    ctx.fillRect(px * 5, px * 5, px * 2, px * 4);
+    ctx.fillRect(px * 3, px * 9, px * 6, px);
+  }
+  
+  // Обводка
+  ctx.strokeStyle = colors.dark;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, 0, size, size);
+  
+  // Если заблокировано, применяем grayscale эффект через CSS
+  if (!isUnlocked) {
+    canvas.style.filter = 'grayscale(100%)';
+    canvas.style.opacity = '0.6';
+  } else {
+    canvas.style.filter = 'none';
+    canvas.style.opacity = '1';
+  }
+}
+
 function renderAchievements() {
   const container = document.getElementById('achievements-list');
   if (!container) return;
   
   container.innerHTML = '';
   
+  // Если save еще не загружен или achievements не инициализированы, показываем все как заблокированные
+  const achievements = save && save.achievements ? save.achievements : null;
+  
   // Разделяем достижения на полученные и неполученные
   const unlocked = [];
   const locked = [];
   
   ACHIEVEMENTS.forEach(ach => {
-    const isUnlocked = save.achievements.unlocked[ach.id] || false;
+    const isUnlocked = achievements && achievements.unlocked[ach.id] || false;
     if (isUnlocked) {
       unlocked.push(ach);
     } else {
@@ -972,14 +1117,17 @@ function renderAchievements() {
   const sorted = [...unlocked, ...locked];
   
   sorted.forEach(ach => {
-    const isUnlocked = save.achievements.unlocked[ach.id] || false;
+    const isUnlocked = achievements && achievements.unlocked[ach.id] || false;
     const item = document.createElement('div');
     item.className = 'achievement-item' + (isUnlocked ? ' unlocked' : ' locked');
     item.title = `${ach.name} (+${(ach.reward * 100).toFixed(0)}% income)`;
     
-    const icon = document.createElement('div');
+    // Используем canvas для пиксельной иконки
+    const icon = document.createElement('canvas');
+    icon.width = 48;
+    icon.height = 48;
     icon.className = 'achievement-icon';
-    icon.textContent = ach.icon;
+    drawAchievementPixel(icon, ach);
     
     const info = document.createElement('div');
     info.className = 'achievement-info';
@@ -1259,12 +1407,34 @@ clickBtn.addEventListener('click', () => {
 
 // ======= Bulk controls =======
 function updateBulkButtons() {
-  bulkButtons.forEach(btn => {
+  if (!save) return;
+  
+  // Пересоздаем массив кнопок на случай, если DOM изменился
+  const buttons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'));
+  if (!buttons || buttons.length === 0) return;
+  
+  // Нормализуем save.bulk к правильному типу
+  // Если bulk не установлен или некорректный, используем значение по умолчанию 1
+  let currentBulk;
+  if (save.bulk === 'max') {
+    currentBulk = 'max';
+  } else {
+    const parsed = parseInt(save.bulk, 10);
+    currentBulk = isNaN(parsed) ? 1 : parsed;
+    // Обновляем save.bulk на нормализованное значение
+    save.bulk = currentBulk;
+  }
+  
+  // Сначала убираем active со всех кнопок
+  buttons.forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Затем добавляем active только к нужной кнопке
+  buttons.forEach(btn => {
     const btnBulk = btn.dataset.bulk === 'max' ? 'max' : parseInt(btn.dataset.bulk, 10);
-    if (btnBulk === save.bulk) {
+    if (btnBulk === currentBulk) {
       btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
     }
   });
 }
@@ -1658,6 +1828,10 @@ if (spiderEl) {
     // пометим, что паук больше не "жив" в плане таймера
     _spiderState.aliveUntil = 0;
 
+    // Сбрасываем streak при клике на паука, чтобы предотвратить случайную активацию золотого состояния
+    save.streak.count = 0;
+    save.streak.lastClickTs = 0;
+
     const roll = Math.random();
     if (roll < 0.25) {
       save.modifiers.spiderMult = 0.0001;
@@ -1716,6 +1890,7 @@ function tick() {
 
   // Update UI
   renderTopStats();
+  renderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
   renderEffects();
   // Обновляем состояние кнопок (disabled/enabled) в зависимости от поинтов
   updateButtonStates();
@@ -1797,6 +1972,9 @@ continueBtn.addEventListener('click', () => {
 
 // ======= Pixel art drawing (procedural) =======
 function drawHousePixel(canvas, seed) {
+  canvas.style.imageRendering = 'pixelated';
+  canvas.style.imageRendering = '-moz-crisp-edges';
+  canvas.style.imageRendering = 'crisp-edges';
   const ctx = canvas.getContext('2d');
   // clear
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -1853,6 +2031,9 @@ function drawHousePixel(canvas, seed) {
 function drawCitadelPixel(el) {
   const canvas = document.createElement('canvas');
   canvas.width = 64; canvas.height = 64;
+  canvas.style.imageRendering = 'pixelated';
+  canvas.style.imageRendering = '-moz-crisp-edges';
+  canvas.style.imageRendering = 'crisp-edges';
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,64,64);
 
@@ -1883,6 +2064,11 @@ function showGame() {
   authScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
   usernameDisplay.textContent = save.meta.username;
+  // Убеждаемся, что bulk нормализован перед рендером
+  if (save.bulk !== 'max') {
+    const parsed = parseInt(save.bulk, 10);
+    save.bulk = isNaN(parsed) ? 1 : parsed;
+  }
   renderAll();
 }
 function showAuth() {
@@ -1916,6 +2102,13 @@ loginBtn.addEventListener('click', () => {
       }
     };
   }
+  // Нормализуем bulk при загрузке (может быть строкой из localStorage)
+  if (save.bulk !== 'max') {
+    const parsed = parseInt(save.bulk, 10);
+    save.bulk = isNaN(parsed) ? 1 : parsed;
+  }
+  // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
+  migrateAchievements();
   showGame();
 });
 
@@ -2289,16 +2482,22 @@ document.addEventListener('keydown', (e) => {
         }
       };
     }
-    // Инициализируем время игры, если его нет (для старых сохранений)
-    if (save.achievements.stats.totalPlayTime === 0 && save.meta && save.meta.created) {
-      // Приблизительное время игры = разница между текущим временем и временем создания
-      save.achievements.stats.totalPlayTime = now() - save.meta.created;
+    // Нормализуем bulk при загрузке (может быть строкой из localStorage)
+    if (save.bulk !== 'max') {
+      const parsed = parseInt(save.bulk, 10);
+      save.bulk = isNaN(parsed) ? 1 : parsed;
     }
+    // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
+    migrateAchievements();
     // Show auth; user can log in. Or auto-login? Keep manual per request.
   }
   autosaveLoop();
 // ... после загрузки save и первого рендера
-renderAll();
+// Рендерим достижения всегда, даже если игра не загружена
+renderAchievements();
+if (save) {
+  renderAll();
+}
 startCountdownLoop();
 
 })();

@@ -87,27 +87,33 @@ input, textarea, select { user-select: text; cursor: text; }
 .page{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:calc(var(--gap)*1.25);padding:20px}
 .container{width:100%;max-width:var(--max-width);margin:0 auto;padding:0 16px}
 
-/* ---------- AUTH / CARVED STONE CARD (переработано под каменную плиту) ---------- */
+/* ---------- AUTH / CARVED STONE CARD (AoE2 стиль) ---------- */
 .screen{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
 .auth-card{
   width:420px;
   position:relative;
-  padding:22px;
-  border-radius:12px;
+  padding:24px;
+  border-radius:8px;
   background:
-    linear-gradient(180deg,#3b352f,#2f2a24); /* тёплый камень */
-  border: 5px solid var(--border);
+    linear-gradient(180deg,#2a2418,#1f1a12); /* темный камень AoE2 */
+  border: 3px solid #1a1610;
   box-shadow:
     0 20px 50px var(--shadow-strong),
-    inset 0 2px 0 rgba(255,255,255,0.02);
+    inset 0 1px 0 rgba(139, 115, 85, 0.15),
+    inset 0 -1px 0 rgba(0,0,0,0.8);
   cursor: var(--sword-cursor);
   background-image:
-    linear-gradient(180deg,#3b352f,#2f2a24),
     url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'>\
-  <g opacity='0.03' fill='%23000000'>\
-    <path d='M0 0 L200 0 L200 200 L0 200 Z'/>\
-  </g>\
+<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'>\
+  <defs>\
+    <pattern id='stone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
+      <rect width='20' height='20' fill='%232a2418'/>\
+      <circle cx='5' cy='5' r='0.5' fill='%23000000' opacity='0.3'/>\
+      <circle cx='15' cy='12' r='0.5' fill='%23000000' opacity='0.3'/>\
+      <circle cx='10' cy='18' r='0.5' fill='%23000000' opacity='0.3'/>\
+    </pattern>\
+  </defs>\
+  <rect width='100' height='100' fill='url(%23stone)'/>\
 </svg>");
 }
 .auth-card::before{
@@ -136,6 +142,23 @@ h1,h2,h3{
 
 /* Subtitle */
 .subtitle{color:var(--muted);margin-bottom:16px;font-size:0.95rem}
+
+/* Auth panels */
+.auth-panels{position:relative;min-height:200px}
+.auth-panel{display:flex;flex-direction:column;gap:12px}
+
+/* Auth footer - исправляем проблему с текстом под кнопкой */
+.auth-footer{
+  margin-top:16px;
+  padding-top:16px;
+  border-top:1px solid rgba(139, 115, 85, 0.2);
+}
+.auth-footer small{
+  color:var(--muted);
+  font-size:0.85rem;
+  display:block;
+  line-height:1.4;
+}
 
 /* Tabs (гербовые вкладки) */
 .auth-tabs{display:flex;gap:8px;margin-bottom:12px}
@@ -297,13 +320,27 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
 </svg>");
 }
 
-/* Stats bar: деревянная панель с гербовыми вставками */
+/* Stats bar: деревянная панель AoE2 стиль */
 .stats-bar{
   display:flex;align-items:center;justify-content:center;gap:28px;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
-  border: 4px solid var(--border);
-  padding:12px 20px;border-radius:12px;width:100%;max-width:920px;
-  box-shadow: 0 14px 34px rgba(0,0,0,0.6);
+  background: linear-gradient(180deg,#2a2418,#1f1a12);
+  border: 3px solid #1a1610;
+  padding:12px 20px;border-radius:8px;width:100%;max-width:920px;
+  box-shadow: 
+    0 14px 34px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(139, 115, 85, 0.15),
+    inset 0 -1px 0 rgba(0,0,0,0.8);
+  background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'>\
+  <defs>\
+    <pattern id='wood' x='0' y='0' width='15' height='15' patternUnits='userSpaceOnUse'>\
+      <rect width='15' height='15' fill='%232a2418'/>\
+      <line x1='0' y1='7' x2='15' y2='7' stroke='%23000000' stroke-width='0.5' opacity='0.2'/>\
+      <line x1='0' y1='12' x2='15' y2='12' stroke='%23000000' stroke-width='0.5' opacity='0.2'/>\
+    </pattern>\
+  </defs>\
+  <rect width='60' height='60' fill='url(%23wood)'/>\
+</svg>");
 }
 .stat{display:flex;flex-direction:column;align-items:center;min-width:120px;max-width:220px}
 .stat-label{font-size:12px;color:var(--muted)}
@@ -406,15 +443,25 @@ body.modal-open .game-columns {
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 12px;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
+  background: linear-gradient(180deg,#2a2418,#1f1a12);
   border-radius: 8px;
-  padding: 12px;
-  border: 2px solid rgba(0,0,0,0.6);
-  box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  padding: 14px;
+  border: 3px solid #1a1610;
+  box-shadow: 
+    inset 0 6px 12px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(139, 115, 85, 0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.8);
   min-height: 220px;
   background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'>\
-  <g opacity='0.03' fill='%23000000'><rect width='160' height='120'/></g>\
+<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'>\
+  <defs>\
+    <pattern id='clickStone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
+      <rect width='20' height='20' fill='%232a2418'/>\
+      <circle cx='5' cy='5' r='0.5' fill='%23000000' opacity='0.25'/>\
+      <circle cx='15' cy='12' r='0.5' fill='%23000000' opacity='0.25'/>\
+    </pattern>\
+  </defs>\
+  <rect width='100' height='100' fill='url(%23clickStone)'/>\
 </svg>");
 }
 
@@ -425,6 +472,7 @@ body.modal-open .game-columns {
   gap: 12px;
   align-items: center;
   width: 100%;
+  padding: 0 4px; /* Небольшой отступ от краев */
 }
 
 /* Click button — пиксельный значок строения/юнита */
@@ -447,6 +495,69 @@ body.modal-open .game-columns {
   <rect width='96' height='96' rx='8' fill='%236b5638'/>\
   <g opacity='0.06' fill='%23000000'><rect x='6' y='6' width='84' height='84' rx='6'/></g>\
 </svg>");
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Golden click button state */
+.click-row #click-btn.golden {
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.00) 20%),
+    linear-gradient(180deg, var(--gold), #d4a017);
+  border-color: rgba(212, 178, 74, 0.6);
+  box-shadow: 0 8px 16px rgba(212, 178, 74, 0.4),
+    inset 0 -6px 12px rgba(255, 255, 255, 0.1),
+    inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  animation: goldenGlow 2s ease-in-out infinite;
+}
+
+@keyframes goldenGlow {
+  0%, 100% { box-shadow: 0 8px 16px rgba(212, 178, 74, 0.4), inset 0 -6px 12px rgba(255, 255, 255, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.2); }
+  50% { box-shadow: 0 12px 24px rgba(212, 178, 74, 0.6), inset 0 -6px 12px rgba(255, 255, 255, 0.15), inset 0 2px 4px rgba(255, 255, 255, 0.3); }
+}
+
+/* Broken click button state */
+.click-row #click-btn.broken {
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  border-color: rgba(139, 69, 19, 0.4);
+  box-shadow: inset 0 6px 12px rgba(0, 0, 0, 0.6);
+  position: relative;
+  opacity: 0.7;
+  filter: grayscale(0.3);
+}
+
+.click-row #click-btn.broken::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 69, 19, 0.1) 2px,
+      rgba(139, 69, 19, 0.1) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 69, 19, 0.1) 2px,
+      rgba(139, 69, 19, 0.1) 4px
+    );
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.click-row #click-btn.broken::after {
+  content: '💔';
+  position: absolute;
+  font-size: 24px;
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 /* Status badge */
@@ -570,15 +681,63 @@ body.modal-open .game-columns {
   border:1px solid rgba(0,0,0,0.05);
   color:var(--muted);
   font-size:0.9rem;
+  transition: all 0.2s ease;
+}
+
+/* Зеленый для положительных эффектов, бонусов, баффов, улучшений */
+.toast.good {
+  background: linear-gradient(180deg, rgba(34, 139, 34, 0.2), rgba(34, 139, 34, 0.05));
+  border-color: rgba(34, 139, 34, 0.4);
+  color: #90ee90;
+  box-shadow: 0 2px 4px rgba(34, 139, 34, 0.2);
+}
+
+/* Красный для отрицательных действий */
+.toast.bad {
+  background: linear-gradient(180deg, rgba(220, 20, 60, 0.2), rgba(220, 20, 60, 0.05));
+  border-color: rgba(220, 20, 60, 0.4);
+  color: #ff6b6b;
+  box-shadow: 0 2px 4px rgba(220, 20, 60, 0.2);
+}
+
+/* Оранжевый/желтый для предупреждений */
+.toast.warn {
+  background: linear-gradient(180deg, rgba(255, 165, 0, 0.2), rgba(255, 165, 0, 0.05));
+  border-color: rgba(255, 165, 0, 0.4);
+  color: #ffd700;
+  box-shadow: 0 2px 4px rgba(255, 165, 0, 0.2);
+}
+
+/* Серый для информативных сообщений (по умолчанию) */
+.toast:not(.good):not(.bad):not(.warn) {
+  background: linear-gradient(180deg, rgba(128, 128, 128, 0.15), rgba(128, 128, 128, 0.05));
+  border-color: rgba(128, 128, 128, 0.3);
+  color: #b0b0b0;
 }
 
 /* ---------- RIGHT: BUILDINGS — каменные плитки с гербом ---------- */
 .buildings-list{display:grid;gap:12px;max-height:70vh;overflow-y:auto;padding-right:6px}
 .building-card{
   display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
-  border-radius:8px;padding:12px;border:2px solid rgba(0,0,0,0.6);
-  min-height:72px;box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  background: linear-gradient(180deg,#2a2418,#1f1a12);
+  border-radius:8px;padding:14px;border:3px solid #1a1610;
+  min-height:72px;
+  box-shadow: 
+    inset 0 6px 12px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(139, 115, 85, 0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.8);
+  background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'>\
+  <defs>\
+    <pattern id='stoneCard' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
+      <rect width='20' height='20' fill='%232a2418'/>\
+      <circle cx='4' cy='4' r='0.4' fill='%23000000' opacity='0.25'/>\
+      <circle cx='16' cy='10' r='0.4' fill='%23000000' opacity='0.25'/>\
+      <circle cx='8' cy='16' r='0.4' fill='%23000000' opacity='0.25'/>\
+    </pattern>\
+  </defs>\
+  <rect width='80' height='80' fill='url(%23stoneCard)'/>\
+</svg>");
 }
 .building-pixel{
   width:64px;height:64px;border-radius:8px;
@@ -591,6 +750,13 @@ body.modal-open .game-columns {
   <g opacity='0.06' fill='%23000000'><rect x='4' y='4' width='56' height='56' rx='6'/></g>\
 </svg>");
 }
+
+/* Пиксельные иконки для зданий (canvas) */
+.building-pixel {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
 .building-info{display:flex;flex-direction:column;gap:4px;color:var(--muted)}
 .building-name{
   color:var(--gold);
@@ -600,7 +766,14 @@ body.modal-open .game-columns {
   text-shadow:0 1px 0 rgba(0,0,0,0.6);
 }
 .building-meta{color:var(--muted);font-size:0.98rem}
-.building-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:120px}
+.building-actions{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  align-items:flex-end;
+  min-width:120px;
+  padding-left:8px; /* Отступ от края карточки */
+}
 .building-actions .btn{min-width:88px;}
 
 /* larger building cards on wide screens */
@@ -623,19 +796,56 @@ body.modal-open .game-columns {
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: center;
-  background: linear-gradient(180deg,#1f1b1a,#2b2624);
+  background: linear-gradient(180deg,#2a2418,#1f1a12);
   border-radius:8px;
-  padding:12px;
-  border:2px solid rgba(0,0,0,0.6);
-  box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  padding:14px;
+  border:3px solid #1a1610;
+  box-shadow: 
+    inset 0 6px 12px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(139, 115, 85, 0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.8);
   min-height:86px;
+  background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'>\
+  <defs>\
+    <pattern id='uberStone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
+      <rect width='20' height='20' fill='%232a2418'/>\
+      <circle cx='4' cy='4' r='0.4' fill='%23000000' opacity='0.25'/>\
+      <circle cx='16' cy='10' r='0.4' fill='%23000000' opacity='0.25'/>\
+    </pattern>\
+  </defs>\
+  <rect width='80' height='80' fill='url(%23uberStone)'/>\
+</svg>");
 }
-.uber-pixel { width:80px;height:80px;border-radius:8px;background:linear-gradient(180deg,#3a2f2b,#1f1715);border:2px solid rgba(0,0,0,0.6); }
-.uber-actions { display:flex;flex-direction:column;gap:8px;align-items:flex-end; }
+.uber-pixel { width:80px;height:80px;border-radius:8px;background:linear-gradient(180deg,#2a2418,#1f1a12);border:3px solid #1a1610; }
+.uber-actions { 
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  align-items:flex-end;
+  padding-left:8px; /* Отступ от края карточки */
+}
 
 /* Make Uber card the same height as the Click block */
 #uber-card {
   min-height: 220px; /* equals .click-area min-height */
+  background: linear-gradient(180deg,#2a2418,#1f1a12);
+  border: 3px solid #1a1610;
+  box-shadow: 
+    inset 0 6px 12px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(139, 115, 85, 0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.8);
+  background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'>\
+  <defs>\
+    <pattern id='uberCardStone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
+      <rect width='20' height='20' fill='%232a2418'/>\
+      <circle cx='4' cy='4' r='0.4' fill='%23000000' opacity='0.25'/>\
+      <circle cx='16' cy='10' r='0.4' fill='%23000000' opacity='0.25'/>\
+    </pattern>\
+  </defs>\
+  <rect width='80' height='80' fill='url(%23uberCardStone)'/>\
+</svg>");
 }
 
 /* Ensure Uber pixel matches building-pixel sizes (64px default, 80px at ≥1100px) */
