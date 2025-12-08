@@ -808,19 +808,30 @@ function renderBuildings() {
   save.buildings.forEach((b, i) => {
     const card = document.createElement('div');
     card.className = 'building-card';
-    
-    // Визуальные улучшения в зависимости от уровня
-    if (b.level >= 100) {
-      card.classList.add('high-level');
-    } else if (b.level >= 50) {
-      card.classList.add('level-upgraded');
-    }
+    card.dataset.buildingIndex = i;
+
+    // Верх: иконка слева, действие справа
+    const header = document.createElement('div');
+    header.className = 'building-card-header';
 
     // Используем пиксельную canvas-иконку
     const pixel = document.createElement('canvas');
     pixel.width = 56; pixel.height = 56;
     pixel.className = 'building-pixel';
     drawHousePixel(pixel, i);
+
+    // Контейнер действий (одна зона, кнопки сменяются)
+    const actionSlot = document.createElement('div');
+    actionSlot.className = 'building-action-slot';
+
+    // Buy button
+    const buyBtn = document.createElement('button');
+    buyBtn.className = 'btn primary small';
+    buyBtn.textContent = 'Buy levels';
+
+    // Segment upgrade button
+    const segBtn = document.createElement('button');
+    segBtn.className = 'btn small';
 
     const info = document.createElement('div');
     info.className = 'building-info';
@@ -856,20 +867,6 @@ function renderBuildings() {
     info.appendChild(costEl);
     info.appendChild(segInfo);
 
-    const actions = document.createElement('div');
-    actions.className = 'building-actions';
-
-    // Buy button
-    const buyBtn = document.createElement('button');
-    buyBtn.className = 'btn primary small';
-    buyBtn.textContent = 'Buy levels';
-    buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
-    buyBtn.addEventListener('click', () => buyBuildingLevels(i));
-
-    // Segment upgrade button
-    const segBtn = document.createElement('button');
-    segBtn.className = 'btn small';
-
     if (needUpgrade) {
       // Требуется сегментный апгрейд — показываем только segBtn
       const prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
@@ -878,43 +875,76 @@ function renderBuildings() {
       segBtn.classList.remove('hidden');
       segBtn.addEventListener('click', ()=> buyBuildingSegUpgrade(i, seg-1));
 
-      // Скрываем кнопку покупки
       buyBtn.classList.add('hidden');
       buyBtn.setAttribute('aria-hidden', 'true');
+      segBtn.classList.remove('hidden');
+      segBtn.setAttribute('aria-hidden', 'false');
     } else {
       // Обычное состояние — показываем покупку, скрываем segBtn
+      buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
+      buyBtn.addEventListener('click', () => buyBuildingLevels(i));
+
       segBtn.classList.add('hidden');
       segBtn.setAttribute('aria-hidden', 'true');
+      buyBtn.classList.remove('hidden');
+      buyBtn.setAttribute('aria-hidden', 'false');
     }
 
-    actions.appendChild(buyBtn);
-    actions.appendChild(segBtn);
+    actionSlot.appendChild(buyBtn);
+    actionSlot.appendChild(segBtn);
 
-    card.appendChild(pixel);
+    header.appendChild(pixel);
+    header.appendChild(actionSlot);
+
+    card.appendChild(header);
     card.appendChild(info);
-    card.appendChild(actions);
+
+    // Тонкая черта
+    const divider = document.createElement('div');
+    divider.className = 'building-card-divider';
+    card.appendChild(divider);
 
     // lock overlay if previous building not level 67
+    const note = document.createElement('div');
+    note.className = 'building-note';
     if (!canBuyNextBuilding(i)) {
-      const lockNote = document.createElement('small');
-      lockNote.style.color = '#9aa3b2';
-      lockNote.textContent = 'Locked: previous building must reach level 67.';
-      info.appendChild(lockNote);
+      note.textContent = 'Locked: previous building must reach level 67.';
+    } else if (now() < b.blockedUntil) {
+      const remain = Math.ceil((b.blockedUntil - now()) / 1000);
+      note.classList.add('building-downnote');
+      note.dataset.blockedUntil = String(b.blockedUntil);
+      note.textContent = `Under repair: ${remain}s`;
     }
-    if (now() < b.blockedUntil) {
-  const remain = Math.ceil((b.blockedUntil - now()) / 1000);
-  const downNote = document.createElement('small');
-  downNote.style.color = '#c23b3b';
-  downNote.className = 'building-downnote';
-  // сохраняем метку окончания в data-атрибуте, чтобы таймер мог обновлять текст
-  downNote.dataset.blockedUntil = String(b.blockedUntil);
-  downNote.textContent = `Under repair: ${remain}s`;
-  info.appendChild(downNote);
-}
-
+    card.appendChild(note);
 
     buildingsList.appendChild(card);
   });
+}
+
+function triggerUpgradeEffect(targetEl, text = 'Upgrade!') {
+  if (!targetEl) return;
+  targetEl.classList.add('upgrade-flash');
+  setTimeout(() => targetEl.classList.remove('upgrade-flash'), 400);
+
+  const rect = targetEl.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'upgrade-popup';
+  popup.textContent = text;
+  popup.style.left = `${rect.left + rect.width / 2}px`;
+  popup.style.top = `${rect.top + 12}px`;
+  document.body.appendChild(popup);
+
+  requestAnimationFrame(() => {
+    popup.classList.add('active');
+    setTimeout(() => popup.classList.add('fade-out'), 550);
+    setTimeout(() => popup.remove(), 900);
+  });
+}
+
+function triggerBuildingUpgradeEffect(index, text = 'Upgrade!') {
+  if (!buildingsList) return;
+  const card = buildingsList.querySelector(`[data-building-index="${index}"]`);
+  triggerUpgradeEffect(card, text);
 }
 
 
@@ -1217,6 +1247,68 @@ function updateSeason() {
   }
 }
 
+// Функция для принудительного переключения сезонов (для дебага)
+function cycleSeason() {
+  const seasons = ['spring', 'summer', 'autumn', 'winter'];
+  
+  // Получаем текущий сезон из body
+  let currentSeason = null;
+  for (const s of seasons) {
+    if (document.body.classList.contains(`season-${s}`)) {
+      currentSeason = s;
+      break;
+    }
+  }
+  
+  // Если сезон не найден в body, проверяем save
+  if (!currentSeason && save && save.season) {
+    currentSeason = save.season;
+    // Применяем сезон из save к body, если его там нет
+    document.body.classList.add(`season-${currentSeason}`);
+  }
+  
+  // Если сезон все еще не найден, определяем по текущей дате
+  if (!currentSeason) {
+    const month = new Date().getMonth();
+    if (month === 11 || month === 0 || month === 1) {
+      currentSeason = 'winter';
+    } else if (month >= 2 && month <= 4) {
+      currentSeason = 'spring';
+    } else if (month >= 5 && month <= 7) {
+      currentSeason = 'summer';
+    } else {
+      currentSeason = 'autumn';
+    }
+    // Применяем определенный сезон к body
+    document.body.classList.add(`season-${currentSeason}`);
+  }
+  
+  // Определяем следующий сезон
+  const currentIndex = seasons.indexOf(currentSeason);
+  if (currentIndex === -1) {
+    console.error('Invalid season:', currentSeason);
+    currentSeason = 'spring';
+  }
+  const nextIndex = (currentIndex + 1) % seasons.length;
+  const nextSeason = seasons[nextIndex];
+  
+  // Применяем следующий сезон
+  document.body.classList.remove('season-spring', 'season-summer', 'season-autumn', 'season-winter');
+  document.body.classList.add(`season-${nextSeason}`);
+  
+  if (save) {
+    save.season = nextSeason;
+  }
+  
+  console.log('Season cycled:', { 
+    currentSeason, 
+    nextSeason, 
+    bodyClasses: document.body.className,
+    hasClass: document.body.classList.contains(`season-${nextSeason}`)
+  });
+  toast(`Season changed to: ${nextSeason.charAt(0).toUpperCase() + nextSeason.slice(1)}`, 'info');
+}
+
 function renderAll() {
   renderTopStats();
   renderClick();
@@ -1314,11 +1406,11 @@ function buyBulkLevels(entity, computeFn, applyFn) {
   const { totalCost, totalLevels } = computeFn(save.bulk);
   if (totalLevels === 0) {
     toast('Cannot progress: segment upgrade required.', 'warn');
-    return;
+    return false;
   }
   if (save.points < totalCost) {
     toast('Not enough points.', 'warn');
-    return;
+    return false;
   }
 
   // Apply
@@ -1331,11 +1423,12 @@ function buyBulkLevels(entity, computeFn, applyFn) {
   renderAll();
   // Проверяем разблокировку Uber здания после покупки уровней
   checkUberUnlock();
+  return true;
 }
 
 function buyClickLevels() {
   const segStartLevel = save.click.level;
-  buyBulkLevels('click', computeBulkCostForClick, () => {
+  const bought = buyBulkLevels('click', computeBulkCostForClick, () => {
     const lvl = save.click.level;
     const cost = clickLevelCostAt(lvl);
     const seg = segmentIndex(lvl);
@@ -1345,6 +1438,9 @@ function buyClickLevels() {
     // Level up gating check (3% fail chance for buildings only, not for click)
     save.click.level = Math.min(save.click.level + 1, save.click.max);
   });
+  if (bought) {
+    triggerUpgradeEffect(clickBtn, 'Level Up!');
+  }
 }
 
 function buyClickSegmentUpgrade(segIndex) {
@@ -1360,6 +1456,7 @@ function buyClickSegmentUpgrade(segIndex) {
   save.click.segUpgrades[segIndex] = true;
   save.click.upgradeBonus += 1; // 13% per upgrade (count stack)
   toast('Click segment upgraded: +13% income.', 'good');
+  triggerUpgradeEffect(clickBtn, 'Upgrade!');
   renderAll();
 }
 
@@ -1407,7 +1504,10 @@ function buyBuildingLevels(i) {
       checkAchievements();
     }
   };
-  buyBulkLevels('building', computeFn, applyFn);
+  const bought = buyBulkLevels('building', computeFn, applyFn);
+  if (bought) {
+    triggerBuildingUpgradeEffect(i, 'Level Up!');
+  }
   // Проверяем достижения после покупки уровней зданий
   checkAchievements();
   // Проверяем разблокировку Uber здания
@@ -1428,6 +1528,7 @@ function buyBuildingSegUpgrade(i, segIndex) {
   b.segUpgrades[segIndex] = true;
   b.upgradeBonus += 1;
   toast(`${b.name} segment upgraded: +13% income.`, 'good');
+   triggerBuildingUpgradeEffect(i, 'Upgrade!');
   renderAll();
 }
 
@@ -2924,6 +3025,9 @@ debugTools.addEventListener('click', (e) => {
     case 'addMillionPoints':
       addPoints(1000000);
       toast('Added 1,000,000 points.', 'good');
+      break;
+    case 'cycleSeason':
+      cycleSeason();
       break;
     case 'breakClick':
       save.click.brokenUntil = now() + 26000;
