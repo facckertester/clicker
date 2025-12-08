@@ -90,6 +90,9 @@
 </svg>") 24 12, pointer;
 }
 
+/* Базовое масштабирование интерфейса под разные разрешения */
+html { font-size: clamp(12px, 1.15vw, 16px); }
+
 /* ---------- RESET & BACKGROUND ---------- */
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -940,6 +943,15 @@ body.modal-open .game-columns {
   align-items:center;
   gap:8px;
   width:100%;
+  min-width:0;
+}
+.building-action-slot .btn,
+#uber-actions .btn{
+  width:100%;
+  min-width:0;
+  white-space:normal;
+  word-break:break-word;
+  text-align:center;
 }
 .building-card-divider{
   height:1px;

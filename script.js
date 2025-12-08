@@ -947,6 +947,46 @@ function triggerBuildingUpgradeEffect(index, text = 'Upgrade!') {
   triggerUpgradeEffect(card, text);
 }
 
+// Приводим layout Uber-карточки к виду обычных зданий
+function normalizeUberCardLayout() {
+  if (!uberCard) return;
+  const pixel = document.getElementById('uber-pixel');
+  const info = uberCard.querySelector('.building-info');
+  const actions = document.getElementById('uber-actions');
+  if (!pixel || !info || !actions) return;
+
+  actions.classList.add('building-action-slot');
+
+  let header = uberCard.querySelector('.building-card-header');
+  if (!header) {
+    header = document.createElement('div');
+    header.className = 'building-card-header';
+  }
+  // Очистим header и сложим нужные элементы
+  header.innerHTML = '';
+  header.appendChild(pixel);
+  header.appendChild(actions);
+
+  let divider = uberCard.querySelector('.building-card-divider');
+  if (!divider) {
+    divider = document.createElement('div');
+    divider.className = 'building-card-divider';
+  }
+
+  let note = uberCard.querySelector('.building-note');
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'building-note';
+  }
+
+  // Собираем карточку заново в нужном порядке
+  uberCard.innerHTML = '';
+  uberCard.appendChild(header);
+  uberCard.appendChild(info);
+  uberCard.appendChild(divider);
+  uberCard.appendChild(note);
+}
+
 
 function computeBulkCostForBuilding(i, bulk) {
   const b = save.buildings[i];
@@ -971,6 +1011,7 @@ function computeBulkCostForBuilding(i, bulk) {
 
 function renderUber() {
   if (!save) return;
+  normalizeUberCardLayout();
   
   // Убеждаемся, что max = 19 до перехода в убер мод (не трогаем если уже в убер моде - 1881)
   // НЕ изменяем max если он уже установлен в 1881 (убер мод активен)
@@ -985,18 +1026,13 @@ function renderUber() {
   // Обновляем состояние блокировки карточки
   uberCard.classList.toggle('locked', !save.uber.unlocked);
 
-  // Скрываем/показываем сообщение о блокировке
-  const lockNote = document.querySelector('.uber-lock-note');
-  if (lockNote) {
-    if (save.uber.unlocked) {
-      lockNote.classList.add('hidden');
-    } else {
-      lockNote.classList.remove('hidden');
-    }
-  }
+  const note = uberCard.querySelector('.building-note');
   
   // Если не разблокировано, кнопка должна быть disabled и скрыта
   if (!save.uber.unlocked) {
+    if (note) {
+      note.textContent = 'Locked: reach level ≥ 800 on all buildings and the Click.';
+    }
     if (uberBuyBtn) {
       uberBuyBtn.disabled = true;
     uberBuyBtn.classList.add('hidden');
@@ -1010,6 +1046,7 @@ function renderUber() {
   // Если достигнут максимальный уровень (19 до убер мода, 1881 в убер моде), скрываем кнопку покупки
   const maxLevel = save.uber.max === 9999 ? 9999 : (save.uber.max === 1881 ? 1881 : 19);
   if (save.uber.level >= maxLevel) {
+    if (note) note.textContent = 'Max level reached.';
     if (uberBuyBtn) {
       uberBuyBtn.classList.add('hidden');
       uberBuyBtn.setAttribute('aria-hidden', 'true');
@@ -1017,6 +1054,7 @@ function renderUber() {
     // Обновляем состояние кнопок завершения игры и убер мода
     updateEndgameButtons();
   } else {
+    if (note) note.textContent = '';
     // Показываем обычную стоимость покупки
     const uberCost = uberCostAt(save.uber.level);
     uberCostEl.textContent = fmt(uberCost);
@@ -1372,8 +1410,8 @@ function updateButtonStates() {
     const card = buildingsList?.children[i];
     if (!card) return;
 
-    const buyBtn = card.querySelector('.building-actions .btn.primary');
-    const segBtn = card.querySelector('.building-actions .btn:not(.primary)');
+    const buyBtn = card.querySelector('.building-action-slot .btn.primary');
+    const segBtn = card.querySelector('.building-action-slot .btn:not(.primary)');
     
     const buildingSeg = segmentIndex(b.level);
     const buildingWithin = withinSegment(b.level);
