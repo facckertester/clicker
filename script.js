@@ -711,6 +711,46 @@ function canProgressSegment(entityLevel, segUpgrades) {
   return true;
 }
 
+// Вычисляет максимальное количество уровней, которое можно добавить до следующего апгрейда
+// Король добавляет все возможные уровни до уровня кратного 10 (включительно), где нужен апгрейд, в пределах награды
+// Король останавливается НА уровне кратного 10 (10, 20, 30...), если нужен апгрейд
+function maxLevelsBeforeUpgrade(currentLevel, levelsToAdd, segUpgrades, maxLevel) {
+  // Проверяем текущий уровень - если он уже на границе и нужен апгрейд, не можем добавить ничего
+  const currentSeg = segmentIndex(currentLevel);
+  const currentWithin = withinSegment(currentLevel);
+  const currentPrevSegBought = currentSeg === 0 ? true : !!segUpgrades[currentSeg-1];
+  const currentNeedUpgrade = currentWithin === 0 && currentSeg > 0 && !currentPrevSegBought;
+  
+  if (currentNeedUpgrade) {
+    return 0; // Уже на границе, нужен апгрейд
+  }
+  
+  // Идем по уровням один за другим, проверяя каждый следующий уровень
+  // Можем дойти ДО уровня кратного 10 (включительно), если нужен апгрейд, но не дальше
+  let added = 0;
+  let current = currentLevel;
+  
+  for (let i = 0; i < levelsToAdd && current < maxLevel; i++) {
+    const nextLevel = current + 1;
+    const seg = segmentIndex(nextLevel);
+    const within = withinSegment(nextLevel);
+    const prevSegBought = seg === 0 ? true : !!segUpgrades[seg-1];
+    const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+    
+    // Если нужен апгрейд на следующем уровне, можем добавить этот уровень (чтобы остановиться на нем)
+    // но не можем идти дальше после него
+    if (needUpgrade) {
+      added++; // Добавляем уровень кратный 10, чтобы остановиться на нем
+      break; // Останавливаемся после добавления уровня кратного 10
+    }
+    
+    added++;
+    current = nextLevel;
+  }
+  
+  return added;
+}
+
 // ======= Rendering =======
 function renderTopStats() {
   if (!save) return;
@@ -1027,11 +1067,15 @@ function renderUber() {
   uberCard.classList.toggle('locked', !save.uber.unlocked);
 
   const note = uberCard.querySelector('.building-note');
+  const lockNote = uberCard.querySelector('.uber-lock-note');
   
-  // Если не разблокировано, кнопка должна быть disabled и скрыта
+  // Если не разблокировано, показываем текст блокировки
   if (!save.uber.unlocked) {
     if (note) {
       note.textContent = 'Locked: reach level ≥ 800 on all buildings and the Click.';
+    }
+    if (lockNote) {
+      lockNote.style.display = '';
     }
     if (uberBuyBtn) {
       uberBuyBtn.disabled = true;
@@ -1041,6 +1085,15 @@ function renderUber() {
     // Draw pixel citadel даже если не разблокировано
     drawCitadelPixel(document.getElementById('uber-pixel'));
     return; // Не показываем остальную информацию, если не разблокировано
+  } else {
+    // Если Убер здание открыто, убираем текст описания условия для открытия
+    if (note) {
+      note.textContent = '';
+    }
+    // Скрываем элемент с текстом блокировки из HTML
+    if (lockNote) {
+      lockNote.style.display = 'none';
+    }
   }
 
   // Если достигнут максимальный уровень (19 до убер мода, 1881 в убер моде), скрываем кнопку покупки
@@ -1715,30 +1768,37 @@ clickBtn.addEventListener('click', (event) => {
     const roll = Math.random();
   if (roll < 0.005) {
     // 0.5% шанс - определяем золотую или сломанную
-    const outcomeRoll = Math.random();
-    if (outcomeRoll < 0.66) {
-      // 66% из 0.5% = сломанная кнопка (0.33% общий шанс)
-      save.click.brokenUntil = now() + 26000;
-      // Сбрасываем стрик при сломанной кнопке
-      save.streak.count = 0;
-      save.streak.multiplier = 1.0;
-      toast('Click button broke for 26s.', 'bad');
-      renderClick(); // обновляем статус сразу
-    } else {
-      // 34% из 0.5% = золотая кнопка (0.17% общий шанс)
-      save.click.goldenUntil = now() + 8000;
-      // Сбрасываем стрик при золотой кнопке
-      save.streak.count = 0;
-      save.streak.multiplier = 1.0;
-      toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
-      renderClick(); // обновляем статус сразу
+    const brokenActive = save.click.brokenUntil > now();
+    const goldenActive = save.click.goldenUntil > now();
+    
+    // Золотая кнопка не может сломаться, сломанная кнопка не может стать золотой
+    if (!goldenActive && !brokenActive) {
+      const outcomeRoll = Math.random();
+      if (outcomeRoll < 0.66) {
+        // 66% из 0.5% = сломанная кнопка (0.33% общий шанс)
+        save.click.brokenUntil = now() + 26000;
+        // Сбрасываем стрик при сломанной кнопке
+        save.streak.count = 0;
+        save.streak.multiplier = 1.0;
+        toast('Click button broke for 26s.', 'bad');
+        renderClick(); // обновляем статус сразу
+      } else {
+        // 34% из 0.5% = золотая кнопка (0.17% общий шанс)
+        save.click.goldenUntil = now() + 8000;
+        // Сбрасываем стрик при золотой кнопке
+        save.streak.count = 0;
+        save.streak.multiplier = 1.0;
+        toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
+        renderClick(); // обновляем статус сразу
 
-      setTimeout(() => {
-        save.click.brokenUntil = now() + 11000;
-        save.click.goldenUntil = 0;
-        toast('Golden ended. Button broke for 11s.', 'warn');
-        renderClick(); // обновляем статус после окончания
-      }, 8000);
+        // Убрали setTimeout, который ломал кнопку после окончания золотого состояния
+        // Золотая кнопка просто заканчивается без поломки
+        setTimeout(() => {
+          save.click.goldenUntil = 0;
+          toast('Golden effect ended.', 'warn');
+          renderClick(); // обновляем статус после окончания
+        }, 8000);
+      }
     }
   }
 
@@ -2175,17 +2235,29 @@ function endKingMiniGame(outcome, info = {}) {
 
   if (outcome === 'success') {
     // reward: +4 levels to each opened Building, +3 Click, +5% points
+    // Король добавляет максимально возможное количество уровней до следующего апгрейда
     let openedCount = 0;
+    let totalLevelsAdded = 0;
     save.buildings.forEach(b => {
       if (b.level > 0) {
-        b.level = Math.min(b.max, b.level + 4);
-        openedCount++;
+        const maxAddable = maxLevelsBeforeUpgrade(b.level, 4, b.segUpgrades, b.max);
+        if (maxAddable > 0) {
+          b.level = Math.min(b.max, b.level + maxAddable);
+          openedCount++;
+          totalLevelsAdded += maxAddable;
+        }
       }
     });
-    save.click.level = Math.min(save.click.max, save.click.level + 3);
+    
+    // Для Click также применяем ограничение по апгрейдам
+    const clickMaxAddable = maxLevelsBeforeUpgrade(save.click.level, 3, save.click.segUpgrades, save.click.max);
+    if (clickMaxAddable > 0) {
+      save.click.level = Math.min(save.click.max, save.click.level + clickMaxAddable);
+    }
+    
     // +5% points
     save.points = save.points * 1.05;
-    toast(`Success! The King rewarded you: +4 levels to open buildings (${openedCount}), +3 to Click, +5% points.`, 'good');
+    toast(`Success! The King rewarded you: +${totalLevelsAdded} levels to buildings (${openedCount} buildings), +${clickMaxAddable} to Click, +5% points.`, 'good');
   } else if (outcome === 'timeout') {
     // not enough crowns in time -> penalty: -1 level each opened building, -2 click
     save.buildings.forEach(b => {

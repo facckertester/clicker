@@ -77,6 +77,34 @@
     <circle cx='24' cy='12' r='1.1' fill='%23d4b18a' stroke='%23000000' stroke-width='0.6'/>\
   </g>\
 </svg>") 6 6, pointer;
+
+  /* Кастомный «запрещено» курсор (строгий знак) */
+  --forbidden-cursor: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
+  <defs>\
+    <radialGradient id='fb' cx='50%' cy='50%' r='50%'>\
+      <stop offset='0%' stop-color='%23f8d7a1' stop-opacity='0.92'/>\
+      <stop offset='80%' stop-color='%23c86a3c' stop-opacity='0.98'/>\
+      <stop offset='100%' stop-color='%23552218' stop-opacity='1'/>\
+    </radialGradient>\
+  </defs>\
+  <rect width='48' height='48' fill='none'/>\
+  <circle cx='24' cy='24' r='15' fill='url(%23fb)' stroke='%23000000' stroke-width='2.6'/>\
+  <path d='M14 14 L34 34 M34 14 L14 34' stroke='%23000000' stroke-width='3.4' stroke-linecap='round' opacity='0.9'/>\
+</svg>") 12 12, not-allowed;
+
+  /* Кастомный курсор для корон (мини-игра) */
+  --crown-cursor: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
+  <rect width='48' height='48' fill='none'/>\
+  <g transform='translate(6,10)'>\
+    <path d='M0 22 L4 8 L10 16 L16 6 L22 16 L28 8 L32 22 Z' fill='%23f4d26a' stroke='%23000000' stroke-width='1.6' stroke-linejoin='round'/>\
+    <circle cx='6' cy='12' r='1.8' fill='%23ffffff' fill-opacity='0.8'/>\
+    <circle cx='16' cy='9' r='1.8' fill='%23ffffff' fill-opacity='0.75'/>\
+    <circle cx='26' cy='12' r='1.8' fill='%23ffffff' fill-opacity='0.8'/>\
+    <rect x='0' y='22' width='32' height='6' rx='2' fill='%23221a12' fill-opacity='0.35'/>\
+  </g>\
+</svg>") 10 4, pointer;
 }
 
 /* Базовое масштабирование интерфейса под разные разрешения */
@@ -295,7 +323,12 @@ input:focus,textarea:focus,select:focus{
 /* Малые размеры */
 .btn.small{padding:6px 10px;font-size:0.85rem;border-radius:8px;min-height:30px}
 .btn.tiny{padding:4px 8px;font-size:0.8rem;border-radius:8px;min-height:26px}
-.btn:disabled{opacity:0.45;cursor:not-allowed;transform:none;box-shadow:none}
+.btn:disabled{
+  opacity:0.45;
+  cursor: var(--forbidden-cursor);
+  transform:none;
+  box-shadow:none;
+}
 
 /* Иконки */
 .btn.icon{
@@ -1369,7 +1402,7 @@ input, textarea, select { cursor: text; }
   justify-content:center;
   font-weight:900;
   color:#2b1f00;
-  cursor:pointer;
+  cursor: pointer;
   user-select:none;
   transition: transform .08s ease, box-shadow .12s ease, opacity .12s ease;
   box-shadow: 0 8px 18px rgba(0,0,0,0.45), inset 0 -4px 8px rgba(255,255,255,0.06);
@@ -1444,6 +1477,7 @@ input, textarea, select { cursor: text; }
   border-radius:8px;
   overflow:hidden;
   padding:8px;
+  cursor: pointer;
 }
 
 /* timer and footer */
