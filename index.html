@@ -194,25 +194,43 @@
     <div class="game-title">Medieval Pixel Idle</div>
 
     <!-- STATS -->
-    <div class="stats-bar">
-      <div class="stat">
-        <span class="stat-label">Points</span>
-        <span id="points" class="stat-value">0.0000</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Points/sec</span>
-        <span id="pps" class="stat-value">0.0000</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Points/click</span>
-        <span id="ppc" class="stat-value">0.1111</span>
-      </div>
+    <div class="stats-container">
+      <div class="stats-bar">
+        <div class="stat">
+          <span class="stat-label">Points</span>
+          <span id="points" class="stat-value">0.0000</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Points/sec</span>
+          <span id="pps" class="stat-value">0.0000</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Points/click</span>
+          <span id="ppc" class="stat-value">0.1111</span>
+        </div>
 
-      <div class="userbox">
-        <span id="username-display"></span>
-        <button id="stats-btn" class="btn tiny">Stats</button>
-        <button id="logout-btn" class="btn tiny">Logout</button>
-        <button id="debug-open" class="btn tiny secondary">debug</button>
+        <div class="userbox">
+          <span id="username-display"></span>
+          <button id="stats-btn" class="btn tiny">Stats</button>
+          <button id="logout-btn" class="btn tiny">Logout</button>
+          <button id="debug-open" class="btn tiny secondary">debug</button>
+        </div>
+      </div>
+      
+      <div class="treasury-actions" id="treasury-actions"></div>
+    </div>
+
+    <!-- Treasury row -->
+    <div class="treasury-row">
+      <div class="treasury-bar">
+        <div class="treasury-progress">
+          <div id="treasury-progress-fill"></div>
+          <div class="treasury-overlay">
+            <span class="treasury-label">Treasury</span>
+            <span id="treasury-value" class="treasury-amount">0 / 1000</span>
+            <span id="treasury-regen" class="treasury-regen">+1 /s</span>
+          </div>
+        </div>
       </div>
     </div>
 

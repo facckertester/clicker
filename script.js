@@ -191,10 +191,39 @@ function newSave(username) {
       level: 0,
       max: 19,
     },
+    treasury: {
+      value: 1000,
+      max: 1000,
+      regenPerSec: 1,
+      lastTs: now(),
+      actions: {
+        repair1Cd: 0,
+        repair2Cd: 0,
+        repair3Cd: 0,
+        repair4Cd: 0,
+        repair2Upgraded: false,
+        repair3Upgraded: false,
+        repair4Upgraded: false,
+        lazyClickCd: 0,
+        lazyClickLevel: 1,
+        taxFreeCd: 0,
+        engineerCd: 0,
+        engineerUntil: 0,
+        clickMadnessCd: 0,
+        clickMadnessUntil: 0,
+        profitWithoutTaxUntil: 0,
+        casinoCd: 0,
+      }
+    },
     streak: { count: 0, lastClickTs: 0, multiplier: 1.0 },
     modifiers: {
       spiderMult: 1.0,
       spiderUntil: 0,
+      breakChanceMult: 1.0,
+      repairTimeMult: 1.0,
+      activeEffects: [],
+      lazyClickUntil: 0,
+      lazyClickCount: 0,
     },
     achievements: {
       unlocked: {}, // key: achievementId, value: true when unlocked
@@ -207,6 +236,71 @@ function newSave(username) {
     },
     lastTick: now()
   };
+}
+
+function ensureTreasury(saveObj) {
+  if (!saveObj.treasury) {
+    saveObj.treasury = {
+      value: 1000,
+      max: 1000,
+      regenPerSec: 1,
+      lastTs: now(),
+      actions: {
+        repair1Cd: 0,
+        repair2Cd: 0,
+        repair3Cd: 0,
+        repair4Cd: 0,
+        repair2Upgraded: false,
+        repair3Upgraded: false,
+        repair4Upgraded: false,
+        lazyClickCd: 0,
+        lazyClickLevel: 1,
+        taxFreeCd: 0,
+        engineerCd: 0,
+        engineerUntil: 0,
+        clickMadnessCd: 0,
+        clickMadnessUntil: 0,
+        profitWithoutTaxUntil: 0,
+        casinoCd: 0,
+      }
+    };
+  } else {
+    const t = now();
+    const tObj = saveObj.treasury;
+    tObj.max = tObj.max || 1000;
+    if (tObj.value === undefined || tObj.value === null) tObj.value = tObj.max;
+    if (tObj.lastTs === undefined) tObj.lastTs = t;
+    if (!tObj.actions) {
+      tObj.actions = {
+        repair1Cd: 0,
+        repair2Cd: 0,
+        repair3Cd: 0,
+        repair4Cd: 0,
+        repair2Upgraded: false,
+        repair3Upgraded: false,
+        repair4Upgraded: false,
+        lazyClickCd: 0,
+        lazyClickLevel: 1,
+        taxFreeCd: 0,
+        engineerCd: 0,
+        engineerUntil: 0,
+        clickMadnessCd: 0,
+        clickMadnessUntil: 0,
+        profitWithoutTaxUntil: 0,
+        casinoCd: 0,
+      };
+    }
+  }
+  // Modifiers defaults
+  if (!saveObj.modifiers) saveObj.modifiers = {};
+  if (saveObj.modifiers.breakChanceMult === undefined) saveObj.modifiers.breakChanceMult = 1.0;
+  if (saveObj.modifiers.repairTimeMult === undefined) saveObj.modifiers.repairTimeMult = 1.0;
+  if (!saveObj.modifiers.activeEffects) saveObj.modifiers.activeEffects = [];
+  if (saveObj.modifiers.lazyClickUntil === undefined) saveObj.modifiers.lazyClickUntil = 0;
+  if (saveObj.modifiers.lazyClickCount === undefined) saveObj.modifiers.lazyClickCount = 0;
+  if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
+    saveObj.treasury.actions.lazyClickLevel = 1;
+  }
 }
 
 const buildingNames = [
@@ -348,6 +442,10 @@ const usernameDisplay = document.getElementById('username-display');
 const pointsEl = document.getElementById('points');
 const ppsEl = document.getElementById('pps');
 const ppcEl = document.getElementById('ppc');
+const treasuryValueEl = document.getElementById('treasury-value');
+const treasuryRegenEl = document.getElementById('treasury-regen');
+const treasuryFillEl = document.getElementById('treasury-progress-fill');
+const treasuryActionsEl = document.getElementById('treasury-actions');
 
 const clickBtn = document.getElementById('click-btn');
 const clickStatus = document.getElementById('click-status');
@@ -377,6 +475,8 @@ const spiderEl = document.getElementById('spider');
 
 const logoutBtn = document.getElementById('logout-btn');
 const statsBtn = document.getElementById('stats-btn');
+
+ensureTreasury(save || {});
 const statsModal = document.getElementById('stats-modal');
 const statsBody = document.getElementById('stats-body');
 const statsClose = document.getElementById('stats-close');
@@ -662,6 +762,10 @@ function migrateAchievements() {
 // ======= Game state helpers =======
 function totalPPC() {
   let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
+  // Madness modifier
+  if (save.treasury?.actions?.clickMadnessUntil > now()) {
+    ppc *= 1001;
+  }
   // Golden modifier
   const goldenActive = save.click.goldenUntil > now();
   const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
@@ -690,7 +794,8 @@ function totalPPS() {
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
   // Achievement bonus
   const achievementMult = getAchievementBonus();
-  return pps * spiderMult * achievementMult;
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0; // x101
+  return pps * spiderMult * achievementMult * taxMult;
 }
 
 function canBuyNextBuilding(i) {
@@ -709,6 +814,34 @@ function canProgressSegment(entityLevel, segUpgrades) {
   }
   // If within segment, free to progress (unless we cross boundary)
   return true;
+}
+
+function totalOpenedBuildingLevels() {
+  if (!save || !save.buildings) return 0;
+  return save.buildings.reduce((acc,b)=> acc + (b.level > 0 ? b.level : 0), 0);
+}
+
+function allBuildingsAtLeastLevel10() {
+  if (!save || !save.buildings || save.buildings.length !== 50) return false;
+  return save.buildings.every(b => b.level >= 10);
+}
+
+function spendPoints(amount) {
+  if (save.points < amount) return false;
+  save.points -= amount;
+  return true;
+}
+
+function spendTreasury(amount) {
+  if (!save.treasury) return false;
+  if (save.treasury.value < amount) return false;
+  save.treasury.value -= amount;
+  return true;
+}
+
+function gainTreasury(delta) {
+  if (!save.treasury) return;
+  save.treasury.value = clamp(save.treasury.value + delta, 0, save.treasury.max);
 }
 
 // Вычисляет максимальное количество уровней, которое можно добавить до следующего апгрейда
@@ -757,6 +890,849 @@ function renderTopStats() {
   if (pointsEl) pointsEl.textContent = fmt(save.points);
   if (ppsEl) ppsEl.textContent = fmt(totalPPS());
   if (ppcEl) ppcEl.textContent = fmt(totalPPC());
+
+  // Treasury UI
+  if (save.treasury && treasuryValueEl && treasuryFillEl && treasuryRegenEl) {
+    const { value, max, regenPerSec } = save.treasury;
+    treasuryValueEl.textContent = `${fmt(value)} / ${fmt(max)}`;
+    treasuryRegenEl.textContent = `+${regenPerSec.toFixed(0)} /s`;
+    const pct = Math.max(0, Math.min(100, (value / max) * 100));
+    treasuryFillEl.style.width = `${pct}%`;
+  }
+}
+
+// ======= Treasury actions =======
+let _lazyClickInterval = null;
+
+function reduceAllRepairs(percent) {
+  const baseMs = 164000 * percent;
+  save.buildings.forEach(b => {
+    if (b.blockedUntil > now()) {
+      b.blockedUntil = Math.max(now(), b.blockedUntil - baseMs);
+    }
+  });
+}
+
+function breakRandomBuildings(count, durationMs) {
+  const opened = save.buildings.map((b, i) => ({b,i})).filter(x => x.b.level > 0);
+  if (opened.length === 0) return;
+  for (let k=0;k<count;k++){
+    const pickIdx = Math.floor(Math.random()*opened.length);
+    const {b} = opened[pickIdx];
+    b.blockedUntil = Math.max(b.blockedUntil || 0, now() + durationMs * (save.modifiers.repairTimeMult || 1));
+  }
+}
+
+function startLazyClick(level = 1) {
+  if (save.modifiers.lazyClickUntil > now()) {
+    toast('Lazy click already active.', 'warn');
+    return;
+  }
+  
+  const lazyClickLevels = [
+    { lvl: 1, clicks: 1000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+    { lvl: 2, clicks: 2000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+    { lvl: 3, clicks: 5000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+    { lvl: 4, clicks: 10000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+  ];
+  
+  const levelData = lazyClickLevels.find(l => l.lvl === level) || lazyClickLevels[0];
+  const durationMs = levelData.durationMs;
+  const totalClicks = levelData.clicks;
+  const multiplier = levelData.multiplier;
+  const intervalMs = durationMs / totalClicks;
+  let done = 0;
+  save.modifiers.lazyClickUntil = now() + durationMs;
+  save.modifiers.lazyClickCount = 0;
+  if (_lazyClickInterval) clearInterval(_lazyClickInterval);
+  _lazyClickInterval = setInterval(() => {
+    if (done >= totalClicks || now() >= save.modifiers.lazyClickUntil) {
+      clearInterval(_lazyClickInterval);
+      _lazyClickInterval = null;
+      return;
+    }
+    const ppc = totalPPC() * multiplier;
+    addPoints(ppc);
+    done += 1;
+    save.modifiers.lazyClickCount = done;
+  }, intervalMs);
+}
+
+function applyEngineer(durationMs) {
+  save.treasury.actions.engineerUntil = now() + durationMs;
+}
+
+function applyClickMadness(durationMs) {
+  save.treasury.actions.clickMadnessUntil = now() + durationMs;
+  // Disable golden/broken transitions handled in click handler
+}
+
+function applyProfitWithoutTax(durationMs) {
+  save.treasury.actions.profitWithoutTaxUntil = now() + durationMs;
+}
+
+function renderTreasuryActions() {
+  if (!treasuryActionsEl || !save || !save.treasury) return;
+  const act = save.treasury.actions;
+  const totalLvls = totalOpenedBuildingLevels();
+  const totalClicks = save.achievements?.stats?.totalClicks || 0;
+
+  const buttons = [];
+
+  const nowTs = now();
+  const mkBtn = (id, label, desc, enabled, onClick, cooldownUntil, canUpgrade = false, buffUntil = 0, upgradeOnClick = null) => {
+    buttons.push({ id, label, desc, enabled, onClick, cooldownUntil, canUpgrade, buffUntil, upgradeOnClick });
+  };
+
+  // Casino - доступна с самого начала, должна быть первой
+  {
+    const cdUntil = act.casinoCd || 0;
+    const ready = nowTs >= cdUntil;
+    const desc = {
+      header: 'CASINO LOSEWIN-LINE',
+      effect: 'Bet 10%, 20%, 30%, 40%, 50%, or 100% of current points.',
+      details: 'Choose a dice face (1-6). Equal chance for all faces.',
+      win: 'Win: stake x3 is returned.',
+      lose: 'Lose: stake x1.2 is lost (can result in negative points if 100% is bet).',
+      cost: 5,
+      cooldown: 3
+    };
+    mkBtn('casino','Casino LoseWin-line', desc, ready && save.treasury.value >= 5, () => {
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (save.treasury.value < 5) { toast('Not enough treasury.', 'warn'); return; }
+      const stakePct = Number(prompt('Bet percent (10,20,30,40,50,100):','10'));
+      if (![10,20,30,40,50,100].includes(stakePct)) { toast('Invalid percent.', 'warn'); return; }
+      const face = Number(prompt('Pick dice face 1-6:','1'));
+      if (![1,2,3,4,5,6].includes(face)) { toast('Invalid face.', 'warn'); return; }
+      const stake = save.points * (stakePct/100);
+      spendTreasury(5);
+      const roll = Math.floor(Math.random()*6)+1;
+      if (roll === face) {
+        const gain = stake*3;
+        addPoints(gain);
+        toast(`Dice ${roll}. You win +${fmt(gain)} points.`, 'good');
+      } else {
+        const loss = stake*1.2;
+        save.points -= loss;
+        toast(`Dice ${roll}. You lose -${fmt(loss)} points.`, 'bad');
+      }
+      act.casinoCd = now() + 3000;
+      renderTreasuryActions();
+    }, cdUntil);
+  }
+
+  // Repair button - одна кнопка с 4 уровнями апгрейда
+  const repairLevels = [
+    { lvl: 1, percent: 0.09, cost: 100, cdSec: 39, lvlReq: 3987, upgradeCost: 0 },
+    { lvl: 2, percent: 0.27, cost: 300, cdSec: 39, lvlReq: 10063, upgradeCost: 10000000 },
+    { lvl: 3, percent: 0.46, cost: 450, cdSec: 39, lvlReq: 16827, upgradeCost: 1000000707 },
+    { lvl: 4, percent: 0.63, cost: 650, cdSec: 39, lvlReq: 28212, upgradeCost: 10000005055 }
+  ];
+  
+  let currentRepairLevel = 0;
+  let nextRepairLevelToUpgrade = 0;
+  let repairUpgradeOnClick = null;
+  
+  for (let i = 0; i < repairLevels.length; i++) {
+    const r = repairLevels[i];
+    if (totalLvls >= r.lvlReq) {
+      const upgradeFlag = i === 0 ? null : `repair${r.lvl}Upgraded`;
+      const upgraded = !upgradeFlag || !!act[upgradeFlag];
+      if (upgraded) {
+        currentRepairLevel = r.lvl;
+      } else {
+        // Можно апгрейдить
+        nextRepairLevelToUpgrade = r.lvl;
+        const upgradeCost = Math.max(save.points, r.upgradeCost);
+        repairUpgradeOnClick = () => {
+          if (!spendPoints(upgradeCost)) { toast('Not enough points.', 'warn'); return; }
+          act[upgradeFlag] = true;
+          toast(`Repair upgraded to Level ${r.lvl}!`, 'good');
+          renderTreasuryActions();
+        };
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  
+  if (nextRepairLevelToUpgrade > 0) {
+    const r = repairLevels[nextRepairLevelToUpgrade - 1];
+    const upgradeCost = Math.max(save.points, r.upgradeCost);
+    const canUpgrade = save.points >= upgradeCost;
+    const desc = {
+      header: `REPAIR LEVEL ${nextRepairLevelToUpgrade - 1}`,
+      effect: `Accelerate all building repairs by ${Math.round(r.percent*100)}% of original time.`,
+      details: `This is your current repair level. Use it to speed up building repairs.`,
+      cost: r.cost,
+      cooldown: r.cdSec,
+      upgradeCost: upgradeCost
+    };
+    mkBtn('repair', 'Repair', desc, canUpgrade, () => {
+      if (repairUpgradeOnClick) repairUpgradeOnClick();
+    }, 0, true, 0, repairUpgradeOnClick);
+  } else if (currentRepairLevel > 0) {
+    const r = repairLevels[currentRepairLevel - 1];
+    const cdUntil = act.repairCd || 0;
+    const ready = nowTs >= cdUntil;
+    const canUse = ready && save.treasury.value >= r.cost;
+    const desc = {
+      header: `REPAIR LEVEL ${currentRepairLevel}`,
+      effect: `Accelerate all building repairs by ${Math.round(r.percent*100)}% of original time.`,
+      details: `This is your current repair level. Use it to speed up building repairs.`,
+      cost: r.cost,
+      cooldown: r.cdSec
+    };
+    mkBtn('repair', 'Repair', desc, canUse, () => {
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (!spendTreasury(r.cost)) { toast('Not enough treasury.', 'warn'); return; }
+      reduceAllRepairs(r.percent);
+      act.repairCd = now() + r.cdSec*1000;
+      toast(`Repair Level ${currentRepairLevel} applied!`, 'good');
+      renderTreasuryActions();
+    }, cdUntil);
+  }
+
+  // Lazy click - одна кнопка с 4 уровнями апгрейда
+  const lazyClickLevels = [
+    { lvl: 1, clicks: 1000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+    { lvl: 2, clicks: 2000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+    { lvl: 3, clicks: 5000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+    { lvl: 4, clicks: 10000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+  ];
+  
+  let currentLazyClickLevel = act.lazyClickLevel || 1;
+  let nextLazyClickLevelToUpgrade = 0;
+  let lazyClickUpgradeOnClick = null;
+  
+  // Определяем текущий уровень и следующий для апгрейда
+  // Первый уровень всегда доступен при 589+ кликах
+  if (totalClicks >= 589) {
+    currentLazyClickLevel = Math.max(currentLazyClickLevel, 1);
+  }
+  
+  // Проверяем возможность апгрейда
+  if (act.lazyClickLevel === 1 && totalClicks >= 1488) {
+    nextLazyClickLevelToUpgrade = 2;
+  } else if (act.lazyClickLevel === 2 && totalClicks >= 3564) {
+    nextLazyClickLevelToUpgrade = 3;
+  } else if (act.lazyClickLevel === 3 && totalClicks >= 9999) {
+    nextLazyClickLevelToUpgrade = 4;
+  }
+  
+  // Если можно апгрейдить
+  if (nextLazyClickLevelToUpgrade > 0) {
+    const currentLevelData = lazyClickLevels[currentLazyClickLevel - 1];
+    const nextLevelData = lazyClickLevels[nextLazyClickLevelToUpgrade - 1];
+    const canUpgrade = totalClicks >= nextLevelData.clickReq;
+    const desc = {
+      header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
+      effect: `Performs ${currentLevelData.clicks} passive clicks with x${currentLevelData.multiplier} multiplier over ${currentLevelData.durationMs/1000} seconds.`,
+      details: `This is your current lazy click level.`,
+      cost: currentLevelData.cost,
+      cooldown: 54,
+      upgradeCost: nextLevelData.breakDuration
+    };
+    lazyClickUpgradeOnClick = () => {
+      if (totalClicks < nextLevelData.clickReq) {
+        toast(`Need ${nextLevelData.clickReq} total clicks to unlock.`, 'warn');
+        return;
+      }
+      // Ломаем кнопку клика
+      save.click.brokenUntil = now() + nextLevelData.breakDuration;
+      act.lazyClickLevel = nextLazyClickLevelToUpgrade;
+      toast(`Lazy Click upgraded to Level ${nextLazyClickLevelToUpgrade}! Click button broken for ${nextLevelData.breakDuration/1000}s.`, 'good');
+      renderClick();
+      renderTreasuryActions();
+    };
+    mkBtn('lazyClick', 'Lazy click', desc, canUpgrade, () => {
+      if (lazyClickUpgradeOnClick) lazyClickUpgradeOnClick();
+    }, 0, true, 0, lazyClickUpgradeOnClick);
+  } else if (currentLazyClickLevel > 0) {
+    const l = lazyClickLevels[currentLazyClickLevel - 1];
+    const lazyClickUntil = save.modifiers?.lazyClickUntil || 0;
+    const active = lazyClickUntil > nowTs;
+    const cdUntil = act.lazyClickCd || 0;
+    const ready = nowTs >= cdUntil;
+    const canUse = ready && save.treasury.value >= l.cost && !active;
+    const desc = {
+      header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
+      effect: `Performs ${l.clicks} passive clicks with x${l.multiplier} multiplier over ${l.durationMs/1000} seconds.`,
+      note: 'These clicks do not count towards your total clicks.',
+      cost: l.cost,
+      cooldown: 54,
+      duration: l.durationMs / 1000
+    };
+    mkBtn('lazyClick', 'Lazy click', desc, canUse, () => {
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (!spendTreasury(l.cost)) { toast('Not enough treasury.', 'warn'); return; }
+      startLazyClick(currentLazyClickLevel);
+      act.lazyClickCd = now() + 54000;
+      toast(`Lazy Click Level ${currentLazyClickLevel} activated!`, 'good');
+      renderTreasuryActions();
+    }, cdUntil, false, lazyClickUntil);
+  }
+
+  // Profit without taxes
+  if (allBuildingsAtLeastLevel10()) {
+    const cdUntil = act.taxFreeCd || 0;
+    const ready = nowTs >= cdUntil;
+    const profitUntil = act.profitWithoutTaxUntil || 0;
+    const active = profitUntil > nowTs;
+    const desc = {
+      header: 'PROFIT WITHOUT TAXES',
+      effect: 'All building income x101 for 32 seconds.',
+      warning: 'Five random buildings break for 936 seconds.',
+      cost: 200,
+      cooldown: 32,
+      duration: 32
+    };
+    mkBtn('taxfree','Profit without taxes', desc, ready && save.treasury.value >= 200, () => {
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (!spendTreasury(200)) { toast('Not enough treasury.', 'warn'); return; }
+      applyProfitWithoutTax(32000);
+      breakRandomBuildings(5, 936000);
+      act.taxFreeCd = now() + 32000;
+      act.profitWithoutTaxUntil = now() + 32000;
+      toast('Profit without taxes activated.', 'good');
+      renderTreasuryActions();
+    }, cdUntil, false, profitUntil);
+  }
+
+  // Engineer
+  if (totalLvls >= 36233) {
+    const cdUntil = act.engineerCd || 0;
+    const ready = nowTs >= cdUntil;
+    const engineerUntil = act.engineerUntil || 0;
+    const active = engineerUntil > nowTs;
+    const desc = {
+      header: 'CHIEF ENGINEER',
+      effect: 'Buildings break 66% less often.',
+      warning: 'Repair time increases x2.',
+      cost: 1000,
+      duration: 21666
+    };
+    mkBtn('engineer','Chief Engineer', desc, ready && save.treasury.value >= 1000, () => {
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+      applyEngineer(21666*1000);
+      act.engineerCd = now() + 21666*1000;
+      act.engineerUntil = now() + 21666*1000;
+      toast('Chief Engineer activated.', 'good');
+      renderTreasuryActions();
+    }, cdUntil, false, engineerUntil);
+  }
+
+  // Click Madness
+  if (totalClicks >= 123) {
+    const cdUntil = act.clickMadnessCd || 0;
+    const ready = nowTs >= cdUntil;
+    const clickMadnessUntil = act.clickMadnessUntil || 0;
+    const active = clickMadnessUntil > nowTs;
+    const desc = {
+      header: 'CLICK MADNESS!',
+      effect: 'Click income x1001.',
+      warning: 'There is a chance to lose 3 Click levels per click.',
+      note: 'Click button cannot become golden or broken during effect.',
+      cost: 350,
+      cooldown: 36,
+      duration: 36
+    };
+    mkBtn('clickMadness','Click Madness!', desc, ready && save.treasury.value >= 350 && !active, () => {
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (!spendTreasury(350)) { toast('Not enough treasury.', 'warn'); return; }
+      applyClickMadness(36000);
+      act.clickMadnessCd = now() + 36000;
+      act.clickMadnessUntil = now() + 36000;
+      toast('Click Madness activated!', 'good');
+      renderTreasuryActions();
+    }, cdUntil, false, clickMadnessUntil);
+  }
+
+  // Иконки для кнопок
+  const icons = {
+    'repair': '🔧',
+    'lazyClick': '😴',
+    'taxfree': '💰',
+    'engineer': '👷',
+    'clickMadness': '💥',
+    'casino': '🎲'
+  };
+
+  // Удаляем только tooltip от treasury-actions, которые находятся в body
+  // Используем специальный атрибут для идентификации tooltip от treasury actions
+  const oldTooltips = document.querySelectorAll('body > [data-treasury-tooltip="true"]');
+  oldTooltips.forEach(t => {
+    if (t && t.parentNode === document.body) {
+      t.remove();
+    }
+  });
+  
+  treasuryActionsEl.innerHTML = '';
+  // Кнопки уже в правильном порядке (казино первая, так как создается первой)
+  buttons.forEach(btn => {
+    const el = document.createElement('button');
+    el.className = 'btn small treasury-action-btn';
+    const icon = icons[btn.id] || '?';
+    el.setAttribute('data-icon', icon);
+    el.disabled = !btn.enabled;
+    
+    // Tooltip в стиле PoE
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    tooltip.setAttribute('data-treasury-tooltip', 'true');
+    
+    const header = document.createElement('div');
+    header.className = 'tooltip-header';
+    header.textContent = typeof btn.desc === 'string' ? btn.desc.split('\n')[0] : (btn.desc.header || btn.label);
+    tooltip.appendChild(header);
+    
+    const body = document.createElement('div');
+    body.className = 'tooltip-body';
+    
+    if (typeof btn.desc === 'object') {
+      if (btn.desc.effect) {
+        const effectLine = document.createElement('div');
+        effectLine.className = 'tooltip-line';
+        effectLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">${btn.desc.effect}</div>`;
+        body.appendChild(effectLine);
+      }
+      
+      if (btn.desc.details) {
+        const detailsLine = document.createElement('div');
+        detailsLine.className = 'tooltip-stat';
+        detailsLine.innerHTML = `<span class="tooltip-stat-label">${btn.desc.details}</span>`;
+        body.appendChild(detailsLine);
+      }
+      
+      if (btn.desc.note) {
+        const noteLine = document.createElement('div');
+        noteLine.style.color = '#a08f70';
+        noteLine.style.fontStyle = 'italic';
+        noteLine.style.marginTop = '4px';
+        noteLine.textContent = btn.desc.note;
+        body.appendChild(noteLine);
+      }
+      
+      if (btn.desc.warning) {
+        const warningLine = document.createElement('div');
+        warningLine.style.color = '#ff6b6b';
+        warningLine.style.marginTop = '6px';
+        warningLine.textContent = btn.desc.warning;
+        body.appendChild(warningLine);
+      }
+      
+      if (btn.desc.win) {
+        const winLine = document.createElement('div');
+        winLine.style.color = '#4ade80';
+        winLine.style.marginTop = '4px';
+        winLine.textContent = `✓ ${btn.desc.win}`;
+        body.appendChild(winLine);
+      }
+      
+      if (btn.desc.lose) {
+        const loseLine = document.createElement('div');
+        loseLine.style.color = '#ff6b6b';
+        loseLine.style.marginTop = '4px';
+        loseLine.textContent = `✗ ${btn.desc.lose}`;
+        body.appendChild(loseLine);
+      }
+      
+      // Разделитель перед стоимостью
+      const separator = document.createElement('div');
+      separator.className = 'tooltip-line';
+      body.appendChild(separator);
+      
+      if (btn.desc.cost) {
+        const costLine = document.createElement('div');
+        costLine.className = 'tooltip-stat';
+        costLine.innerHTML = `<span class="tooltip-stat-label">Cost:</span><span class="tooltip-stat-value tooltip-cost">${btn.desc.cost} Treasury</span>`;
+        body.appendChild(costLine);
+      }
+      
+      // Убираем upgradeCost из основного tooltip - он будет в tooltip плюсика
+      
+      if (btn.desc.cooldown) {
+        const cdLine = document.createElement('div');
+        cdLine.className = 'tooltip-stat';
+        const cdRemaining = btn.cooldownUntil && btn.cooldownUntil > nowTs ? ` (${Math.ceil((btn.cooldownUntil - nowTs)/1000)}s)` : '';
+        cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span><span class="tooltip-stat-value tooltip-cooldown">${btn.desc.cooldown}s${cdRemaining}</span>`;
+        body.appendChild(cdLine);
+      }
+      
+      if (btn.desc.duration) {
+        const durLine = document.createElement('div');
+        durLine.className = 'tooltip-stat';
+        const durRemaining = btn.buffUntil && btn.buffUntil > nowTs ? ` (${Math.ceil((btn.buffUntil - nowTs)/1000)}s)` : '';
+        durLine.innerHTML = `<span class="tooltip-stat-label">Duration:</span><span class="tooltip-stat-value">${btn.desc.duration}s${durRemaining}</span>`;
+        body.appendChild(durLine);
+      }
+    } else {
+      // Старый формат строки
+      const lines = btn.desc.split('\n').filter(l => l.trim());
+      lines.slice(1).forEach(line => {
+        const lineEl = document.createElement('div');
+        lineEl.textContent = line;
+        body.appendChild(lineEl);
+      });
+    }
+    
+    tooltip.appendChild(body);
+    
+    // Добавляем tooltip в body для fixed positioning (поверх всего)
+    // Убеждаемся, что tooltip скрыт по умолчанию
+    tooltip.style.display = 'none';
+    tooltip.style.opacity = '0';
+    tooltip.style.visibility = 'hidden';
+    document.body.appendChild(tooltip);
+    
+    // Флаг для предотвращения множественных вызовов
+    let tooltipShowing = false;
+    
+    // Функция для проверки видимости и позиционирования tooltip
+    const positionAndShowTooltip = () => {
+      if (tooltipShowing) return;
+      // Не показываем tooltip кнопки, если показывается tooltip плюсика
+      const upgradeBadgeEl = el.querySelector('.upgrade-badge');
+      if (upgradeBadgeEl) {
+        const upgradeTooltipEl = document.querySelector('.upgrade-tooltip');
+        if (upgradeTooltipEl) {
+          // Проверяем, видим ли tooltip плюсика или он находится в процессе показа
+          const isUpgradeTooltipVisible = upgradeTooltipEl.style.display === 'block' && 
+                                         (upgradeTooltipEl.style.visibility === 'visible' || upgradeTooltipEl.style.opacity === '1');
+          if (isUpgradeTooltipVisible) {
+            return; // Не показываем tooltip кнопки, если tooltip плюсика видим
+          }
+        }
+      }
+      tooltipShowing = true;
+      
+      // Показываем для измерения (но невидимо)
+      tooltip.style.display = 'block';
+      tooltip.style.visibility = 'hidden';
+      tooltip.style.opacity = '0';
+      
+      // Ждем один кадр для получения размеров
+      requestAnimationFrame(() => {
+        const buttonRect = el.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        const padding = 10;
+        
+        const tooltipHeight = tooltipRect.height || 200;
+        const tooltipWidth = tooltipRect.width || 280;
+        const spaceAbove = buttonRect.top;
+        const spaceBelow = viewportHeight - buttonRect.bottom;
+        
+        // Позиционируем tooltip относительно кнопки
+        const buttonCenterX = buttonRect.left + buttonRect.width / 2;
+        const tooltipHalfWidth = tooltipWidth / 2;
+        
+        // Вертикальное позиционирование
+        let topPos;
+        if (spaceAbove < tooltipHeight + padding && spaceBelow > tooltipHeight + padding) {
+          // Показываем снизу
+          topPos = buttonRect.bottom + 12;
+        } else {
+          // Показываем сверху
+          topPos = buttonRect.top - tooltipHeight - 12;
+        }
+        
+        // Горизонтальное позиционирование
+        let leftPos = buttonCenterX - tooltipHalfWidth;
+        
+        // Если tooltip выходит за левый край
+        if (leftPos < padding) {
+          leftPos = padding;
+        }
+        // Если tooltip выходит за правый край
+        else if (leftPos + tooltipWidth > viewportWidth - padding) {
+          leftPos = viewportWidth - tooltipWidth - padding;
+        }
+        
+        tooltip.style.top = `${topPos}px`;
+        tooltip.style.left = `${leftPos}px`;
+        tooltip.style.transform = 'none';
+        
+        // Показываем tooltip
+        tooltip.style.visibility = 'visible';
+        tooltip.style.opacity = '1';
+        tooltip.style.display = 'block';
+      });
+    };
+    
+    // Функция для скрытия tooltip
+    const hideTooltip = () => {
+      tooltipShowing = false;
+      tooltip.style.opacity = '0';
+      tooltip.style.visibility = 'hidden';
+      tooltip.style.display = 'none';
+    };
+    
+    // Показываем tooltip при наведении
+    el.addEventListener('mouseenter', (e) => {
+      // Проверяем, не находится ли курсор над плюсиком
+      const upgradeBadgeEl = el.querySelector('.upgrade-badge');
+      if (upgradeBadgeEl) {
+        const badgeRect = upgradeBadgeEl.getBoundingClientRect();
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        // Если курсор находится над плюсиком, не показываем tooltip кнопки
+        if (mouseX >= badgeRect.left && mouseX <= badgeRect.right &&
+            mouseY >= badgeRect.top && mouseY <= badgeRect.bottom) {
+          return;
+        }
+      }
+      positionAndShowTooltip();
+    });
+    el.addEventListener('mouseleave', hideTooltip);
+    
+    // Cooldown overlay
+    if (btn.cooldownUntil && btn.cooldownUntil > nowTs) {
+      const remaining = Math.ceil((btn.cooldownUntil - nowTs)/1000);
+      el.setAttribute('data-cooldown', remaining);
+      el.disabled = true;
+    }
+    
+    // Upgrade badge (кликабельный) с tooltip
+    if (btn.canUpgrade && btn.upgradeOnClick) {
+      el.setAttribute('data-can-upgrade', 'true');
+      const upgradeBadge = document.createElement('div');
+      upgradeBadge.className = 'upgrade-badge';
+      upgradeBadge.textContent = '+';
+      
+      // Tooltip для плюсика
+      const upgradeTooltip = document.createElement('div');
+      upgradeTooltip.className = 'tooltip upgrade-tooltip';
+      upgradeTooltip.setAttribute('data-treasury-tooltip', 'true');
+      
+      const upgradeHeader = document.createElement('div');
+      upgradeHeader.className = 'tooltip-header';
+      upgradeHeader.textContent = 'UPGRADE AVAILABLE';
+      upgradeTooltip.appendChild(upgradeHeader);
+      
+      const upgradeBody = document.createElement('div');
+      upgradeBody.className = 'tooltip-body';
+      
+      if (typeof btn.desc === 'object' && btn.desc.upgradeCost) {
+        const upgradeLine = document.createElement('div');
+        upgradeLine.className = 'tooltip-line';
+        let levelTextFromHeader = '';
+        let nextLevelNum = '';
+        
+        // Определяем следующий уровень
+        if (btn.desc.header) {
+          if (btn.desc.header.includes('REPAIR LEVEL')) {
+            levelTextFromHeader = btn.desc.header.replace('REPAIR LEVEL ', '');
+            nextLevelNum = levelTextFromHeader ? parseInt(levelTextFromHeader) + 1 : '';
+          } else if (btn.desc.header.includes('LAZY CLICK LEVEL')) {
+            levelTextFromHeader = btn.desc.header.replace('LAZY CLICK LEVEL ', '');
+            nextLevelNum = levelTextFromHeader ? parseInt(levelTextFromHeader) + 1 : '';
+          }
+        }
+        
+        upgradeLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">Upgrade to Level ${nextLevelNum}</div>`;
+        upgradeBody.appendChild(upgradeLine);
+        
+        // Для Lazy Click upgradeCost - это breakDuration в миллисекундах
+        const isLazyClick = btn.desc.header && btn.desc.header.includes('LAZY CLICK');
+        if (isLazyClick) {
+          const breakSec = btn.desc.upgradeCost / 1000;
+          const costLine = document.createElement('div');
+          costLine.className = 'tooltip-stat';
+          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span><span class="tooltip-stat-value">Break Click button for ${breakSec}s</span>`;
+          upgradeBody.appendChild(costLine);
+        } else {
+          const costLine = document.createElement('div');
+          costLine.className = 'tooltip-stat';
+          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span><span class="tooltip-stat-value">${fmt(btn.desc.upgradeCost)} Points</span>`;
+          upgradeBody.appendChild(costLine);
+        }
+        
+        // Показываем что даст прокачка - берем эффект следующего уровня
+        const currentLevelNum = levelTextFromHeader ? parseInt(levelTextFromHeader) : 0;
+        const targetLevelNum = currentLevelNum + 1;
+        
+        if (isLazyClick) {
+          // Данные для Lazy Click
+          const lazyClickLevelsData = [
+            { lvl: 1, clicks: 1000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+            { lvl: 2, clicks: 2000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+            { lvl: 3, clicks: 5000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+            { lvl: 4, clicks: 10000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+          ];
+          
+          const nextLevelData = lazyClickLevelsData.find(l => l.lvl === targetLevelNum);
+          if (nextLevelData) {
+            const effectLine = document.createElement('div');
+            effectLine.className = 'tooltip-stat';
+            effectLine.style.marginTop = '8px';
+            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span><span class="tooltip-stat-value">Performs ${nextLevelData.clicks} passive clicks with x${nextLevelData.multiplier} multiplier over ${nextLevelData.durationMs/1000} seconds.</span>`;
+            upgradeBody.appendChild(effectLine);
+            
+            // Показываем стоимость использования после прокачки
+            const useCostLine = document.createElement('div');
+            useCostLine.className = 'tooltip-stat';
+            useCostLine.style.marginTop = '8px';
+            useCostLine.innerHTML = `<span class="tooltip-stat-label">Usage Cost:</span><span class="tooltip-stat-value">${nextLevelData.cost} Treasury</span>`;
+            upgradeBody.appendChild(useCostLine);
+            
+            // Показываем перезарядку после прокачки
+            const cdLine = document.createElement('div');
+            cdLine.className = 'tooltip-stat';
+            cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span><span class="tooltip-stat-value">54s</span>`;
+            upgradeBody.appendChild(cdLine);
+          }
+        } else {
+          // Данные для Repair
+          const repairLevelsData = [
+            { lvl: 1, percent: 0.09, cost: 100, cdSec: 39, lvlReq: 3987, upgradeCost: 0 },
+            { lvl: 2, percent: 0.27, cost: 300, cdSec: 39, lvlReq: 10063, upgradeCost: 10000000 },
+            { lvl: 3, percent: 0.46, cost: 450, cdSec: 39, lvlReq: 16827, upgradeCost: 1000000707 },
+            { lvl: 4, percent: 0.63, cost: 650, cdSec: 39, lvlReq: 28212, upgradeCost: 10000005055 }
+          ];
+          
+          const nextLevelData = repairLevelsData.find(r => r.lvl === targetLevelNum);
+          if (nextLevelData) {
+            const effectLine = document.createElement('div');
+            effectLine.className = 'tooltip-stat';
+            effectLine.style.marginTop = '8px';
+            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span><span class="tooltip-stat-value">Accelerate all building repairs by ${Math.round(nextLevelData.percent*100)}% of original time.</span>`;
+            upgradeBody.appendChild(effectLine);
+            
+            // Показываем стоимость использования после прокачки
+            const useCostLine = document.createElement('div');
+            useCostLine.className = 'tooltip-stat';
+            useCostLine.style.marginTop = '8px';
+            useCostLine.innerHTML = `<span class="tooltip-stat-label">Usage Cost:</span><span class="tooltip-stat-value">${nextLevelData.cost} Treasury</span>`;
+            upgradeBody.appendChild(useCostLine);
+            
+            // Показываем перезарядку после прокачки
+            const cdLine = document.createElement('div');
+            cdLine.className = 'tooltip-stat';
+            cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span><span class="tooltip-stat-value">${nextLevelData.cdSec}s</span>`;
+            upgradeBody.appendChild(cdLine);
+          }
+        }
+      }
+      
+      upgradeTooltip.appendChild(upgradeBody);
+      
+      // Добавляем tooltip плюсика в body для fixed positioning (поверх всего)
+      // Убеждаемся, что tooltip скрыт по умолчанию
+      upgradeTooltip.style.display = 'none';
+      upgradeTooltip.style.opacity = '0';
+      upgradeTooltip.style.visibility = 'hidden';
+      document.body.appendChild(upgradeTooltip);
+      
+      // Флаг для предотвращения множественных вызовов для плюсика
+      let upgradeTooltipShowing = false;
+      
+      // Показ/скрытие tooltip для плюсика
+      upgradeBadge.addEventListener('mouseenter', (e) => {
+        e.stopPropagation(); // Предотвращаем всплытие события на кнопку
+        if (upgradeTooltipShowing) return;
+        upgradeTooltipShowing = true;
+        
+        // Скрываем tooltip кнопки немедленно
+        hideTooltip();
+        tooltipShowing = false; // Сбрасываем флаг, чтобы tooltip кнопки не показывался
+        
+        // Показываем tooltip плюсика для измерения
+        upgradeTooltip.style.display = 'block';
+        upgradeTooltip.style.visibility = 'hidden';
+        upgradeTooltip.style.opacity = '0';
+        
+        // Позиционируем tooltip плюсика
+        requestAnimationFrame(() => {
+          const badgeRect = upgradeBadge.getBoundingClientRect();
+          const tooltipRect = upgradeTooltip.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const viewportWidth = window.innerWidth;
+          const padding = 10;
+          
+          const tooltipHeight = tooltipRect.height || 150;
+          const tooltipWidth = tooltipRect.width || 250;
+          const spaceAbove = badgeRect.top;
+          const spaceBelow = viewportHeight - badgeRect.bottom;
+          const badgeCenterX = badgeRect.left + badgeRect.width / 2;
+          const tooltipHalfWidth = tooltipWidth / 2;
+          
+          // Вертикальное позиционирование
+          let topPos;
+          if (spaceAbove < tooltipHeight + padding && spaceBelow > tooltipHeight + padding) {
+            // Показываем снизу
+            topPos = badgeRect.bottom + 8;
+          } else {
+            // Показываем сверху
+            topPos = badgeRect.top - tooltipHeight - 8;
+          }
+          
+          // Горизонтальное позиционирование
+          let leftPos = badgeCenterX - tooltipHalfWidth;
+          
+          // Если tooltip выходит за левый край
+          if (leftPos < padding) {
+            leftPos = padding;
+          }
+          // Если tooltip выходит за правый край
+          else if (leftPos + tooltipWidth > viewportWidth - padding) {
+            leftPos = viewportWidth - tooltipWidth - padding;
+          }
+          
+          upgradeTooltip.style.top = `${topPos}px`;
+          upgradeTooltip.style.left = `${leftPos}px`;
+          upgradeTooltip.style.transform = 'none';
+          
+          upgradeTooltip.style.visibility = 'visible';
+          upgradeTooltip.style.opacity = '1';
+          upgradeTooltip.style.display = 'block';
+        });
+      });
+      
+      upgradeBadge.addEventListener('mouseleave', (e) => {
+        e.stopPropagation(); // Предотвращаем всплытие события на кнопку
+        upgradeTooltipShowing = false;
+        upgradeTooltip.style.opacity = '0';
+        upgradeTooltip.style.visibility = 'hidden';
+        upgradeTooltip.style.display = 'none';
+        // Не показываем tooltip кнопки автоматически после ухода с плюсика
+        // Пользователь должен снова навести на кнопку, чтобы увидеть tooltip
+      });
+      
+      // Сохраняем ссылку на upgradeTooltip для очистки
+      el._upgradeTooltip = upgradeTooltip;
+      
+      upgradeBadge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (btn.upgradeOnClick) btn.upgradeOnClick();
+      });
+      el.appendChild(upgradeBadge);
+    }
+    
+    // Buff timer под кнопкой
+    if (btn.buffUntil && btn.buffUntil > nowTs) {
+      const timerEl = document.createElement('div');
+      timerEl.className = 'buff-timer';
+      const updateTimer = () => {
+        const remaining = Math.ceil((btn.buffUntil - now())/1000);
+        if (remaining > 0) {
+          timerEl.textContent = `${remaining}s`;
+          setTimeout(updateTimer, 1000);
+        } else {
+          timerEl.textContent = '';
+          renderTreasuryActions();
+        }
+      };
+      updateTimer();
+      el.appendChild(timerEl);
+    }
+    
+    el.addEventListener('dblclick', btn.onClick);
+    treasuryActionsEl.appendChild(el);
+  });
 }
 
 function renderClick() {
@@ -1403,6 +2379,7 @@ function cycleSeason() {
 function renderAll() {
   renderTopStats();
   renderClick();
+  renderTreasuryActions();
   renderBuildings();
   // Сначала проверяем разблокировку Uber здания, потом рендерим
   checkUberUnlock(); // Проверяем разблокировку Uber здания
@@ -1576,9 +2553,12 @@ function buyBuildingLevels(i) {
     const seg = segmentIndex(lvl);
     b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
 
-    // 1% chance to fail and trigger 164s downtime
-    if (randChance(0.01)) {
-      b.blockedUntil = now() + 164000;
+    // 1% chance to fail and trigger downtime (affected by modifiers)
+    const failChance = 0.01 * (save.modifiers.breakChanceMult || 1);
+    const repairMult = (save.modifiers.repairTimeMult || 1);
+    const baseRepairMs = 164000;
+    if (randChance(failChance)) {
+      b.blockedUntil = now() + baseRepairMs * repairMult;
       // Points already spent (kept), no level increase
       toast(`${b.name} construction failed. Repairs for 164s.`, 'bad');
       // Отслеживаем разрушения для достижений
@@ -1752,6 +2732,7 @@ clickBtn.addEventListener('click', (event) => {
   }
 
   // Apply points
+  const madnessActive = save.treasury?.actions?.clickMadnessUntil > now();
   const ppc = totalPPC();
   addPoints(ppc);
   
@@ -1764,40 +2745,47 @@ clickBtn.addEventListener('click', (event) => {
     checkAchievements();
   }
 
-  // 0.5% шанс на золотую или сломанную кнопку при каждом клике
+  // Клик Безумия: шанс потерять уровни
+  if (madnessActive && randChance(0.005)) {
+    save.click.level = Math.max(0, save.click.level - 3);
+    toast('Click Madness backlash: -3 Click levels!', 'warn');
+  }
+
+  // 0.5% шанс на золотую или сломанную кнопку при каждом клике (отключено в Click Madness)
+  if (!madnessActive) {
     const roll = Math.random();
   if (roll < 0.005) {
     // 0.5% шанс - определяем золотую или сломанную
-    const brokenActive = save.click.brokenUntil > now();
-    const goldenActive = save.click.goldenUntil > now();
-    
-    // Золотая кнопка не может сломаться, сломанная кнопка не может стать золотой
-    if (!goldenActive && !brokenActive) {
-      const outcomeRoll = Math.random();
-      if (outcomeRoll < 0.66) {
-        // 66% из 0.5% = сломанная кнопка (0.33% общий шанс)
-        save.click.brokenUntil = now() + 26000;
-        // Сбрасываем стрик при сломанной кнопке
-        save.streak.count = 0;
-        save.streak.multiplier = 1.0;
-        toast('Click button broke for 26s.', 'bad');
-        renderClick(); // обновляем статус сразу
-      } else {
-        // 34% из 0.5% = золотая кнопка (0.17% общий шанс)
-        save.click.goldenUntil = now() + 8000;
-        // Сбрасываем стрик при золотой кнопке
-        save.streak.count = 0;
-        save.streak.multiplier = 1.0;
-        toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
-        renderClick(); // обновляем статус сразу
+      const brokenActive = save.click.brokenUntil > now();
+      const goldenActive = save.click.goldenUntil > now();
+      
+      // Золотая кнопка не может сломаться, сломанная кнопка не может стать золотой
+      if (!goldenActive && !brokenActive) {
+    const outcomeRoll = Math.random();
+    if (outcomeRoll < 0.66) {
+      // 66% из 0.5% = сломанная кнопка (0.33% общий шанс)
+      save.click.brokenUntil = now() + 26000;
+      // Сбрасываем стрик при сломанной кнопке
+      save.streak.count = 0;
+      save.streak.multiplier = 1.0;
+      toast('Click button broke for 26s.', 'bad');
+      renderClick(); // обновляем статус сразу
+    } else {
+      // 34% из 0.5% = золотая кнопка (0.17% общий шанс)
+      save.click.goldenUntil = now() + 8000;
+      // Сбрасываем стрик при золотой кнопке
+      save.streak.count = 0;
+      save.streak.multiplier = 1.0;
+      toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
+      renderClick(); // обновляем статус сразу
 
-        // Убрали setTimeout, который ломал кнопку после окончания золотого состояния
-        // Золотая кнопка просто заканчивается без поломки
-        setTimeout(() => {
-          save.click.goldenUntil = 0;
-          toast('Golden effect ended.', 'warn');
-          renderClick(); // обновляем статус после окончания
-        }, 8000);
+          // Золотая кнопка просто заканчивается без поломки
+      setTimeout(() => {
+        save.click.goldenUntil = 0;
+            toast('Golden effect ended.', 'warn');
+        renderClick(); // обновляем статус после окончания
+      }, 8000);
+        }
       }
     }
   }
@@ -2243,7 +3231,7 @@ function endKingMiniGame(outcome, info = {}) {
         const maxAddable = maxLevelsBeforeUpgrade(b.level, 4, b.segUpgrades, b.max);
         if (maxAddable > 0) {
           b.level = Math.min(b.max, b.level + maxAddable);
-          openedCount++;
+        openedCount++;
           totalLevelsAdded += maxAddable;
         }
       }
@@ -2502,6 +3490,24 @@ function tick() {
   const dt = (t - (save.lastTick || t)) / 1000; // seconds
   save.lastTick = t;
 
+  // Treasury regen
+  if (save.treasury) {
+    const dtreasury = (t - (save.treasury.lastTs || t)) / 1000;
+    save.treasury.lastTs = t;
+    if (dtreasury > 0) {
+      gainTreasury(save.treasury.regenPerSec * dtreasury);
+    }
+
+    // Engineer effect
+    if (save.treasury.actions.engineerUntil > t) {
+      save.modifiers.breakChanceMult = 0.34; // -66%
+      save.modifiers.repairTimeMult = 2.0;
+    } else {
+      save.modifiers.breakChanceMult = 1.0;
+      save.modifiers.repairTimeMult = 1.0;
+    }
+  }
+
   // Real-time income
   const pps = totalPPS();
   addPoints(pps * dt);
@@ -2523,6 +3529,7 @@ function tick() {
   renderTopStats();
   renderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
   renderEffects();
+  renderTreasuryActions();
   // Обновляем состояние кнопок (disabled/enabled) в зависимости от поинтов
   updateButtonStates();
 
@@ -3551,6 +4558,7 @@ document.addEventListener('keydown', (e) => {
     currentUser = stored.user;
     save = stored.data;
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+    ensureTreasury(save);
     // Инициализируем достижения, если их нет
     if (!save.achievements) {
       save.achievements = {
@@ -3592,6 +4600,7 @@ document.addEventListener('keydown', (e) => {
 // Рендерим достижения всегда, даже если игра не загружена
 renderAchievements();
 if (save) {
+  ensureTreasury(save);
   // Убеждаемся, что bulk инициализирован
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;
@@ -3865,3 +4874,4 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
+

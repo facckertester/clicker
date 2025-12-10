@@ -375,7 +375,17 @@ input:focus,textarea:focus,select:focus{
 a, a:link, a:visited { cursor: var(--shield-cursor); }
 
 /* ---------- GAME LAYOUT: TITLE / STATS (в стиле интерфейса AoE2) ---------- */
-#game-screen{display:flex;flex-direction:column;width:100%;padding:20px 0 100px;gap:20px;align-items:center}
+#game-screen{
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  height:100vh;
+  padding:20px;
+  gap:20px;
+  align-items:center;
+  overflow:hidden;
+  box-sizing:border-box;
+}
 .game-title{
   font-size:clamp(20px,3.2vw,34px);
   font-weight:900;color:var(--gold);letter-spacing:1px;text-align:center;margin-top:10px;
@@ -391,12 +401,262 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
 </svg>");
 }
 
+/* Treasury row */
+.treasury-row{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin:0 auto;
+}
+.treasury-bar{
+  width:60%;
+  max-width:750px;
+  background:none;
+  border:none;
+  padding:0;
+  box-shadow:none;
+}
+.treasury-progress{
+  position:relative;
+  width:100%;
+  height:20px;
+  background:#1b140e;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid rgba(0,0,0,0.6);
+}
+#treasury-progress-fill{
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,#d4b24a,#f7e09a);
+}
+.treasury-overlay{
+  position:absolute;
+  inset:0;
+  display:grid;
+  grid-template-columns: auto 1fr auto;
+  align-items:center;
+  padding:0 10px;
+  font-family:var(--mono-font);
+  font-weight:900;
+  color:#f1e4c7;
+  pointer-events:none;
+}
+.treasury-label{font-weight:800;}
+.treasury-amount{text-align:center;}
+.treasury-regen{text-align:right;color:var(--muted);}
+.treasury-actions{
+  position:absolute;
+  right:23px;
+  top:50%;
+  transform:translateY(-50%);
+  display:flex;
+  flex-direction:row;
+  flex-wrap:nowrap;
+  gap:8px;
+  align-items:center;
+  flex-shrink:0;
+}
+.treasury-actions .btn{
+  width:60px !important;
+  height:60px !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:flex !important;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  line-height:1;
+  position:relative;
+  min-width:60px !important;
+  max-width:60px !important;
+  min-height:60px !important;
+  max-height:60px !important;
+  flex-shrink:0;
+  text-align:center;
+  background: linear-gradient(180deg,#5a4a36,#3b2f24);
+  border:2px solid rgba(0,0,0,0.6);
+  box-shadow: 0 10px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.02);
+  border-radius:10px;
+  cursor: var(--shield-cursor);
+  transition: transform .08s ease, box-shadow .12s ease;
+  overflow:visible;
+  will-change:transform;
+}
+.treasury-actions .btn:hover{
+  box-shadow: 0 12px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.04);
+}
+.treasury-actions .btn:active{
+  transform:translateY(1px);
+  box-shadow:0 6px 0 rgba(0,0,0,0.6);
+}
+.treasury-actions .btn:disabled{
+  opacity:0.5;
+  cursor:not-allowed;
+  filter:grayscale(0.3);
+}
+.treasury-actions .btn:disabled:hover{
+  transform:none;
+}
+.treasury-actions .btn::before{
+  content:attr(data-icon);
+  font-size:28px;
+  line-height:1;
+  display:block;
+  position:relative;
+  z-index:2;
+}
+.treasury-actions .btn[data-cooldown]::after{
+  content:attr(data-cooldown)'s';
+  position:absolute;
+  bottom:2px;
+  font-size:10px;
+  opacity:0.8;
+  font-weight:bold;
+  color:var(--gold);
+  pointer-events:none;
+  z-index:2;
+}
+.treasury-actions .btn[data-can-upgrade] .upgrade-badge{
+  position:absolute;
+  top:2px;
+  right:2px;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:rgba(0,0,0,0.8);
+  border:1px solid var(--gold);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  font-weight:bold;
+  color:var(--gold);
+  pointer-events:auto;
+  cursor:pointer;
+  z-index:10;
+  transition:none;
+}
+.treasury-actions .btn[data-can-upgrade] .upgrade-badge:hover{
+  background:rgba(212,178,74,0.2);
+}
+.treasury-actions .btn .buff-timer{
+  position:absolute;
+  bottom:-18px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:10px;
+  color:var(--gold);
+  font-weight:bold;
+  white-space:nowrap;
+  pointer-events:none;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+  z-index:3;
+}
+[data-treasury-tooltip="true"]{
+  position:fixed !important;
+  background:linear-gradient(180deg, #1a1612 0%, #0f0d0a 100%) !important;
+  border:2px solid #8b7355 !important;
+  border-top:3px solid #d4b24a !important;
+  border-radius:6px !important;
+  padding:0 !important;
+  min-width:300px !important;
+  max-width:380px !important;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.8),
+    0 8px 32px rgba(0,0,0,0.9),
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.5) !important;
+  z-index:2147483647 !important;
+  pointer-events:none !important;
+  opacity:0;
+  visibility:hidden;
+  display:none;
+  transition:none !important;
+  font-family:var(--ui-font) !important;
+  white-space:normal !important;
+  margin:0 !important;
+}
+[data-treasury-tooltip="true"].upgrade-tooltip{
+  min-width:250px !important;
+  max-width:300px !important;
+}
+[data-treasury-tooltip="true"] .tooltip-header{
+  background:linear-gradient(180deg, #2a2418 0%, #1a1610 100%);
+  padding:12px 14px;
+  border-bottom:2px solid #3a2f20;
+  border-top-left-radius:4px;
+  border-top-right-radius:4px;
+  font-weight:900;
+  font-size:1.05rem;
+  color:#d4b24a;
+  text-align:center;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);
+}
+[data-treasury-tooltip="true"] .tooltip-body{
+  padding:12px 14px;
+  font-size:0.9rem;
+  line-height:1.7;
+  color:#c8b99c;
+  background:#1a1612;
+}
+[data-treasury-tooltip="true"] .tooltip-line{
+  margin:10px 0;
+  padding:10px 0;
+  border-top:1px solid rgba(58,47,32,0.8);
+  border-bottom:1px solid rgba(26,22,18,0.8);
+}
+[data-treasury-tooltip="true"] .tooltip-stat{
+  display:flex;
+  justify-content:space-between;
+  margin:6px 0;
+  color:#e8dcc0;
+  font-size:0.92rem;
+  padding:2px 0;
+}
+[data-treasury-tooltip="true"] .tooltip-stat-label{
+  color:#a08f70;
+  font-weight:500;
+}
+[data-treasury-tooltip="true"] .tooltip-stat-value{
+  color:#f4e4b0;
+  font-weight:bold;
+  text-align:right;
+  text-shadow:0 1px 1px rgba(0,0,0,0.5);
+}
+[data-treasury-tooltip="true"] .tooltip-cost{
+  color:#ff6b6b;
+  font-weight:bold;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+}
+[data-treasury-tooltip="true"] .tooltip-cooldown{
+  color:#ffd700;
+  font-weight:bold;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+}
+
+/* Stats container: обертка для stats-bar и кнопок */
+.stats-container{
+  position:relative;
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
 /* Stats bar: деревянная панель AoE2 стиль */
 .stats-bar{
   display:flex;align-items:center;justify-content:center;gap:28px;
   background: linear-gradient(180deg,#2a2418,#1f1a12);
   border: 3px solid #1a1610;
-  padding:12px 20px;border-radius:8px;width:100%;max-width:920px;
+  padding:12px 20px;border-radius:8px;
+  width:100%;
+  max-width:920px;
   box-shadow: 
     0 14px 34px rgba(0,0,0,0.8),
     inset 0 1px 0 rgba(139, 115, 85, 0.15),
