@@ -210,11 +210,11 @@ function newSave(username) {
 }
 
 const buildingNames = [
-  "Hamlet","Cottage","Hut","Lodge","Cabin","Homestead","House","Manor","Villa","Hall",
-  "Forge","Mill","Bakery","Tannery","Smithy","Granary","Barn","Stable","Barracks","Keep",
-  "Tower","Chapel","Abbey","Market","Guild","Tavern","Inn","Workshop","Foundry","Mine",
-  "Quarry","Harbor","Port","Farmstead","Pasture","Vineyard","Orchard","Garden","Sanctum","Library",
-  "Archive","Courtyard","Outpost","Watch","Gatehouse","Parlor","Kitchen","Armory","Vault","Cloister"
+  "Hamlet (1)","Cottage (2)","Hut (3)","Lodge (4)","Cabin (5)","Homestead (6)","House (7)","Manor (8)","Villa (9)","Hall (10)",
+  "Forge (11)","Mill (12)","Bakery (13)","Tannery (14)","Smithy (15)","Granary (16)","Barn (17)","Stable (18)","Barracks (19)","Keep (20)",
+  "Tower (21)","Chapel (22)","Abbey (23)","Market (24)","Guild (25)","Tavern (26)","Inn (27)","Workshop (28)","Foundry (29)","Mine (30)",
+  "Quarry (31)","Harbor (32)","Port (33)","Farmstead (34)","Pasture (35)","Vineyard (36)","Orchard (37)","Garden (38)","Sanctum (39)","Library (40)",
+  "Archive (41)","Courtyard (42)","Outpost (43)","Watch (44)","Gatehouse (45)","Parlor (46)","Kitchen (47)","Armory (48)","Vault (49)","Cloister (50) "
 ];
 
 function initBuildings(saveObj) {
