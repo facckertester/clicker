@@ -457,6 +457,15 @@ const clickSegInfo = document.getElementById('click-seg-info');
 const clickSegBtn = document.getElementById('click-seg-upgrade');
 const clickBuyBtn = document.getElementById('click-buy');
 
+// Casino modal elements
+const casinoModal = document.getElementById('casino-modal');
+const casinoCloseBtn = document.getElementById('casino-close');
+const casinoCancelBtn = document.getElementById('casino-cancel-btn');
+const casinoRollBtn = document.getElementById('casino-roll-btn');
+const casinoStakePercentEl = document.getElementById('casino-stake-percent');
+const casinoStakeAmountEl = document.getElementById('casino-stake-amount');
+const casinoFaceSelectedEl = document.getElementById('casino-face-selected');
+
 const bulkButtons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'));
 
 const buildingsList = document.getElementById('buildings-list');
@@ -911,6 +920,10 @@ function reduceAllRepairs(percent) {
       b.blockedUntil = Math.max(now(), b.blockedUntil - baseMs);
     }
   });
+  // Обновляем визуальное отображение зданий
+  renderBuildings();
+  // Немедленно обновляем таймеры
+  _updateBuildingCountdowns();
 }
 
 function breakRandomBuildings(count, durationMs) {
@@ -960,6 +973,10 @@ function startLazyClick(level = 1) {
 
 function applyEngineer(durationMs) {
   save.treasury.actions.engineerUntil = now() + durationMs;
+  // Обновляем визуальное отображение зданий, чтобы показать изменения
+  renderBuildings();
+  // Немедленно обновляем таймеры
+  _updateBuildingCountdowns();
 }
 
 function applyClickMadness(durationMs) {
@@ -1000,24 +1017,7 @@ function renderTreasuryActions() {
     mkBtn('casino','Casino LoseWin-line', desc, ready && save.treasury.value >= 5, () => {
       if (!ready) { toast('On cooldown.', 'warn'); return; }
       if (save.treasury.value < 5) { toast('Not enough treasury.', 'warn'); return; }
-      const stakePct = Number(prompt('Bet percent (10,20,30,40,50,100):','10'));
-      if (![10,20,30,40,50,100].includes(stakePct)) { toast('Invalid percent.', 'warn'); return; }
-      const face = Number(prompt('Pick dice face 1-6:','1'));
-      if (![1,2,3,4,5,6].includes(face)) { toast('Invalid face.', 'warn'); return; }
-      const stake = save.points * (stakePct/100);
-      spendTreasury(5);
-      const roll = Math.floor(Math.random()*6)+1;
-      if (roll === face) {
-        const gain = stake*3;
-        addPoints(gain);
-        toast(`Dice ${roll}. You win +${fmt(gain)} points.`, 'good');
-      } else {
-        const loss = stake*1.2;
-        save.points -= loss;
-        toast(`Dice ${roll}. You lose -${fmt(loss)} points.`, 'bad');
-      }
-      act.casinoCd = now() + 3000;
-      renderTreasuryActions();
+      openCasinoModal();
     }, cdUntil);
   }
 
@@ -1058,20 +1058,31 @@ function renderTreasuryActions() {
   }
   
   if (nextRepairLevelToUpgrade > 0) {
-    const r = repairLevels[nextRepairLevelToUpgrade - 1];
-    const upgradeCost = Math.max(save.points, r.upgradeCost);
+    // Показываем кнопку с текущим уровнем, но с возможностью апгрейда через плюсик
+    const currentR = repairLevels[nextRepairLevelToUpgrade - 2]; // Текущий уровень (на 1 меньше следующего)
+    const nextR = repairLevels[nextRepairLevelToUpgrade - 1]; // Следующий уровень для апгрейда
+    const upgradeCost = Math.max(save.points, nextR.upgradeCost);
     const canUpgrade = save.points >= upgradeCost;
+    const cdUntil = act.repairCd || 0;
+    const ready = nowTs >= cdUntil;
+    const canUse = ready && save.treasury.value >= currentR.cost;
     const desc = {
       header: `REPAIR LEVEL ${nextRepairLevelToUpgrade - 1}`,
-      effect: `Accelerate all building repairs by ${Math.round(r.percent*100)}% of original time.`,
+      effect: `Accelerate all building repairs by ${Math.round(currentR.percent*100)}% of original time.`,
       details: `This is your current repair level. Use it to speed up building repairs.`,
-      cost: r.cost,
-      cooldown: r.cdSec,
+      cost: currentR.cost,
+      cooldown: currentR.cdSec,
       upgradeCost: upgradeCost
     };
-    mkBtn('repair', 'Repair', desc, canUpgrade, () => {
-      if (repairUpgradeOnClick) repairUpgradeOnClick();
-    }, 0, true, 0, repairUpgradeOnClick);
+    mkBtn('repair', 'Repair', desc, canUse, () => {
+      // Клик на кнопку использует текущий уровень
+      if (!ready) { toast('On cooldown.', 'warn'); return; }
+      if (!spendTreasury(currentR.cost)) { toast('Not enough treasury.', 'warn'); return; }
+      reduceAllRepairs(currentR.percent);
+      act.repairCd = now() + currentR.cdSec*1000;
+      toast(`Repair Level ${nextRepairLevelToUpgrade - 1} applied!`, 'good');
+      renderTreasuryActions();
+    }, cdUntil, true, 0, repairUpgradeOnClick);
   } else if (currentRepairLevel > 0) {
     const r = repairLevels[currentRepairLevel - 1];
     const cdUntil = act.repairCd || 0;
@@ -1096,59 +1107,74 @@ function renderTreasuryActions() {
 
   // Lazy click - одна кнопка с 4 уровнями апгрейда
   const lazyClickLevels = [
-    { lvl: 1, clicks: 1000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
-    { lvl: 2, clicks: 2000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
-    { lvl: 3, clicks: 5000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
-    { lvl: 4, clicks: 10000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+    { lvl: 1, clicks: 10000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+    { lvl: 2, clicks: 20000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+    { lvl: 3, clicks: 50000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+    { lvl: 4, clicks: 100000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
   ];
   
-  let currentLazyClickLevel = act.lazyClickLevel || 1;
-  let nextLazyClickLevelToUpgrade = 0;
-  let lazyClickUpgradeOnClick = null;
-  
-  // Определяем текущий уровень и следующий для апгрейда
-  // Первый уровень всегда доступен при 589+ кликах
-  if (totalClicks >= 589) {
-    currentLazyClickLevel = Math.max(currentLazyClickLevel, 1);
-  }
-  
-  // Проверяем возможность апгрейда
-  if (act.lazyClickLevel === 1 && totalClicks >= 1488) {
-    nextLazyClickLevelToUpgrade = 2;
-  } else if (act.lazyClickLevel === 2 && totalClicks >= 3564) {
-    nextLazyClickLevelToUpgrade = 3;
-  } else if (act.lazyClickLevel === 3 && totalClicks >= 9999) {
-    nextLazyClickLevelToUpgrade = 4;
-  }
-  
-  // Если можно апгрейдить
-  if (nextLazyClickLevelToUpgrade > 0) {
-    const currentLevelData = lazyClickLevels[currentLazyClickLevel - 1];
-    const nextLevelData = lazyClickLevels[nextLazyClickLevelToUpgrade - 1];
-    const canUpgrade = totalClicks >= nextLevelData.clickReq;
-    const desc = {
-      header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
-      effect: `Performs ${currentLevelData.clicks} passive clicks with x${currentLevelData.multiplier} multiplier over ${currentLevelData.durationMs/1000} seconds.`,
-      details: `This is your current lazy click level.`,
-      cost: currentLevelData.cost,
-      cooldown: 54,
-      upgradeCost: nextLevelData.breakDuration
-    };
-    lazyClickUpgradeOnClick = () => {
-      if (totalClicks < nextLevelData.clickReq) {
-        toast(`Need ${nextLevelData.clickReq} total clicks to unlock.`, 'warn');
-        return;
-      }
-      // Ломаем кнопку клика
-      save.click.brokenUntil = now() + nextLevelData.breakDuration;
-      act.lazyClickLevel = nextLazyClickLevelToUpgrade;
-      toast(`Lazy Click upgraded to Level ${nextLazyClickLevelToUpgrade}! Click button broken for ${nextLevelData.breakDuration/1000}s.`, 'good');
-      renderClick();
-      renderTreasuryActions();
-    };
-    mkBtn('lazyClick', 'Lazy click', desc, canUpgrade, () => {
-      if (lazyClickUpgradeOnClick) lazyClickUpgradeOnClick();
-    }, 0, true, 0, lazyClickUpgradeOnClick);
+  // Кнопка показывается только если есть минимум 589 кликов
+  if (totalClicks < 589) {
+    // Не показываем кнопку, если кликов недостаточно
+  } else {
+    let currentLazyClickLevel = act.lazyClickLevel || 1;
+    let nextLazyClickLevelToUpgrade = 0;
+    let lazyClickUpgradeOnClick = null;
+    
+    // Определяем текущий уровень и следующий для апгрейда
+    // Первый уровень всегда доступен при 589+ кликах
+    if (totalClicks >= 589) {
+      currentLazyClickLevel = Math.max(currentLazyClickLevel, 1);
+    }
+    
+    // Проверяем возможность апгрейда
+    if (act.lazyClickLevel === 1 && totalClicks >= 1488) {
+      nextLazyClickLevelToUpgrade = 2;
+    } else if (act.lazyClickLevel === 2 && totalClicks >= 3564) {
+      nextLazyClickLevelToUpgrade = 3;
+    } else if (act.lazyClickLevel === 3 && totalClicks >= 9999) {
+      nextLazyClickLevelToUpgrade = 4;
+    }
+    
+    // Если можно апгрейдить
+    if (nextLazyClickLevelToUpgrade > 0) {
+      const currentLevelData = lazyClickLevels[currentLazyClickLevel - 1];
+      const nextLevelData = lazyClickLevels[nextLazyClickLevelToUpgrade - 1];
+      const canUpgrade = totalClicks >= nextLevelData.clickReq;
+      const lazyClickUntil = save.modifiers?.lazyClickUntil || 0;
+      const active = lazyClickUntil > nowTs;
+      const cdUntil = act.lazyClickCd || 0;
+      const ready = nowTs >= cdUntil;
+      const canUse = ready && save.treasury.value >= currentLevelData.cost && !active;
+      const desc = {
+        header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
+        effect: `Performs ${currentLevelData.clicks} passive clicks with x${currentLevelData.multiplier} multiplier over ${currentLevelData.durationMs/1000} seconds.`,
+        details: `This is your current lazy click level.`,
+        cost: currentLevelData.cost,
+        cooldown: 54,
+        upgradeCost: nextLevelData.breakDuration
+      };
+      lazyClickUpgradeOnClick = () => {
+        if (totalClicks < nextLevelData.clickReq) {
+          toast(`Need ${nextLevelData.clickReq} total clicks to unlock.`, 'warn');
+          return;
+        }
+        // Ломаем кнопку клика
+        save.click.brokenUntil = now() + nextLevelData.breakDuration;
+        act.lazyClickLevel = nextLazyClickLevelToUpgrade;
+        toast(`Lazy Click upgraded to Level ${nextLazyClickLevelToUpgrade}! Click button broken for ${nextLevelData.breakDuration/1000}s.`, 'good');
+        renderClick();
+        renderTreasuryActions();
+      };
+      mkBtn('lazyClick', 'Lazy click', desc, canUse, () => {
+        // Клик на кнопку использует текущий уровень
+        if (!ready) { toast('On cooldown.', 'warn'); return; }
+        if (!spendTreasury(currentLevelData.cost)) { toast('Not enough treasury.', 'warn'); return; }
+        startLazyClick(currentLazyClickLevel);
+        act.lazyClickCd = now() + 54000;
+        toast(`Lazy Click Level ${currentLazyClickLevel} activated!`, 'good');
+        renderTreasuryActions();
+      }, cdUntil, true, lazyClickUntil, lazyClickUpgradeOnClick);
   } else if (currentLazyClickLevel > 0) {
     const l = lazyClickLevels[currentLazyClickLevel - 1];
     const lazyClickUntil = save.modifiers?.lazyClickUntil || 0;
@@ -1172,6 +1198,7 @@ function renderTreasuryActions() {
       toast(`Lazy Click Level ${currentLazyClickLevel} activated!`, 'good');
       renderTreasuryActions();
     }, cdUntil, false, lazyClickUntil);
+    }
   }
 
   // Profit without taxes
@@ -1730,7 +1757,14 @@ function renderTreasuryActions() {
       el.appendChild(timerEl);
     }
     
-    el.addEventListener('dblclick', btn.onClick);
+    // Обработчик двойного клика с предотвращением конфликтов
+    el.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (btn.onClick && !el.disabled) {
+        btn.onClick();
+      }
+    }, { passive: false });
     treasuryActionsEl.appendChild(el);
   });
 }
@@ -1755,6 +1789,26 @@ function renderClick() {
   }
   
   clickStatus.textContent = brokenActive ? 'Broken' : (goldenActive ? 'Golden' : 'Ready');
+  
+  // Обратный таймер внизу кнопки
+  let timerEl = clickBtn.querySelector('.click-timer');
+  if (!timerEl) {
+    timerEl = document.createElement('div');
+    timerEl.className = 'click-timer';
+    clickBtn.appendChild(timerEl);
+  }
+  
+  if (brokenActive) {
+    const remaining = Math.ceil((save.click.brokenUntil - now()) / 1000);
+    timerEl.textContent = `${remaining}s`;
+    timerEl.style.display = 'block';
+  } else if (goldenActive) {
+    const remaining = Math.ceil((save.click.goldenUntil - now()) / 1000);
+    timerEl.textContent = `${remaining}s`;
+    timerEl.style.display = 'block';
+  } else {
+    timerEl.style.display = 'none';
+  }
 
   clickLevelEl.textContent = save.click.level;
   clickMaxEl.textContent = save.click.max;
@@ -4868,6 +4922,217 @@ function closeStatsModal() {
 }
 
 startCountdownLoop();
+
+// ======= Casino Modal =======
+let selectedStakePercent = null;
+let selectedDiceFace = null;
+
+function openCasinoModal() {
+  selectedStakePercent = null;
+  selectedDiceFace = null;
+  updateCasinoUI();
+  if (casinoModal) {
+    // Отменяем предыдущий timeout, если он есть
+    if (casinoModal._hideResultTimeout) {
+      clearTimeout(casinoModal._hideResultTimeout);
+      casinoModal._hideResultTimeout = null;
+    }
+    // Скрываем результат при открытии
+    const resultOverlay = document.getElementById('casino-result-overlay');
+    if (resultOverlay) {
+      resultOverlay.style.display = 'none';
+      resultOverlay.style.opacity = '0';
+      resultOverlay.style.visibility = 'hidden';
+      resultOverlay.classList.add('hidden');
+      resultOverlay.classList.remove('win', 'lose');
+    }
+    casinoModal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+  }
+}
+
+function closeCasinoModal() {
+  if (casinoModal) {
+    casinoModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+  }
+  selectedStakePercent = null;
+  selectedDiceFace = null;
+}
+
+function updateCasinoUI() {
+  if (!casinoStakePercentEl || !casinoStakeAmountEl || !casinoFaceSelectedEl || !casinoRollBtn) return;
+  
+  // Обновляем информацию о ставке
+  if (selectedStakePercent) {
+    casinoStakePercentEl.textContent = `${selectedStakePercent}%`;
+    const stake = save.points * (selectedStakePercent / 100);
+    casinoStakeAmountEl.textContent = fmt(stake);
+  } else {
+    casinoStakePercentEl.textContent = '-';
+    casinoStakeAmountEl.textContent = '-';
+  }
+  
+  // Обновляем информацию о грани
+  if (selectedDiceFace) {
+    casinoFaceSelectedEl.textContent = selectedDiceFace;
+  } else {
+    casinoFaceSelectedEl.textContent = '-';
+  }
+  
+  // Обновляем состояние кнопки Roll - нельзя делать ставку при отрицательном балансе
+  const canBet = selectedStakePercent && selectedDiceFace && save.points > 0;
+  casinoRollBtn.disabled = !canBet;
+  
+  // Обновляем выделение кнопок
+  document.querySelectorAll('.casino-bet-btn').forEach(btn => {
+    const percent = parseInt(btn.dataset.percent);
+    btn.classList.toggle('selected', percent === selectedStakePercent);
+  });
+  
+  document.querySelectorAll('.casino-dice-btn').forEach(btn => {
+    const face = parseInt(btn.dataset.face);
+    btn.classList.toggle('selected', face === selectedDiceFace);
+  });
+}
+
+function rollCasinoDice() {
+  if (!selectedStakePercent || !selectedDiceFace) {
+    toast('Please select bet percentage and dice face.', 'warn');
+    return;
+  }
+  
+  if (save.treasury.value < 5) {
+    toast('Not enough treasury.', 'warn');
+    closeCasinoModal();
+    return;
+  }
+  
+  // Проверяем, что баланс положительный
+  if (save.points <= 0) {
+    toast('Cannot bet with negative or zero balance.', 'warn');
+    return;
+  }
+  
+  const stake = save.points * (selectedStakePercent / 100);
+  spendTreasury(5);
+  const roll = Math.floor(Math.random() * 6) + 1;
+  
+  // Отключаем кнопку Roll
+  casinoRollBtn.disabled = true;
+  
+  // Показываем результат поверх модального окна
+  const resultOverlay = document.getElementById('casino-result-overlay');
+  const resultDiceEl = document.getElementById('casino-result-dice');
+  const resultTextEl = document.getElementById('casino-result-text');
+  const resultAmountEl = document.getElementById('casino-result-amount');
+  
+  if (roll === selectedDiceFace) {
+    const gain = stake * 3;
+    addPoints(gain);
+    resultOverlay.style.display = 'flex';
+    resultOverlay.style.opacity = '1';
+    resultOverlay.style.visibility = 'visible';
+    resultOverlay.classList.remove('hidden');
+    resultOverlay.classList.add('win');
+    resultOverlay.classList.remove('lose');
+    resultDiceEl.textContent = `🎲 ${roll}`;
+    resultTextEl.textContent = 'YOU WIN!';
+    resultTextEl.style.color = '#4ade80';
+    resultAmountEl.textContent = `+${fmt(gain)} points`;
+    resultAmountEl.style.color = '#4ade80';
+    toast(`🎲 Dice ${roll}. You win +${fmt(gain)} points!`, 'good');
+  } else {
+    const loss = stake * 1.2;
+    save.points -= loss;
+    resultOverlay.style.display = 'flex';
+    resultOverlay.style.opacity = '1';
+    resultOverlay.style.visibility = 'visible';
+    resultOverlay.classList.remove('hidden');
+    resultOverlay.classList.add('lose');
+    resultOverlay.classList.remove('win');
+    resultDiceEl.textContent = `🎲 ${roll}`;
+    resultTextEl.textContent = 'YOU LOSE!';
+    resultTextEl.style.color = '#ff6b6b';
+    resultAmountEl.textContent = `-${fmt(loss)} points`;
+    resultAmountEl.style.color = '#ff6b6b';
+    toast(`🎲 Dice ${roll}. You lose -${fmt(loss)} points.`, 'bad');
+  }
+  
+  act.casinoCd = now() + 3000;
+  renderTreasuryActions();
+  renderTopStats();
+  
+  // Скрываем результат через 3 секунды, но оставляем модальное окно открытым
+  const hideResultTimeout = setTimeout(() => {
+    const resultOverlay = document.getElementById('casino-result-overlay');
+    if (resultOverlay) {
+      resultOverlay.style.display = 'none';
+      resultOverlay.style.opacity = '0';
+      resultOverlay.style.visibility = 'hidden';
+      resultOverlay.classList.add('hidden');
+      resultOverlay.classList.remove('win', 'lose');
+    }
+    // Сбрасываем выбор и обновляем UI
+    selectedStakePercent = null;
+    selectedDiceFace = null;
+    updateCasinoUI();
+    // Включаем кнопку Roll обратно
+    if (casinoRollBtn) {
+      casinoRollBtn.disabled = false;
+    }
+  }, 3000);
+  
+  // Сохраняем timeout ID для возможной отмены
+  if (casinoModal) {
+    casinoModal._hideResultTimeout = hideResultTimeout;
+  }
+}
+
+// Casino modal event handlers
+if (casinoCloseBtn) {
+  casinoCloseBtn.addEventListener('click', closeCasinoModal);
+}
+
+if (casinoCancelBtn) {
+  casinoCancelBtn.addEventListener('click', closeCasinoModal);
+}
+
+if (casinoRollBtn) {
+  casinoRollBtn.addEventListener('click', rollCasinoDice);
+}
+
+// Bet percentage buttons
+document.querySelectorAll('.casino-bet-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedStakePercent = parseInt(btn.dataset.percent);
+    updateCasinoUI();
+  });
+});
+
+// Dice face buttons
+document.querySelectorAll('.casino-dice-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedDiceFace = parseInt(btn.dataset.face);
+    updateCasinoUI();
+  });
+});
+
+// Close modal on background click
+if (casinoModal) {
+  casinoModal.addEventListener('click', (e) => {
+    if (e.target === casinoModal) {
+      closeCasinoModal();
+    }
+  });
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && casinoModal && casinoModal.getAttribute('aria-hidden') === 'false') {
+    closeCasinoModal();
+  }
+});
 
 // ======= Periodic checks ===++___-----++====
 setInterval(() => {

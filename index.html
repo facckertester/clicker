@@ -384,6 +384,65 @@
 <!-- King element (appears/disappears via script) -->
 <div id="king" class="king" title="King"></div>
 
+<!-- Casino modal -->
+<div id="casino-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card" role="document" aria-labelledby="casino-title">
+    <div id="casino-result-overlay" class="casino-result-overlay hidden">
+      <div class="casino-result-content">
+        <div id="casino-result-dice" class="casino-result-dice"></div>
+        <div id="casino-result-text" class="casino-result-text"></div>
+        <div id="casino-result-amount" class="casino-result-amount"></div>
+      </div>
+    </div>
+    <div class="modal-header">
+      <h3 id="casino-title">🎲 CASINO LOSEWIN-LINE</h3>
+      <button class="modal-close" id="casino-close" aria-label="Close casino">✕</button>
+    </div>
+    <div class="modal-body" id="casino-body">
+      <div class="casino-content">
+        <div class="casino-section">
+          <h4>Select Bet Percentage:</h4>
+          <div class="casino-buttons">
+            <button class="btn casino-bet-btn" data-percent="10">10%</button>
+            <button class="btn casino-bet-btn" data-percent="20">20%</button>
+            <button class="btn casino-bet-btn" data-percent="30">30%</button>
+            <button class="btn casino-bet-btn" data-percent="40">40%</button>
+            <button class="btn casino-bet-btn" data-percent="50">50%</button>
+            <button class="btn casino-bet-btn" data-percent="100">100%</button>
+          </div>
+          <div class="casino-stake-info">
+            <p>Selected: <span id="casino-stake-percent">-</span></p>
+            <p>Stake: <span id="casino-stake-amount">-</span> points</p>
+          </div>
+        </div>
+        <div class="casino-section">
+          <h4>Choose Dice Face (1-6):</h4>
+          <div class="casino-dice">
+            <button class="btn casino-dice-btn" data-face="1">1</button>
+            <button class="btn casino-dice-btn" data-face="2">2</button>
+            <button class="btn casino-dice-btn" data-face="3">3</button>
+            <button class="btn casino-dice-btn" data-face="4">4</button>
+            <button class="btn casino-dice-btn" data-face="5">5</button>
+            <button class="btn casino-dice-btn" data-face="6">6</button>
+          </div>
+          <div class="casino-face-info">
+            <p>Selected: <span id="casino-face-selected">-</span></p>
+          </div>
+        </div>
+        <div class="casino-info">
+          <p><strong>Win:</strong> stake x3 is returned</p>
+          <p><strong>Lose:</strong> stake x1.2 is lost (can result in negative points)</p>
+          <p class="casino-warning">⚠️ Betting 100% can result in negative points if you lose!</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="casino-roll-btn" class="btn primary" disabled>Roll Dice</button>
+      <button id="casino-cancel-btn" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- King mini-game modal -->
 <div id="king-modal" aria-hidden="true">
   <div class="king-game" role="dialog" aria-modal="true" aria-label="King mini game">
