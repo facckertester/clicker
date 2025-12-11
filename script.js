@@ -1,3 +1,110 @@
+let _talentTooltipEl = null;
+let _treasuryTooltipEl = null;
+
+function showTalentTooltip(ev, def, lvl) {
+  hideTalentTooltip();
+  const el = document.createElement('div');
+  el.className = 'talent-tooltip';
+  const nextLvl = Math.min(lvl + 1, def.max);
+  const hasNext = lvl < def.max;
+  const nextText = buildTalentNextText(def, nextLvl);
+  el.innerHTML = `
+    <div class="tt-name">${def.name}</div>
+    <div class="tt-current">Current: ${buildTalentLevelText(def, lvl)}</div>
+    ${hasNext ? `<div class="tt-next">Next level: ${nextText}</div>` : `<div class="tt-next">Maximum level</div>`}
+    ${!talentRequirementMet(def) ? `<div class="tt-req">Requires: ${buildTalentReqText(def)}</div>` : ''}
+  `;
+  document.body.appendChild(el);
+  _talentTooltipEl = el;
+  moveTalentTooltip(ev);
+}
+
+function moveTalentTooltip(ev) {
+  if (!_talentTooltipEl) return;
+  const pad = 12;
+  const x = ev.clientX + 16;
+  const y = ev.clientY + 16;
+  const w = _talentTooltipEl.offsetWidth || 260;
+  const h = _talentTooltipEl.offsetHeight || 120;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = x;
+  let top = y;
+  if (left + w + pad > vw) left = vw - w - pad;
+  if (top + h + pad > vh) top = vh - h - pad;
+  _talentTooltipEl.style.left = `${left}px`;
+  _talentTooltipEl.style.top = `${top}px`;
+}
+
+function hideTalentTooltip() {
+  if (_talentTooltipEl && _talentTooltipEl.parentNode) {
+    _talentTooltipEl.parentNode.removeChild(_talentTooltipEl);
+  }
+  _talentTooltipEl = null;
+}
+
+function hideTreasuryTooltip() {
+  if (_treasuryTooltipEl && _treasuryTooltipEl.parentNode) {
+    _treasuryTooltipEl.parentNode.removeChild(_treasuryTooltipEl);
+  }
+  _treasuryTooltipEl = null;
+}
+
+function buildTalentLevelText(def, lvl) {
+  if (def.id === 'income') {
+    const table = ['0%', '+1%', '+3%', '+6%'];
+    return `+${table[lvl] || '0%'} to all income`;
+  }
+  if (def.id === 'treasury') {
+    const bonus = def.bonuses[lvl] || 0;
+    return `+${bonus} to treasury maximum`;
+  }
+  if (def.id === 'taxes') {
+    const bonus = def.bonuses[lvl] || 0;
+    return `+${bonus} treasury per second`;
+  }
+  if (def.id === 'stateDiscounts') {
+    const chance = (def.bonuses[lvl] || 0) * 100;
+    return `${chance.toFixed(1)}% chance to buy abilities for 75% cost`;
+  }
+  if (def.id === 'crit') {
+    const mult = def.multipliers[lvl] || 1;
+    return `Critical multiplier x${mult.toFixed(1)}`;
+  }
+  if (def.id === 'critChance') {
+    const base = 3;
+    const extra = (def.bonuses[lvl] || 0) * 100;
+    return `Critical chance ${(base+extra).toFixed(0)}%`;
+  }
+  if (def.id === 'doubleCrit') {
+    const chance = (def.chances[lvl] || 0) * 100;
+    return `Double critical chance ${chance.toFixed(0)}%`;
+  }
+  if (def.id === 'masterBuilder') {
+    const chance = (def.chances[lvl] || 0) * 100;
+    return `${chance.toFixed(1)}% chance for free building level purchase`;
+  }
+  if (def.id === 'highQualification') {
+    const bonus = (def.bonuses[lvl] || 0) * 100;
+    return `Reduce building break chance by ${bonus.toFixed(0)}%`;
+  }
+  if (def.id === 'secondTeam') {
+    const bonus = (def.bonuses[lvl] || 0) / 1000;
+    return `Reduce repair time by ${bonus.toFixed(0)}s`;
+  }
+  return '';
+}
+
+function buildTalentNextText(def, nextLvl) {
+  return buildTalentLevelText(def, nextLvl);
+}
+
+function buildTalentReqText(def) {
+  if (!def.requires || def.requires.length === 0) return '';
+  const r = def.requires[0];
+  const name = TALENT_DEFS[r.id]?.name || '';
+  return `${name} ${r.level}/${TALENT_DEFS[r.id]?.max || r.level}`;
+}
 /* Medieval Pixel Idle - core logic */
 
 // ======= Utilities =======
@@ -234,6 +341,15 @@ function newSave(username) {
         firstBuildingBought: false,
       }
     },
+    talents: {
+      points: 5,
+      nodes: {
+        income: 0,
+        crit: 0,
+        critChance: 0,
+        doubleCrit: 0,
+      }
+    },
     lastTick: now()
   };
 }
@@ -301,6 +417,23 @@ function ensureTreasury(saveObj) {
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
+}
+
+// Talents defaults / migration
+function ensureTalents(saveObj) {
+  if (!saveObj.talents) {
+    saveObj.talents = { points: 5, nodes: {} };
+  }
+  if (saveObj.talents.points === undefined || saveObj.talents.points === null) {
+    saveObj.talents.points = 0;
+  }
+  if (!saveObj.talents.nodes) saveObj.talents.nodes = {};
+  const defaults = { income: 0, treasury: 0, taxes: 0, stateDiscounts: 0, crit: 0, critChance: 0, doubleCrit: 0, masterBuilder: 0, highQualification: 0, secondTeam: 0 };
+  Object.keys(defaults).forEach(k => {
+    if (saveObj.talents.nodes[k] === undefined || saveObj.talents.nodes[k] === null) {
+      saveObj.talents.nodes[k] = defaults[k];
+    }
+  });
 }
 
 const buildingNames = [
@@ -457,6 +590,15 @@ const clickSegInfo = document.getElementById('click-seg-info');
 const clickSegBtn = document.getElementById('click-seg-upgrade');
 const clickBuyBtn = document.getElementById('click-buy');
 
+const talentsBtn = document.getElementById('talents-btn');
+const talentsModal = document.getElementById('talents-modal');
+const talentsClose = document.getElementById('talents-close');
+const talentTreeEl = document.getElementById('talent-tree');
+const talentPointsEl = document.getElementById('talent-points');
+const talentsConfirm = document.getElementById('talents-confirm');
+const talentsCancel = document.getElementById('talents-cancel');
+const talentsResetAll = document.getElementById('talents-reset-all');
+
 // Casino modal elements
 const casinoModal = document.getElementById('casino-modal');
 const casinoCloseBtn = document.getElementById('casino-close');
@@ -486,6 +628,7 @@ const logoutBtn = document.getElementById('logout-btn');
 const statsBtn = document.getElementById('stats-btn');
 
 ensureTreasury(save || {});
+ensureTalents(save || {});
 const statsModal = document.getElementById('stats-modal');
 const statsBody = document.getElementById('stats-body');
 const statsClose = document.getElementById('stats-close');
@@ -769,6 +912,178 @@ function migrateAchievements() {
 }
 
 // ======= Game state helpers =======
+// ======= Talents =======
+const TALENT_DEFS = {
+  income: {
+    id: 'income',
+    name: 'Income',
+    max: 3,
+    levels: ['+1% to all income', '+2% to all income', '+3% to all income'],
+    requires: []
+  },
+  treasury: {
+    id: 'treasury',
+    name: 'Treasury',
+    max: 5,
+    requires: [{ id: 'income', level: 3 }],
+    bonuses: [0, 100, 200, 300, 400, 500] // +100 per level to max treasury
+  },
+  taxes: {
+    id: 'taxes',
+    name: 'Taxes',
+    max: 3,
+    requires: [{ id: 'treasury', level: 5 }],
+    bonuses: [0, 1, 2, 3] // +1 per level to treasury regen per second
+  },
+  stateDiscounts: {
+    id: 'stateDiscounts',
+    name: 'State Discounts',
+    max: 3,
+    requires: [{ id: 'taxes', level: 3 }],
+    bonuses: [0, 0.005, 0.01, 0.015] // +0.5% per level chance to buy ability for 75% cost
+  },
+  crit: {
+    id: 'crit',
+    name: 'Critical Strike',
+    max: 5,
+    requires: [{ id: 'income', level: 3 }],
+    multipliers: [0, 1.5, 1.7, 1.9, 2.1, 2.3]
+  },
+  critChance: {
+    id: 'critChance',
+    name: 'Critical Chance',
+    max: 3,
+    requires: [{ id: 'crit', level: 5 }],
+    bonuses: [0, 0.01, 0.02, 0.03] // +to base 3%
+  },
+  doubleCrit: {
+    id: 'doubleCrit',
+    name: 'Double Critical',
+    max: 3,
+    requires: [{ id: 'crit', level: 5 }],
+    chances: [0, 0.03, 0.05, 0.07]
+  },
+  masterBuilder: {
+    id: 'masterBuilder',
+    name: 'Master Builder',
+    max: 5,
+    requires: [{ id: 'income', level: 3 }],
+    chances: [0, 0.011, 0.012, 0.013, 0.014, 0.015] // chance to get +1 extra level per level bought
+  },
+  highQualification: {
+    id: 'highQualification',
+    name: 'High Qualification',
+    max: 4,
+    requires: [{ id: 'masterBuilder', level: 5 }],
+    bonuses: [0, 0.05, 0.10, 0.15, 0.20] // reduce break chance by X% of current chance
+  },
+  secondTeam: {
+    id: 'secondTeam',
+    name: 'Second Team',
+    max: 5,
+    requires: [{ id: 'masterBuilder', level: 5 }],
+    bonuses: [0, 3000, 6000, 9000, 12000, 15000] // reduce repair time by X milliseconds
+  }
+};
+
+let _pendingTalents = null; // session-local pending upgrades
+let _talentZoom = 1.0;
+let _talentPanX = 0;
+let _talentPanY = 0;
+
+function talentLevel(id) {
+  return save?.talents?.nodes?.[id] || 0;
+}
+
+function talentPoints() {
+  return save?.talents?.points || 0;
+}
+
+function _talentPendingNodes() {
+  return _pendingTalents?.nodes || null;
+}
+
+function talentLevelUI(id) {
+  const nodes = _talentPendingNodes() || (save?.talents?.nodes || {});
+  return nodes[id] || 0;
+}
+
+function talentEarnedPoints() {
+  // 1 очко за каждую 1000 уровней всех зданий
+  const earned = Math.floor(totalOpenedBuildingLevels() / 1000);
+  return Math.max(0, earned);
+}
+
+function talentSpent(nodes) {
+  if (!nodes) return 0;
+  return Object.values(nodes).reduce((a,b)=>a+(b||0),0);
+}
+
+function talentAvailablePoints() {
+  const nodes = _talentPendingNodes() || (save?.talents?.nodes || {});
+  const earned = talentEarnedPoints();
+  const spent = talentSpent(nodes);
+  const available = earned - spent;
+  return Math.max(0, available);
+}
+
+function talentRequirementMet(node) {
+  if (!node.requires || node.requires.length === 0) return true;
+  const nodes = _talentPendingNodes() || (save?.talents?.nodes || {});
+  return node.requires.every(req => (nodes[req.id] || 0) >= req.level);
+}
+
+function talentGlobalIncomeMult() {
+  const lvl = talentLevelUI('income');
+  const table = [0, 0.01, 0.03, 0.06];
+  return 1 + (table[lvl] || 0);
+}
+
+function talentTreasuryMaxBonus() {
+  const lvl = talentLevelUI('treasury');
+  return TALENT_DEFS.treasury.bonuses[lvl] || 0;
+}
+
+function talentTreasuryRegenBonus() {
+  const lvl = talentLevelUI('taxes');
+  return TALENT_DEFS.taxes.bonuses[lvl] || 0;
+}
+
+function talentStateDiscountChance() {
+  const lvl = talentLevelUI('stateDiscounts');
+  return TALENT_DEFS.stateDiscounts.bonuses[lvl] || 0;
+}
+
+function talentCritData() {
+  const critLvl = talentLevelUI('crit');
+  if (critLvl <= 0) return { chance: 0, multiplier: 1, doubleChance: 0 };
+  const baseChance = 0.03;
+  const extraChance = (TALENT_DEFS.critChance.bonuses[talentLevelUI('critChance')] || 0);
+  const chance = baseChance + extraChance;
+  const multiplier = TALENT_DEFS.crit.multipliers[critLvl] || 1;
+  const doubleChance = TALENT_DEFS.doubleCrit.chances[talentLevelUI('doubleCrit')] || 0;
+  return { chance, multiplier, doubleChance };
+}
+
+function talentExpectedClickCritMultiplier() {
+  const { chance, multiplier, doubleChance } = talentCritData();
+  if (chance <= 0) return 1;
+  return 1 + chance * (multiplier - 1) + (chance * doubleChance) * (multiplier - 1);
+}
+
+function rollTalentCrit() {
+  const data = talentCritData();
+  if (data.chance <= 0) return { rolled: false, multiplier: 1 };
+  if (randChance(data.chance)) {
+    let mult = data.multiplier;
+    if (data.doubleChance > 0 && randChance(data.doubleChance)) {
+      mult *= data.multiplier;
+    }
+    return { rolled: true, multiplier: mult };
+  }
+  return { rolled: false, multiplier: 1 };
+}
+
 function totalPPC() {
   let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
   // Madness modifier
@@ -784,7 +1099,8 @@ function totalPPC() {
   const achievementMult = getAchievementBonus();
   // Streak multiplier
   const streakMult = save.streak ? save.streak.multiplier : 1.0;
-  return ppc * goldenMult * spiderMult * achievementMult * streakMult;
+  const talentMult = talentGlobalIncomeMult();
+  return ppc * goldenMult * spiderMult * achievementMult * streakMult * talentMult;
 }
 
 function totalPPS() {
@@ -804,7 +1120,8 @@ function totalPPS() {
   // Achievement bonus
   const achievementMult = getAchievementBonus();
   const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0; // x101
-  return pps * spiderMult * achievementMult * taxMult;
+  const talentMult = talentGlobalIncomeMult();
+  return pps * spiderMult * achievementMult * taxMult * talentMult;
 }
 
 function canBuyNextBuilding(i) {
@@ -830,6 +1147,15 @@ function totalOpenedBuildingLevels() {
   return save.buildings.reduce((acc,b)=> acc + (b.level > 0 ? b.level : 0), 0);
 }
 
+// Учёт очков талантов при изменении зданий
+function _recalcTalentPointsCap() {
+  if (!save || !save.talents) return;
+  const earned = talentEarnedPoints();
+  const spent = talentSpent(save.talents.nodes);
+  const available = Math.max(0, earned - spent);
+  save.talents.points = available;
+}
+
 function allBuildingsAtLeastLevel10() {
   if (!save || !save.buildings || save.buildings.length !== 50) return false;
   return save.buildings.every(b => b.level >= 10);
@@ -843,14 +1169,23 @@ function spendPoints(amount) {
 
 function spendTreasury(amount) {
   if (!save.treasury) return false;
-  if (save.treasury.value < amount) return false;
-  save.treasury.value -= amount;
+  // Apply State Discounts talent
+  const discountChance = talentStateDiscountChance();
+  let finalAmount = amount;
+  if (discountChance > 0 && randChance(discountChance)) {
+    finalAmount = amount * 0.75; // 75% cost
+  }
+  if (save.treasury.value < finalAmount) return false;
+  save.treasury.value -= finalAmount;
   return true;
 }
 
 function gainTreasury(delta) {
   if (!save.treasury) return;
-  save.treasury.value = clamp(save.treasury.value + delta, 0, save.treasury.max);
+  const baseMax = save.treasury.max || 1000;
+  const talentMaxBonus = talentTreasuryMaxBonus();
+  const actualMax = baseMax + talentMaxBonus;
+  save.treasury.value = clamp(save.treasury.value + delta, 0, actualMax);
 }
 
 // Вычисляет максимальное количество уровней, которое можно добавить до следующего апгрейда
@@ -898,16 +1233,407 @@ function renderTopStats() {
   if (!save) return;
   if (pointsEl) pointsEl.textContent = fmt(save.points);
   if (ppsEl) ppsEl.textContent = fmt(totalPPS());
-  if (ppcEl) ppcEl.textContent = fmt(totalPPC());
+  if (ppcEl) {
+    const displayPpc = totalPPC() * talentExpectedClickCritMultiplier();
+    ppcEl.textContent = fmt(displayPpc);
+  }
 
   // Treasury UI
   if (save.treasury && treasuryValueEl && treasuryFillEl && treasuryRegenEl) {
-    const { value, max, regenPerSec } = save.treasury;
-    treasuryValueEl.textContent = `${fmt(value)} / ${fmt(max)}`;
-    treasuryRegenEl.textContent = `+${regenPerSec.toFixed(0)} /s`;
-    const pct = Math.max(0, Math.min(100, (value / max) * 100));
+    const { value } = save.treasury;
+    const baseMax = save.treasury.max || 1000;
+    const talentMaxBonus = talentTreasuryMaxBonus();
+    const actualMax = baseMax + talentMaxBonus;
+    const baseRegen = save.treasury.regenPerSec || 1;
+    const talentRegenBonus = talentTreasuryRegenBonus();
+    const actualRegen = baseRegen + talentRegenBonus;
+    treasuryValueEl.textContent = `${fmt(value)} / ${fmt(actualMax)}`;
+    treasuryRegenEl.textContent = `+${actualRegen.toFixed(0)} /s`;
+    const pct = Math.max(0, Math.min(100, (value / actualMax) * 100));
     treasuryFillEl.style.width = `${pct}%`;
   }
+}
+
+function createTalentNode(def, x, y) {
+  const node = document.createElement('div');
+  node.className = 'talent-node';
+  node.dataset.talentId = def.id;
+  node.style.left = `${x}px`;
+  node.style.top = `${y}px`;
+  
+  const lvl = talentLevelUI(def.id);
+  const maxed = lvl >= def.max;
+  const prereqMet = talentRequirementMet(def);
+  const canUpgrade = !maxed && prereqMet && talentAvailablePoints() > 0;
+  
+  // Color coding
+  if (def.id === 'income' || def.id === 'treasury' || def.id === 'taxes' || def.id === 'stateDiscounts') {
+    node.classList.add('talent-gold');
+  } else if (def.id === 'crit' || def.id === 'critChance' || def.id === 'doubleCrit') {
+    node.classList.add('talent-green');
+  } else if (def.id === 'masterBuilder' || def.id === 'highQualification' || def.id === 'secondTeam') {
+    node.classList.add('talent-red');
+  }
+  
+  // State classes
+  if (lvl > 0) node.classList.add('talent-active');
+  if (maxed) node.classList.add('talent-maxed');
+  if (!prereqMet) node.classList.add('talent-locked');
+  if (!canUpgrade && !maxed) node.classList.add('talent-disabled');
+  
+  // Level indicator
+  if (lvl > 0) {
+    const levelBadge = document.createElement('div');
+    levelBadge.className = 'talent-level-badge';
+    levelBadge.textContent = lvl;
+    node.appendChild(levelBadge);
+  }
+  
+  // Click handler
+  if (canUpgrade) {
+    node.style.cursor = 'pointer';
+    node.addEventListener('click', (e) => {
+      e.stopPropagation();
+      upgradeTalent(def.id);
+    });
+  }
+  
+  // Tooltip handlers
+  node.addEventListener('mouseenter', (e) => {
+    e.stopPropagation();
+    showTalentTooltip(e, def, lvl);
+  });
+  node.addEventListener('mousemove', (e) => {
+    e.stopPropagation();
+    moveTalentTooltip(e);
+  });
+  node.addEventListener('mouseleave', (e) => {
+    e.stopPropagation();
+    hideTalentTooltip();
+  });
+  
+  return node;
+}
+
+function renderTalents() {
+  if (!talentTreeEl || !save) return;
+  if (talentPointsEl) talentPointsEl.textContent = talentAvailablePoints();
+  talentTreeEl.innerHTML = '';
+  if (talentsConfirm) {
+    const changed = _pendingTalents && JSON.stringify(_pendingTalents.nodes) !== JSON.stringify(save.talents.nodes);
+    talentsConfirm.disabled = !changed;
+  }
+
+  // Create container for zoom/pan
+  const container = document.createElement('div');
+  container.className = 'talent-tree-container';
+  container.style.transform = `translate(${_talentPanX}px, ${_talentPanY}px) scale(${_talentZoom})`;
+  container.style.transformOrigin = 'center center';
+  container.style.position = 'absolute';
+  container.style.width = '100%';
+  container.style.height = '100%';
+  talentTreeEl.appendChild(container);
+
+  // Create SVG for lines
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.className = 'talent-lines';
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', '100%');
+  svg.style.position = 'absolute';
+  svg.style.top = '0';
+  svg.style.left = '0';
+  svg.style.pointerEvents = 'none';
+  svg.style.zIndex = '1';
+  container.appendChild(svg);
+
+  // Node positions (centered layout, larger canvas)
+  const centerX = 600;
+  const centerY = 400;
+  const nodeRadius = 22.5; // Half of 45px
+  const spacing = 180;
+  
+  // Income (bottom center)
+  const incomeX = centerX;
+  const incomeY = centerY + spacing;
+  
+  // Treasury (right of Income)
+  const treasuryX = centerX + spacing;
+  const treasuryY = centerY + spacing;
+  
+  // Taxes (right of Treasury)
+  const taxesX = centerX + spacing * 2;
+  const taxesY = centerY + spacing;
+  
+  // State Discounts (right of Taxes)
+  const stateDiscountsX = centerX + spacing * 3;
+  const stateDiscountsY = centerY + spacing;
+  
+  // Master Builder (down from Income - MIRRORED from Crit position)
+  const masterBuilderX = centerX;
+  const masterBuilderY = centerY + spacing * 2;
+  
+  // High Qualification (down left from Master Builder - MIRRORED from Crit Chance)
+  const highQualificationX = centerX - spacing;
+  const highQualificationY = centerY + spacing * 3;
+  
+  // Second Team (down right from Master Builder - MIRRORED from Double Crit)
+  const secondTeamX = centerX + spacing;
+  const secondTeamY = centerY + spacing * 3;
+  
+  // Crit (middle center)
+  const critX = centerX;
+  const critY = centerY;
+  
+  // Crit Chance (top left)
+  const critChanceX = centerX - spacing;
+  const critChanceY = centerY - spacing;
+  
+  // Double Crit (top right)
+  const doubleCritX = centerX + spacing;
+  const doubleCritY = centerY - spacing;
+  
+  // Draw lines
+  const lineStyle = 'stroke:#888888;stroke-width:2;fill:none';
+  const activeLineStyle = 'stroke:#d4b24a;stroke-width:3;fill:none';
+  
+  // Income to Master Builder - EXACTLY MIRRORED from Income to Crit (vertical down)
+  const incomeLvlForBuilder = talentLevelUI('income');
+  const lineMasterBuilder = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  lineMasterBuilder.setAttribute('x1', incomeX);
+  lineMasterBuilder.setAttribute('y1', incomeY + nodeRadius);
+  lineMasterBuilder.setAttribute('x2', masterBuilderX);
+  lineMasterBuilder.setAttribute('y2', masterBuilderY - nodeRadius);
+  lineMasterBuilder.setAttribute('style', incomeLvlForBuilder >= 3 ? activeLineStyle : lineStyle);
+  svg.appendChild(lineMasterBuilder);
+  
+  // Master Builder to High Qualification - EXACTLY like Crit to Crit Chance, but mirrored down
+  const masterBuilderLvl = talentLevelUI('masterBuilder');
+  const line4 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line4.setAttribute('x1', masterBuilderX - nodeRadius);
+  line4.setAttribute('y1', masterBuilderY - nodeRadius);
+  line4.setAttribute('x2', highQualificationX + nodeRadius);
+  line4.setAttribute('y2', highQualificationY + nodeRadius);
+  line4.setAttribute('style', masterBuilderLvl >= 5 ? activeLineStyle : lineStyle);
+  svg.appendChild(line4);
+  
+  // Master Builder to Second Team - EXACTLY like Crit to Double Crit, but mirrored down
+  const line5 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line5.setAttribute('x1', masterBuilderX + nodeRadius);
+  line5.setAttribute('y1', masterBuilderY - nodeRadius);
+  line5.setAttribute('x2', secondTeamX - nodeRadius);
+  line5.setAttribute('y2', secondTeamY + nodeRadius);
+  line5.setAttribute('style', masterBuilderLvl >= 5 ? activeLineStyle : lineStyle);
+  svg.appendChild(line5);
+  
+  // Income to Crit
+  const incomeLvl = talentLevelUI('income');
+  const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line1.setAttribute('x1', incomeX);
+  line1.setAttribute('y1', incomeY - nodeRadius);
+  line1.setAttribute('x2', critX);
+  line1.setAttribute('y2', critY + nodeRadius);
+  line1.setAttribute('style', incomeLvl >= 3 ? activeLineStyle : lineStyle);
+  svg.appendChild(line1);
+  
+  // Income to Treasury
+  const lineTreasury = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  lineTreasury.setAttribute('x1', incomeX + nodeRadius);
+  lineTreasury.setAttribute('y1', incomeY);
+  lineTreasury.setAttribute('x2', treasuryX - nodeRadius);
+  lineTreasury.setAttribute('y2', treasuryY);
+  lineTreasury.setAttribute('style', incomeLvl >= 3 ? activeLineStyle : lineStyle);
+  svg.appendChild(lineTreasury);
+  
+  // Treasury to Taxes
+  const treasuryLvl = talentLevelUI('treasury');
+  const lineTaxes = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  lineTaxes.setAttribute('x1', treasuryX + nodeRadius);
+  lineTaxes.setAttribute('y1', treasuryY);
+  lineTaxes.setAttribute('x2', taxesX - nodeRadius);
+  lineTaxes.setAttribute('y2', taxesY);
+  lineTaxes.setAttribute('style', treasuryLvl >= 5 ? activeLineStyle : lineStyle);
+  svg.appendChild(lineTaxes);
+  
+  // Taxes to State Discounts
+  const taxesLvl = talentLevelUI('taxes');
+  const lineDiscounts = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  lineDiscounts.setAttribute('x1', taxesX + nodeRadius);
+  lineDiscounts.setAttribute('y1', taxesY);
+  lineDiscounts.setAttribute('x2', stateDiscountsX - nodeRadius);
+  lineDiscounts.setAttribute('y2', stateDiscountsY);
+  lineDiscounts.setAttribute('style', taxesLvl >= 3 ? activeLineStyle : lineStyle);
+  svg.appendChild(lineDiscounts);
+  
+  // Crit to Crit Chance
+  const critLvl = talentLevelUI('crit');
+  const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line2.setAttribute('x1', critX - nodeRadius);
+  line2.setAttribute('y1', critY - nodeRadius);
+  line2.setAttribute('x2', critChanceX + nodeRadius);
+  line2.setAttribute('y2', critChanceY + nodeRadius);
+  line2.setAttribute('style', critLvl >= 5 ? activeLineStyle : lineStyle);
+  svg.appendChild(line2);
+  
+  // Crit to Double Crit
+  const line3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line3.setAttribute('x1', critX + nodeRadius);
+  line3.setAttribute('y1', critY - nodeRadius);
+  line3.setAttribute('x2', doubleCritX - nodeRadius);
+  line3.setAttribute('y2', doubleCritY + nodeRadius);
+  line3.setAttribute('style', critLvl >= 5 ? activeLineStyle : lineStyle);
+  svg.appendChild(line3);
+  
+  // Create nodes
+  const incomeNode = createTalentNode(TALENT_DEFS.income, incomeX - nodeRadius, incomeY - nodeRadius);
+  const masterBuilderNode = createTalentNode(TALENT_DEFS.masterBuilder, masterBuilderX - nodeRadius, masterBuilderY - nodeRadius);
+  const highQualificationNode = createTalentNode(TALENT_DEFS.highQualification, highQualificationX - nodeRadius, highQualificationY - nodeRadius);
+  const secondTeamNode = createTalentNode(TALENT_DEFS.secondTeam, secondTeamX - nodeRadius, secondTeamY - nodeRadius);
+  const treasuryNode = createTalentNode(TALENT_DEFS.treasury, treasuryX - nodeRadius, treasuryY - nodeRadius);
+  const taxesNode = createTalentNode(TALENT_DEFS.taxes, taxesX - nodeRadius, taxesY - nodeRadius);
+  const stateDiscountsNode = createTalentNode(TALENT_DEFS.stateDiscounts, stateDiscountsX - nodeRadius, stateDiscountsY - nodeRadius);
+  const critNode = createTalentNode(TALENT_DEFS.crit, critX - nodeRadius, critY - nodeRadius);
+  const critChanceNode = createTalentNode(TALENT_DEFS.critChance, critChanceX - nodeRadius, critChanceY - nodeRadius);
+  const doubleCritNode = createTalentNode(TALENT_DEFS.doubleCrit, doubleCritX - nodeRadius, doubleCritY - nodeRadius);
+  
+  container.appendChild(incomeNode);
+  container.appendChild(masterBuilderNode);
+  container.appendChild(highQualificationNode);
+  container.appendChild(secondTeamNode);
+  container.appendChild(treasuryNode);
+  container.appendChild(taxesNode);
+  container.appendChild(stateDiscountsNode);
+  container.appendChild(critNode);
+  container.appendChild(critChanceNode);
+  container.appendChild(doubleCritNode);
+}
+
+function openTalents() {
+  if (!talentsModal) return;
+  _pendingTalents = { nodes: { ...save.talents.nodes } };
+  _talentZoom = 1.0;
+  _talentPanX = 0;
+  _talentPanY = 0;
+  talentsModal.setAttribute('aria-hidden', 'false');
+  renderTalents();
+  
+  // Setup zoom on wheel
+  const treeEl = document.getElementById('talent-tree');
+  if (treeEl) {
+    const wheelHandler = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      _talentZoom = Math.max(0.5, Math.min(2.0, _talentZoom * delta));
+      renderTalents();
+    };
+    
+    // Remove old handler if exists
+    treeEl.removeEventListener('wheel', treeEl._wheelHandler);
+    treeEl._wheelHandler = wheelHandler;
+    treeEl.addEventListener('wheel', wheelHandler, { passive: false });
+    
+    // Pan on drag
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    
+    const mouseDownHandler = (e) => {
+      if (e.button === 0 && !e.target.closest('.talent-node')) {
+        isDragging = true;
+        startX = e.clientX - _talentPanX;
+        startY = e.clientY - _talentPanY;
+        treeEl.style.cursor = 'grabbing';
+      }
+    };
+    
+    const mouseMoveHandler = (e) => {
+      if (isDragging) {
+        _talentPanX = e.clientX - startX;
+        _talentPanY = e.clientY - startY;
+        renderTalents();
+      }
+    };
+    
+    const mouseUpHandler = () => {
+      isDragging = false;
+      treeEl.style.cursor = '';
+    };
+    
+    treeEl.removeEventListener('mousedown', treeEl._mouseDownHandler);
+    treeEl.removeEventListener('mousemove', treeEl._mouseMoveHandler);
+    treeEl.removeEventListener('mouseup', treeEl._mouseUpHandler);
+    treeEl.removeEventListener('mouseleave', treeEl._mouseUpHandler);
+    
+    treeEl._mouseDownHandler = mouseDownHandler;
+    treeEl._mouseMoveHandler = mouseMoveHandler;
+    treeEl._mouseUpHandler = mouseUpHandler;
+    
+    treeEl.addEventListener('mousedown', mouseDownHandler);
+    treeEl.addEventListener('mousemove', mouseMoveHandler);
+    treeEl.addEventListener('mouseup', mouseUpHandler);
+    treeEl.addEventListener('mouseleave', mouseUpHandler);
+  }
+}
+
+function closeTalents() {
+  if (!talentsModal) return;
+  talentsModal.setAttribute('aria-hidden', 'true');
+  _pendingTalents = null;
+}
+
+function upgradeTalent(id) {
+  if (!save) return;
+  const def = TALENT_DEFS[id];
+  if (!def) return;
+  if (!_pendingTalents) _pendingTalents = { nodes: { ...save.talents.nodes } };
+  const nodes = _pendingTalents.nodes;
+  const lvl = nodes[id] || 0;
+  if (lvl >= def.max) { toast('Talent is already at maximum level.', 'warn'); return; }
+  if (!talentRequirementMet(def)) { toast('Requires previous talent to be fully upgraded.', 'warn'); return; }
+  if (talentAvailablePoints() <= 0) { toast('Not enough talent points.', 'warn'); return; }
+  nodes[id] = lvl + 1;
+  renderTalents();
+  if (talentsConfirm) talentsConfirm.disabled = false;
+}
+
+function confirmTalents() {
+  if (!_pendingTalents) { closeTalents(); return; }
+  save.talents.nodes = { ..._pendingTalents.nodes };
+  _recalcTalentPointsCap();
+  _pendingTalents = null;
+  renderTalents();
+  renderTopStats();
+  renderClick();
+  toast('Talents applied.', 'good');
+  closeTalents();
+}
+
+function resetTalents() {
+  if (!_pendingTalents) return;
+  _pendingTalents.nodes = { ...save.talents.nodes };
+  renderTalents();
+  toast('Talent selections reset.', 'info');
+}
+
+function resetAllTalents() {
+  if (!save || !save.talents) return;
+  if (!confirm('Are you sure you want to reset ALL talents? This cannot be undone.')) return;
+  
+  // Reset all talent nodes to 0
+  const defaults = { income: 0, treasury: 0, taxes: 0, stateDiscounts: 0, crit: 0, critChance: 0, doubleCrit: 0, masterBuilder: 0, highQualification: 0, secondTeam: 0 };
+  save.talents.nodes = { ...defaults };
+  
+  // Reset pending talents
+  if (_pendingTalents) {
+    _pendingTalents.nodes = { ...defaults };
+  }
+  
+  // Recalculate talent points
+  _recalcTalentPointsCap();
+  
+  renderTalents();
+  renderTopStats();
+  renderClick();
+  toast('All talents have been reset.', 'good');
 }
 
 // ======= Treasury actions =======
@@ -1287,20 +2013,14 @@ function renderTreasuryActions() {
     'casino': '🎲'
   };
 
-  // Удаляем только tooltip от treasury-actions, которые находятся в body
-  // Используем специальный атрибут для идентификации tooltip от treasury actions
-  const oldTooltips = document.querySelectorAll('body > [data-treasury-tooltip="true"]');
-  oldTooltips.forEach(t => {
-    if (t && t.parentNode === document.body) {
-      t.remove();
-    }
-  });
+  // Удаляем старые tooltip перед созданием новых
+  hideTreasuryTooltip();
   
   treasuryActionsEl.innerHTML = '';
   // Кнопки уже в правильном порядке (казино первая, так как создается первой)
   buttons.forEach(btn => {
     const el = document.createElement('button');
-    el.className = 'btn small treasury-action-btn';
+    el.className = 'btn treasury-action-btn';
     const icon = icons[btn.id] || '?';
     el.setAttribute('data-icon', icon);
     el.disabled = !btn.enabled;
@@ -1374,7 +2094,7 @@ function renderTreasuryActions() {
       if (btn.desc.cost) {
         const costLine = document.createElement('div');
         costLine.className = 'tooltip-stat';
-        costLine.innerHTML = `<span class="tooltip-stat-label">Cost:</span><span class="tooltip-stat-value tooltip-cost">${btn.desc.cost} Treasury</span>`;
+        costLine.innerHTML = `<span class="tooltip-stat-label">Cost:</span> <span class="tooltip-stat-value tooltip-cost">${btn.desc.cost} Treasury</span>`;
         body.appendChild(costLine);
       }
       
@@ -1384,7 +2104,7 @@ function renderTreasuryActions() {
         const cdLine = document.createElement('div');
         cdLine.className = 'tooltip-stat';
         const cdRemaining = btn.cooldownUntil && btn.cooldownUntil > nowTs ? ` (${Math.ceil((btn.cooldownUntil - nowTs)/1000)}s)` : '';
-        cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span><span class="tooltip-stat-value tooltip-cooldown">${btn.desc.cooldown}s${cdRemaining}</span>`;
+        cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span> <span class="tooltip-stat-value tooltip-cooldown">${btn.desc.cooldown}s${cdRemaining}</span>`;
         body.appendChild(cdLine);
       }
       
@@ -1392,7 +2112,7 @@ function renderTreasuryActions() {
         const durLine = document.createElement('div');
         durLine.className = 'tooltip-stat';
         const durRemaining = btn.buffUntil && btn.buffUntil > nowTs ? ` (${Math.ceil((btn.buffUntil - nowTs)/1000)}s)` : '';
-        durLine.innerHTML = `<span class="tooltip-stat-label">Duration:</span><span class="tooltip-stat-value">${btn.desc.duration}s${durRemaining}</span>`;
+        durLine.innerHTML = `<span class="tooltip-stat-label">Duration:</span> <span class="tooltip-stat-value">${btn.desc.duration}s${durRemaining}</span>`;
         body.appendChild(durLine);
       }
     } else {
@@ -1407,114 +2127,96 @@ function renderTreasuryActions() {
     
     tooltip.appendChild(body);
     
-    // Добавляем tooltip в body для fixed positioning (поверх всего)
-    // Убеждаемся, что tooltip скрыт по умолчанию
-    tooltip.style.display = 'none';
-    tooltip.style.opacity = '0';
-    tooltip.style.visibility = 'hidden';
-    document.body.appendChild(tooltip);
+    // Tooltip логика - используем ту же логику, что и для талантов
+    let tooltipWidth = null;
+    let tooltipHeight = null;
     
-    // Флаг для предотвращения множественных вызовов
-    let tooltipShowing = false;
-    
-    // Функция для проверки видимости и позиционирования tooltip
-    const positionAndShowTooltip = () => {
-      if (tooltipShowing) return;
-      // Не показываем tooltip кнопки, если показывается tooltip плюсика
-      const upgradeBadgeEl = el.querySelector('.upgrade-badge');
-      if (upgradeBadgeEl) {
-        const upgradeTooltipEl = document.querySelector('.upgrade-tooltip');
-        if (upgradeTooltipEl) {
-          // Проверяем, видим ли tooltip плюсика или он находится в процессе показа
-          const isUpgradeTooltipVisible = upgradeTooltipEl.style.display === 'block' && 
-                                         (upgradeTooltipEl.style.visibility === 'visible' || upgradeTooltipEl.style.opacity === '1');
-          if (isUpgradeTooltipVisible) {
-            return; // Не показываем tooltip кнопки, если tooltip плюсика видим
-          }
-        }
-      }
-      tooltipShowing = true;
+    const showTreasuryTooltip = (ev) => {
+      hideTreasuryTooltip();
+      _treasuryTooltipEl = tooltip;
+      document.body.appendChild(tooltip);
       
-      // Показываем для измерения (но невидимо)
-      tooltip.style.display = 'block';
-      tooltip.style.visibility = 'hidden';
-      tooltip.style.opacity = '0';
-      
-      // Ждем один кадр для получения размеров
-      requestAnimationFrame(() => {
-        const buttonRect = el.getBoundingClientRect();
-        const tooltipRect = tooltip.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        const viewportWidth = window.innerWidth;
-        const padding = 10;
-        
-        const tooltipHeight = tooltipRect.height || 200;
-        const tooltipWidth = tooltipRect.width || 280;
-        const spaceAbove = buttonRect.top;
-        const spaceBelow = viewportHeight - buttonRect.bottom;
-        
-        // Позиционируем tooltip относительно кнопки
-        const buttonCenterX = buttonRect.left + buttonRect.width / 2;
-        const tooltipHalfWidth = tooltipWidth / 2;
-        
-        // Вертикальное позиционирование
-        let topPos;
-        if (spaceAbove < tooltipHeight + padding && spaceBelow > tooltipHeight + padding) {
-          // Показываем снизу
-          topPos = buttonRect.bottom + 12;
-        } else {
-          // Показываем сверху
-          topPos = buttonRect.top - tooltipHeight - 12;
-        }
-        
-        // Горизонтальное позиционирование
-        let leftPos = buttonCenterX - tooltipHalfWidth;
-        
-        // Если tooltip выходит за левый край
-        if (leftPos < padding) {
-          leftPos = padding;
-        }
-        // Если tooltip выходит за правый край
-        else if (leftPos + tooltipWidth > viewportWidth - padding) {
-          leftPos = viewportWidth - tooltipWidth - padding;
-        }
-        
-        tooltip.style.top = `${topPos}px`;
-        tooltip.style.left = `${leftPos}px`;
-        tooltip.style.transform = 'none';
-        
-        // Показываем tooltip
-        tooltip.style.visibility = 'visible';
-        tooltip.style.opacity = '1';
+      // Устанавливаем размер один раз на основе реального содержимого
+      if (tooltipWidth === null || tooltipHeight === null) {
+        tooltip.style.position = 'fixed';
         tooltip.style.display = 'block';
-      });
-    };
-    
-    // Функция для скрытия tooltip
-    const hideTooltip = () => {
-      tooltipShowing = false;
-      tooltip.style.opacity = '0';
-      tooltip.style.visibility = 'hidden';
-      tooltip.style.display = 'none';
-    };
-    
-    // Показываем tooltip при наведении
-    el.addEventListener('mouseenter', (e) => {
-      // Проверяем, не находится ли курсор над плюсиком
-      const upgradeBadgeEl = el.querySelector('.upgrade-badge');
-      if (upgradeBadgeEl) {
-        const badgeRect = upgradeBadgeEl.getBoundingClientRect();
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-        // Если курсор находится над плюсиком, не показываем tooltip кнопки
-        if (mouseX >= badgeRect.left && mouseX <= badgeRect.right &&
-            mouseY >= badgeRect.top && mouseY <= badgeRect.bottom) {
-          return;
-        }
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.opacity = '0';
+        tooltip.style.top = '-9999px';
+        tooltip.style.left = '-9999px';
+        
+        // Получаем реальные размеры
+        tooltipWidth = tooltip.offsetWidth || 300;
+        tooltipHeight = tooltip.offsetHeight || 200;
+        
+        // Сохраняем размеры для этого tooltip
+        tooltip._width = tooltipWidth;
+        tooltip._height = tooltipHeight;
+      } else {
+        // Используем сохраненные размеры
+        tooltipWidth = tooltip._width || tooltipWidth;
+        tooltipHeight = tooltip._height || tooltipHeight;
       }
-      positionAndShowTooltip();
+      
+      moveTreasuryTooltip(ev);
+    };
+    
+    const moveTreasuryTooltip = (ev) => {
+      if (!_treasuryTooltipEl) return;
+      const pad = 12;
+      const w = tooltipWidth || 300;
+      const h = tooltipHeight || 200;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      
+      // Позиция относительно курсора
+      let left = ev.clientX + 16;
+      let top = ev.clientY + 16;
+      
+      // Проверяем правую границу
+      if (left + w + pad > vw) {
+        left = vw - w - pad;
+        if (left < pad) left = pad;
+      }
+      
+      // Проверяем нижнюю границу
+      if (top + h + pad > vh) {
+        top = vh - h - pad;
+        if (top < pad) top = pad;
+      }
+      
+      // Проверяем левую границу
+      if (left < pad) left = pad;
+      
+      // Проверяем верхнюю границу
+      if (top < pad) top = pad;
+      
+      _treasuryTooltipEl.style.position = 'fixed';
+      _treasuryTooltipEl.style.width = w + 'px';
+      _treasuryTooltipEl.style.height = h + 'px';
+      _treasuryTooltipEl.style.left = `${left}px`;
+      _treasuryTooltipEl.style.top = `${top}px`;
+      _treasuryTooltipEl.style.zIndex = '2147483647';
+      _treasuryTooltipEl.style.display = 'block';
+      _treasuryTooltipEl.style.visibility = 'visible';
+      _treasuryTooltipEl.style.opacity = '1';
+    };
+    
+    el.addEventListener('mouseenter', (e) => {
+      showTreasuryTooltip(e);
     });
-    el.addEventListener('mouseleave', hideTooltip);
+    
+    el.addEventListener('mousemove', (e) => {
+      if (_treasuryTooltipEl === tooltip) {
+        moveTreasuryTooltip(e);
+      }
+    });
+    
+    el.addEventListener('mouseleave', () => {
+      if (_treasuryTooltipEl === tooltip) {
+        hideTreasuryTooltip();
+      }
+    });
     
     // Cooldown overlay
     if (btn.cooldownUntil && btn.cooldownUntil > nowTs) {
@@ -1569,12 +2271,12 @@ function renderTreasuryActions() {
           const breakSec = btn.desc.upgradeCost / 1000;
           const costLine = document.createElement('div');
           costLine.className = 'tooltip-stat';
-          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span><span class="tooltip-stat-value">Break Click button for ${breakSec}s</span>`;
+          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span> <span class="tooltip-stat-value">Break Click button for ${breakSec}s</span>`;
           upgradeBody.appendChild(costLine);
         } else {
           const costLine = document.createElement('div');
           costLine.className = 'tooltip-stat';
-          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span><span class="tooltip-stat-value">${fmt(btn.desc.upgradeCost)} Points</span>`;
+          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span> <span class="tooltip-stat-value">${fmt(btn.desc.upgradeCost)} Points</span>`;
           upgradeBody.appendChild(costLine);
         }
         
@@ -1596,20 +2298,20 @@ function renderTreasuryActions() {
             const effectLine = document.createElement('div');
             effectLine.className = 'tooltip-stat';
             effectLine.style.marginTop = '8px';
-            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span><span class="tooltip-stat-value">Performs ${nextLevelData.clicks} passive clicks with x${nextLevelData.multiplier} multiplier over ${nextLevelData.durationMs/1000} seconds.</span>`;
+            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span> <span class="tooltip-stat-value">Performs ${nextLevelData.clicks} passive clicks with x${nextLevelData.multiplier} multiplier over ${nextLevelData.durationMs/1000} seconds.</span>`;
             upgradeBody.appendChild(effectLine);
             
             // Показываем стоимость использования после прокачки
             const useCostLine = document.createElement('div');
             useCostLine.className = 'tooltip-stat';
             useCostLine.style.marginTop = '8px';
-            useCostLine.innerHTML = `<span class="tooltip-stat-label">Usage Cost:</span><span class="tooltip-stat-value">${nextLevelData.cost} Treasury</span>`;
+            useCostLine.innerHTML = `<span class="tooltip-stat-label">Usage Cost:</span> <span class="tooltip-stat-value">${nextLevelData.cost} Treasury</span>`;
             upgradeBody.appendChild(useCostLine);
             
             // Показываем перезарядку после прокачки
             const cdLine = document.createElement('div');
             cdLine.className = 'tooltip-stat';
-            cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span><span class="tooltip-stat-value">54s</span>`;
+            cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span> <span class="tooltip-stat-value">54s</span>`;
             upgradeBody.appendChild(cdLine);
           }
         } else {
@@ -1626,20 +2328,20 @@ function renderTreasuryActions() {
             const effectLine = document.createElement('div');
             effectLine.className = 'tooltip-stat';
             effectLine.style.marginTop = '8px';
-            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span><span class="tooltip-stat-value">Accelerate all building repairs by ${Math.round(nextLevelData.percent*100)}% of original time.</span>`;
+            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span> <span class="tooltip-stat-value">Accelerate all building repairs by ${Math.round(nextLevelData.percent*100)}% of original time.</span>`;
             upgradeBody.appendChild(effectLine);
             
             // Показываем стоимость использования после прокачки
             const useCostLine = document.createElement('div');
             useCostLine.className = 'tooltip-stat';
             useCostLine.style.marginTop = '8px';
-            useCostLine.innerHTML = `<span class="tooltip-stat-label">Usage Cost:</span><span class="tooltip-stat-value">${nextLevelData.cost} Treasury</span>`;
+            useCostLine.innerHTML = `<span class="tooltip-stat-label">Usage Cost:</span> <span class="tooltip-stat-value">${nextLevelData.cost} Treasury</span>`;
             upgradeBody.appendChild(useCostLine);
             
             // Показываем перезарядку после прокачки
             const cdLine = document.createElement('div');
             cdLine.className = 'tooltip-stat';
-            cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span><span class="tooltip-stat-value">${nextLevelData.cdSec}s</span>`;
+            cdLine.innerHTML = `<span class="tooltip-stat-label">Cooldown:</span> <span class="tooltip-stat-value">${nextLevelData.cdSec}s</span>`;
             upgradeBody.appendChild(cdLine);
           }
         }
@@ -1647,86 +2349,94 @@ function renderTreasuryActions() {
       
       upgradeTooltip.appendChild(upgradeBody);
       
-      // Добавляем tooltip плюсика в body для fixed positioning (поверх всего)
-      // Убеждаемся, что tooltip скрыт по умолчанию
-      upgradeTooltip.style.display = 'none';
-      upgradeTooltip.style.opacity = '0';
-      upgradeTooltip.style.visibility = 'hidden';
-      document.body.appendChild(upgradeTooltip);
+      // Tooltip для плюсика - используем ту же логику, что и для кнопок
+      let upgradeTooltipWidth = null;
+      let upgradeTooltipHeight = null;
       
-      // Флаг для предотвращения множественных вызовов для плюсика
-      let upgradeTooltipShowing = false;
-      
-      // Показ/скрытие tooltip для плюсика
-      upgradeBadge.addEventListener('mouseenter', (e) => {
-        e.stopPropagation(); // Предотвращаем всплытие события на кнопку
-        if (upgradeTooltipShowing) return;
-        upgradeTooltipShowing = true;
+      const showUpgradeTooltip = (ev) => {
+        if (_treasuryTooltipEl === tooltip) {
+          hideTreasuryTooltip(); // Скрываем tooltip кнопки
+        }
+        if (_treasuryTooltipEl === upgradeTooltip) {
+          hideTreasuryTooltip(); // Если уже показывается, скрываем
+        }
+        _treasuryTooltipEl = upgradeTooltip;
+        document.body.appendChild(upgradeTooltip);
         
-        // Скрываем tooltip кнопки немедленно
-        hideTooltip();
-        tooltipShowing = false; // Сбрасываем флаг, чтобы tooltip кнопки не показывался
-        
-        // Показываем tooltip плюсика для измерения
-        upgradeTooltip.style.display = 'block';
-        upgradeTooltip.style.visibility = 'hidden';
-        upgradeTooltip.style.opacity = '0';
-        
-        // Позиционируем tooltip плюсика
-        requestAnimationFrame(() => {
-          const badgeRect = upgradeBadge.getBoundingClientRect();
-          const tooltipRect = upgradeTooltip.getBoundingClientRect();
-          const viewportHeight = window.innerHeight;
-          const viewportWidth = window.innerWidth;
-          const padding = 10;
-          
-          const tooltipHeight = tooltipRect.height || 150;
-          const tooltipWidth = tooltipRect.width || 250;
-          const spaceAbove = badgeRect.top;
-          const spaceBelow = viewportHeight - badgeRect.bottom;
-          const badgeCenterX = badgeRect.left + badgeRect.width / 2;
-          const tooltipHalfWidth = tooltipWidth / 2;
-          
-          // Вертикальное позиционирование
-          let topPos;
-          if (spaceAbove < tooltipHeight + padding && spaceBelow > tooltipHeight + padding) {
-            // Показываем снизу
-            topPos = badgeRect.bottom + 8;
-          } else {
-            // Показываем сверху
-            topPos = badgeRect.top - tooltipHeight - 8;
-          }
-          
-          // Горизонтальное позиционирование
-          let leftPos = badgeCenterX - tooltipHalfWidth;
-          
-          // Если tooltip выходит за левый край
-          if (leftPos < padding) {
-            leftPos = padding;
-          }
-          // Если tooltip выходит за правый край
-          else if (leftPos + tooltipWidth > viewportWidth - padding) {
-            leftPos = viewportWidth - tooltipWidth - padding;
-          }
-          
-          upgradeTooltip.style.top = `${topPos}px`;
-          upgradeTooltip.style.left = `${leftPos}px`;
-          upgradeTooltip.style.transform = 'none';
-          
-          upgradeTooltip.style.visibility = 'visible';
-          upgradeTooltip.style.opacity = '1';
+        // Устанавливаем размер один раз на основе реального содержимого
+        if (upgradeTooltipWidth === null || upgradeTooltipHeight === null) {
+          upgradeTooltip.style.position = 'fixed';
           upgradeTooltip.style.display = 'block';
-        });
+          upgradeTooltip.style.visibility = 'hidden';
+          upgradeTooltip.style.opacity = '0';
+          upgradeTooltip.style.top = '-9999px';
+          upgradeTooltip.style.left = '-9999px';
+          
+          // Получаем реальные размеры
+          upgradeTooltipWidth = upgradeTooltip.offsetWidth || 250;
+          upgradeTooltipHeight = upgradeTooltip.offsetHeight || 150;
+          
+          // Сохраняем размеры
+          upgradeTooltip._width = upgradeTooltipWidth;
+          upgradeTooltip._height = upgradeTooltipHeight;
+        } else {
+          upgradeTooltipWidth = upgradeTooltip._width || upgradeTooltipWidth;
+          upgradeTooltipHeight = upgradeTooltip._height || upgradeTooltipHeight;
+        }
+        
+        moveUpgradeTooltip(ev);
+      };
+      
+      const moveUpgradeTooltip = (ev) => {
+        if (!_treasuryTooltipEl || _treasuryTooltipEl !== upgradeTooltip) return;
+        const pad = 12;
+        const w = upgradeTooltipWidth || 250;
+        const h = upgradeTooltipHeight || 150;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        
+        let left = ev.clientX + 16;
+        let top = ev.clientY + 16;
+        
+        if (left + w + pad > vw) {
+          left = vw - w - pad;
+          if (left < pad) left = pad;
+        }
+        if (top + h + pad > vh) {
+          top = vh - h - pad;
+          if (top < pad) top = pad;
+        }
+        if (left < pad) left = pad;
+        if (top < pad) top = pad;
+        
+        upgradeTooltip.style.position = 'fixed';
+        upgradeTooltip.style.width = w + 'px';
+        upgradeTooltip.style.height = h + 'px';
+        upgradeTooltip.style.left = `${left}px`;
+        upgradeTooltip.style.top = `${top}px`;
+        upgradeTooltip.style.zIndex = '2147483647';
+        upgradeTooltip.style.display = 'block';
+        upgradeTooltip.style.visibility = 'visible';
+        upgradeTooltip.style.opacity = '1';
+      };
+      
+      upgradeBadge.addEventListener('mouseenter', (e) => {
+        e.stopPropagation();
+        showUpgradeTooltip(e);
+      });
+      
+      upgradeBadge.addEventListener('mousemove', (e) => {
+        e.stopPropagation();
+        if (_treasuryTooltipEl === upgradeTooltip) {
+          moveUpgradeTooltip(e);
+        }
       });
       
       upgradeBadge.addEventListener('mouseleave', (e) => {
-        e.stopPropagation(); // Предотвращаем всплытие события на кнопку
-        upgradeTooltipShowing = false;
-        upgradeTooltip.style.opacity = '0';
-        upgradeTooltip.style.visibility = 'hidden';
-        upgradeTooltip.style.display = 'none';
-        // Не показываем tooltip кнопки автоматически после ухода с плюсика
-        // Пользователь должен снова навести на кнопку, чтобы увидеть tooltip
+        e.stopPropagation();
+        if (_treasuryTooltipEl === upgradeTooltip) {
+          hideTreasuryTooltip();
+        }
       });
       
       // Сохраняем ссылку на upgradeTooltip для очистки
@@ -1734,8 +2444,17 @@ function renderTreasuryActions() {
       
       upgradeBadge.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (btn.upgradeOnClick) btn.upgradeOnClick();
-      });
+        e.preventDefault();
+        // Скрываем tooltip при клике
+        if (_treasuryTooltipEl === upgradeTooltip) {
+          hideTreasuryTooltip();
+        }
+        if (btn.upgradeOnClick) {
+          // Эффект "мина салюта" вокруг плюсика
+          createFireworksEffect(upgradeBadge);
+          btn.upgradeOnClick();
+        }
+      }, true); // Используем capture phase
       el.appendChild(upgradeBadge);
     }
     
@@ -1757,16 +2476,31 @@ function renderTreasuryActions() {
       el.appendChild(timerEl);
     }
     
-    // Обработчик двойного клика с предотвращением конфликтов
-    el.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
+    // Обработчик клика - активация по одному нажатию (используем capture для надежности)
+    el.addEventListener('click', (e) => {
+      // Проверяем, не кликнули ли на плюсик
+      if (e.target.classList.contains('upgrade-badge') || e.target.closest('.upgrade-badge')) {
+        return; // Плюсик обрабатывает свой клик сам
+      }
+      // Скрываем tooltip при клике
+      if (_treasuryTooltipEl === tooltip) {
+        hideTreasuryTooltip();
+      }
+      
       if (btn.onClick && !el.disabled) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Эффект волны при клике
+        el.classList.add('clicked');
+        setTimeout(() => {
+          el.classList.remove('clicked');
+        }, 600);
         btn.onClick();
       }
-    }, { passive: false });
+    }, true); // Используем capture phase для более раннего перехвата
     treasuryActionsEl.appendChild(el);
   });
+  
 }
 
 function renderClick() {
@@ -1817,38 +2551,51 @@ function renderClick() {
 
   const { totalCost, totalLevels } = computeBulkCostForClick(bulk);
 
-  // Segment upgrade visibility for Click
-  const seg = segmentIndex(save.click.level);
-  const within = withinSegment(save.click.level);
-  const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
-  const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+  // Hide buttons if level >= 1000 and not in Uber Mode yet
+  const isInUberMode = save.uber && save.uber.max !== 19;
+  const shouldHideButtons = save.click.level >= 1000 && !isInUberMode;
 
-  if (needUpgrade) {
-    // Показываем апгрейд вместо покупки
-    const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
-    const upgradeCost = prevCostSum / 2;
-    clickCostEl.textContent = fmt(upgradeCost); // Показываем цену апгрейда в строке стоимости
-    clickSegInfo.textContent = 'Segment upgrade required to progress';
+  if (shouldHideButtons) {
+    // Hide both buy and upgrade buttons when level >= 1000 and not in Uber Mode
     clickBuyBtn.classList.add('hidden');
     clickBuyBtn.setAttribute('aria-hidden', 'true');
-
-    clickSegBtn.classList.remove('hidden');
-    clickSegBtn.removeAttribute('aria-hidden');
-    // Визуально сделать похожей на primary (если нужно)
-    clickSegBtn.classList.add('primary');
-    clickSegBtn.textContent = `Upgrade (${fmt(upgradeCost)})`;
-    clickSegBtn.disabled = save.points < upgradeCost;
-  } else {
-    // Показываем покупку, скрываем апгрейд
-    clickCostEl.textContent = fmt(totalCost); // Показываем обычную стоимость покупки
     clickSegBtn.classList.add('hidden');
     clickSegBtn.setAttribute('aria-hidden', 'true');
-    clickSegBtn.classList.remove('primary');
+    clickSegInfo.textContent = 'Reach Uber Mode to continue';
+  } else {
+    // Segment upgrade visibility for Click
+    const seg = segmentIndex(save.click.level);
+    const within = withinSegment(save.click.level);
+    const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
+    const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
 
-    clickBuyBtn.classList.remove('hidden');
-    clickBuyBtn.removeAttribute('aria-hidden');
-    clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
-    clickSegInfo.textContent = 'Buy 10 levels to unlock';
+    if (needUpgrade) {
+      // Показываем апгрейд вместо покупки
+      const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+      const upgradeCost = prevCostSum / 2;
+      clickCostEl.textContent = fmt(upgradeCost); // Показываем цену апгрейда в строке стоимости
+      clickSegInfo.textContent = 'Segment upgrade required to progress';
+      clickBuyBtn.classList.add('hidden');
+      clickBuyBtn.setAttribute('aria-hidden', 'true');
+
+      clickSegBtn.classList.remove('hidden');
+      clickSegBtn.removeAttribute('aria-hidden');
+      // Визуально сделать похожей на primary (если нужно)
+      clickSegBtn.classList.add('primary');
+      clickSegBtn.textContent = `Upgrade (${fmt(upgradeCost)})`;
+      clickSegBtn.disabled = save.points < upgradeCost;
+    } else {
+      // Показываем покупку, скрываем апгрейд
+      clickCostEl.textContent = fmt(totalCost); // Показываем обычную стоимость покупки
+      clickSegBtn.classList.add('hidden');
+      clickSegBtn.setAttribute('aria-hidden', 'true');
+      clickSegBtn.classList.remove('primary');
+
+      clickBuyBtn.classList.remove('hidden');
+      clickBuyBtn.removeAttribute('aria-hidden');
+      clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
+      clickSegInfo.textContent = 'Buy 10 levels to unlock';
+    }
   }
 }
 
@@ -1937,7 +2684,17 @@ function renderBuildings() {
     info.appendChild(costEl);
     info.appendChild(segInfo);
 
-    if (needUpgrade) {
+    // Hide buttons if level >= 1000 and not in Uber Mode yet
+    const isInUberMode = save.uber && save.uber.max !== 19;
+    const shouldHideButtons = b.level >= 1000 && !isInUberMode;
+
+    if (shouldHideButtons) {
+      // Hide both buy and upgrade buttons when level >= 1000 and not in Uber Mode
+      buyBtn.classList.add('hidden');
+      buyBtn.setAttribute('aria-hidden', 'true');
+      segBtn.classList.add('hidden');
+      segBtn.setAttribute('aria-hidden', 'true');
+    } else if (needUpgrade) {
       // Требуется сегментный апгрейд — показываем только segBtn
       const prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
       segBtn.textContent = `Upgrade (${fmt(prevCost)})`;
@@ -1977,7 +2734,9 @@ function renderBuildings() {
     // lock overlay if previous building not level 67
     const note = document.createElement('div');
     note.className = 'building-note';
-    if (!canBuyNextBuilding(i)) {
+    if (shouldHideButtons) {
+      note.textContent = 'Reach Uber Mode to continue';
+    } else if (!canBuyNextBuilding(i)) {
       note.textContent = 'Locked: previous building must reach level 67.';
     } else if (now() < b.blockedUntil) {
       const remain = Math.ceil((b.blockedUntil - now()) / 1000);
@@ -2430,6 +3189,16 @@ function cycleSeason() {
   toast(`Season changed to: ${nextSeason.charAt(0).toUpperCase() + nextSeason.slice(1)}`, 'info');
 }
 
+// Оптимизация рендеринга - отложенный вызов для производительности
+let _renderTimeout = null;
+function scheduleRender() {
+  if (_renderTimeout) return; // Уже запланирован
+  _renderTimeout = requestAnimationFrame(() => {
+    renderAll();
+    _renderTimeout = null;
+  });
+}
+
 function renderAll() {
   renderTopStats();
   renderClick();
@@ -2440,11 +3209,13 @@ function renderAll() {
   renderUber(); // Рендерим Uber здание (после проверки разблокировки)
   renderEffects();
   renderAchievements();
+  renderTalents();
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk
   updateSeason(); // Обновляем сезонную тему
   startAutosave();
 
   updateEndgameButtons();
+  _recalcTalentPointsCap();
 }
 
 // ======= Actions =======
@@ -2471,21 +3242,27 @@ function addPoints(n) {
 function updateButtonStates() {
   if (!save) return;
 
-  // Обновляем кнопки Click
-  const seg = segmentIndex(save.click.level);
-  const within = withinSegment(save.click.level);
-  const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
-  const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+  // Check if buttons should be hidden (level >= 1000 and not in Uber Mode)
+  const isInUberMode = save.uber && save.uber.max !== 19;
+  const clickShouldHide = save.click.level >= 1000 && !isInUberMode;
 
-  if (needUpgrade) {
-    const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
-    if (clickSegBtn && !clickSegBtn.classList.contains('hidden')) {
-      clickSegBtn.disabled = save.points < (prevCostSum/2);
-    }
-  } else {
-    const { totalCost, totalLevels } = computeBulkCostForClick(save.bulk);
-    if (clickBuyBtn && !clickBuyBtn.classList.contains('hidden')) {
-      clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
+  // Обновляем кнопки Click
+  if (!clickShouldHide) {
+    const seg = segmentIndex(save.click.level);
+    const within = withinSegment(save.click.level);
+    const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
+    const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+
+    if (needUpgrade) {
+      const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+      if (clickSegBtn && !clickSegBtn.classList.contains('hidden')) {
+        clickSegBtn.disabled = save.points < (prevCostSum/2);
+      }
+    } else {
+      const { totalCost, totalLevels } = computeBulkCostForClick(save.bulk);
+      if (clickBuyBtn && !clickBuyBtn.classList.contains('hidden')) {
+        clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
+      }
     }
   }
 
@@ -2497,20 +3274,25 @@ function updateButtonStates() {
     const buyBtn = card.querySelector('.building-action-slot .btn.primary');
     const segBtn = card.querySelector('.building-action-slot .btn:not(.primary)');
     
-    const buildingSeg = segmentIndex(b.level);
-    const buildingWithin = withinSegment(b.level);
-    const buildingPrevSegBought = buildingSeg === 0 ? true : !!b.segUpgrades[buildingSeg-1];
-    const buildingNeedUpgrade = buildingWithin === 0 && buildingSeg > 0 && !buildingPrevSegBought;
+    // Check if buttons should be hidden (level >= 1000 and not in Uber Mode)
+    const buildingShouldHide = b.level >= 1000 && !isInUberMode;
+    
+    if (!buildingShouldHide) {
+      const buildingSeg = segmentIndex(b.level);
+      const buildingWithin = withinSegment(b.level);
+      const buildingPrevSegBought = buildingSeg === 0 ? true : !!b.segUpgrades[buildingSeg-1];
+      const buildingNeedUpgrade = buildingWithin === 0 && buildingSeg > 0 && !buildingPrevSegBought;
 
-    if (buildingNeedUpgrade) {
-      const prevCost = (b.pendingSegmentCost[buildingSeg-1] || 0) / 2;
-      if (segBtn && !segBtn.classList.contains('hidden')) {
-        segBtn.disabled = save.points < prevCost;
-      }
-    } else {
-      const nextCost = computeBulkCostForBuilding(i, save.bulk);
-      if (buyBtn && !buyBtn.classList.contains('hidden')) {
-        buyBtn.disabled = (now() < b.blockedUntil) || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
+      if (buildingNeedUpgrade) {
+        const prevCost = (b.pendingSegmentCost[buildingSeg-1] || 0) / 2;
+        if (segBtn && !segBtn.classList.contains('hidden')) {
+          segBtn.disabled = save.points < prevCost;
+        }
+      } else {
+        const nextCost = computeBulkCostForBuilding(i, save.bulk);
+        if (buyBtn && !buyBtn.classList.contains('hidden')) {
+          buyBtn.disabled = (now() < b.blockedUntil) || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
+        }
       }
     }
   });
@@ -2524,7 +3306,7 @@ function updateButtonStates() {
   }
 }
 
-function buyBulkLevels(entity, computeFn, applyFn) {
+function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
   const { totalCost, totalLevels } = computeFn(save.bulk);
   if (totalLevels === 0) {
     toast('Cannot progress: segment upgrade required.', 'warn');
@@ -2539,9 +3321,51 @@ function buyBulkLevels(entity, computeFn, applyFn) {
   save.points -= totalCost;
 
   // Track segment cost sum
-  for (let i = 0; i < totalLevels; i++) applyFn();
+  // For buildings: apply one level at a time and stop if building breaks
+  // Master Builder can make some levels free (refund points)
+  if (entity === 'building') {
+    let appliedLevels = 0;
+    let freeLevelsCost = 0;
+    const b = save.buildings[buildingIndex];
+    let startLevel = b.level;
+    
+    for (let j = 0; j < totalLevels; j++) {
+      const result = applyFn();
+      if (result === false) {
+        // Building broke, stop applying more levels
+        break;
+      }
+      appliedLevels++;
+      
+      // Check if this level was free (Master Builder)
+      // Result is the cost to refund if free, or true if paid
+      if (typeof result === 'number') {
+        freeLevelsCost += result;
+      }
+    }
+    
+    // Refund points for free levels (Master Builder)
+    if (freeLevelsCost > 0) {
+      save.points += freeLevelsCost;
+    }
+    
+    // Refund unused points if we stopped early (building broke)
+    if (appliedLevels < totalLevels) {
+      // Recalculate cost for remaining levels and refund
+      const remainingLevels = totalLevels - appliedLevels;
+      const currentLevel = b.level;
+      let remainingCost = 0;
+      for (let k = 0; k < remainingLevels; k++) {
+        remainingCost += buildingLevelCostAt(b, currentLevel + k);
+      }
+      save.points += remainingCost;
+    }
+  } else {
+    // For click: apply all levels at once (no breaks)
+    for (let j = 0; j < totalLevels; j++) applyFn();
+  }
 
-  // After buy, re-render
+  // After buy, re-render immediately for critical operations
   renderAll();
   // Проверяем разблокировку Uber здания после покупки уровней
   checkUberUnlock();
@@ -2605,31 +3429,63 @@ function buyBuildingLevels(i) {
     const lvl = b.level;
     const cost = buildingLevelCostAt(b, lvl);
     const seg = segmentIndex(lvl);
-    b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
+    
+    // Master Builder talent: chance for free purchase (before applying level)
+    // Check Master Builder BEFORE applying level to determine if this purchase is free
+    let isFree = false;
+    const masterBuilderLvl = talentLevelUI('masterBuilder');
+    if (masterBuilderLvl > 0) {
+      const masterBuilderChance = TALENT_DEFS.masterBuilder.chances[masterBuilderLvl] || 0;
+      if (randChance(masterBuilderChance)) {
+        isFree = true;
+        const nextLevel = lvl + 1;
+        toast(`${b.name} Master Builder: Level ${nextLevel} is free! Refunded ${fmt(cost)} points.`, 'good');
+      }
+    }
+    
+    // Track segment cost (only if not free)
+    if (!isFree) {
+      b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
+    }
 
-    // 1% chance to fail and trigger downtime (affected by modifiers)
-    const failChance = 0.01 * (save.modifiers.breakChanceMult || 1);
+    // Random chance to fail and trigger downtime (affected by modifiers and High Qualification talent)
+    // Break can happen on any level, not just levels ending in 9
+    const baseFailChance = 0.01; // 1% base chance on any level
+    const breakChanceMult = save.modifiers.breakChanceMult || 1;
+    const highQualLvl = talentLevelUI('highQualification');
+    const highQualReduction = TALENT_DEFS.highQualification.bonuses[highQualLvl] || 0;
+    const adjustedFailChance = baseFailChance * breakChanceMult * (1 - highQualReduction);
     const repairMult = (save.modifiers.repairTimeMult || 1);
     const baseRepairMs = 164000;
-    if (randChance(failChance)) {
-      b.blockedUntil = now() + baseRepairMs * repairMult;
-      // Points already spent (kept), no level increase
-      toast(`${b.name} construction failed. Repairs for 164s.`, 'bad');
+    const secondTeamLvl = talentLevelUI('secondTeam');
+    const secondTeamReduction = TALENT_DEFS.secondTeam.bonuses[secondTeamLvl] || 0;
+    const adjustedRepairMs = Math.max(0, baseRepairMs * repairMult - secondTeamReduction);
+    
+    // Apply level
+    b.level = Math.min(b.level + 1, b.max);
+    
+    // Check if break happens (random chance on any level)
+    if (randChance(adjustedFailChance)) {
+      b.blockedUntil = now() + adjustedRepairMs;
+      toast(`${b.name} construction failed. Repairs for ${(adjustedRepairMs/1000).toFixed(0)}s.`, 'bad');
       // Отслеживаем разрушения для достижений
       if (save.achievements) {
         save.achievements.stats.totalDestructions += 1;
         checkAchievements();
       }
-    } else {
-      b.level = Math.min(b.level + 1, b.max);
+      return false; // Signal that building broke, stop buying more levels
     }
+    
     // Отслеживаем покупку первого здания (когда любое здание достигает уровня 1)
     if (save.achievements && !save.achievements.stats.firstBuildingBought && b.level >= 1) {
       save.achievements.stats.firstBuildingBought = true;
       checkAchievements();
     }
+    
+    // Return cost if Master Builder made this level free (for refund), otherwise return true
+    return isFree ? cost : true;
   };
-  const bought = buyBulkLevels('building', computeFn, applyFn);
+  const bought = buyBulkLevels('building', computeFn, applyFn, i);
   if (bought) {
     triggerBuildingUpgradeEffect(i, 'Level Up!');
   }
@@ -2747,6 +3603,63 @@ function showCritDamage(multiplier, event) {
   }, 1500);
 }
 
+// Функция для создания эффекта "мина салюта" вокруг плюсика
+function createFireworksEffect(element) {
+  if (!element) return;
+  
+  const rect = element.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  // Создаем множество частиц для эффекта салюта
+  const particleCount = 20;
+  const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#95e1d3', '#f38181', '#ffd93d'];
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'fireworks-particle';
+    
+    // Случайный цвет
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    particle.style.backgroundColor = color;
+    particle.style.width = '4px';
+    particle.style.height = '4px';
+    particle.style.borderRadius = '50%';
+    particle.style.position = 'fixed';
+    particle.style.left = `${centerX}px`;
+    particle.style.top = `${centerY}px`;
+    particle.style.pointerEvents = 'none';
+    particle.style.zIndex = '10001';
+    particle.style.boxShadow = `0 0 6px ${color}, 0 0 12px ${color}`;
+    
+    // Случайное направление и расстояние
+    const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.3;
+    const distance = 40 + Math.random() * 30;
+    const endX = centerX + Math.cos(angle) * distance;
+    const endY = centerY + Math.sin(angle) * distance;
+    
+    // Анимация
+    particle.style.transition = 'all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    particle.style.opacity = '1';
+    particle.style.transform = 'translate(0, 0) scale(1)';
+    
+    document.body.appendChild(particle);
+    
+    // Запускаем анимацию
+    requestAnimationFrame(() => {
+      particle.style.left = `${endX}px`;
+      particle.style.top = `${endY}px`;
+      particle.style.opacity = '0';
+      particle.style.transform = `translate(${Math.cos(angle) * 20}px, ${Math.sin(angle) * 20}px) scale(0.3)`;
+    });
+    
+    // Удаляем частицу после анимации
+    setTimeout(() => {
+      particle.remove();
+    }, 600);
+  }
+}
+
 clickBtn.addEventListener('click', (event) => {
   // Broken or golden states
   if (save.click.brokenUntil > now()) {
@@ -2787,11 +3700,16 @@ clickBtn.addEventListener('click', (event) => {
 
   // Apply points
   const madnessActive = save.treasury?.actions?.clickMadnessUntil > now();
-  const ppc = totalPPC();
-  addPoints(ppc);
+  const basePpc = totalPPC();
+  const critRoll = rollTalentCrit();
+  const gain = basePpc * (critRoll.multiplier || 1);
+  addPoints(gain);
+  if (critRoll.rolled) {
+    showCritDamage(critRoll.multiplier, event);
+  }
   
   // Создаем частицы при клике
-  createClickParticles(event, ppc);
+  createClickParticles(event, gain);
 
   // Отслеживаем клики для достижений
   if (save.achievements) {
@@ -3192,20 +4110,47 @@ function openKingMiniGame() {
   let clicked = 0;
   const crowns = [];
 
-  // spawn crowns randomly inside arena; to avoid overlap we place them progressively
+  // spawn crowns randomly inside arena; ensure crowns don't overlap more than 50%
   function spawnCrowns() {
     const rect = kingArena.getBoundingClientRect();
+    const crownWidth = 56;
+    const crownHeight = 40;
+    const maxOverlap = 0.5; // max 50% overlap allowed
+    const minDistanceX = crownWidth * (1 - maxOverlap);
+    const minDistanceY = crownHeight * (1 - maxOverlap);
+    const margin = 15;
+    const placedCrowns = [];
+    
     for (let i = 0; i < target; i++) {
+      let attempts = 0;
+      let x, y;
+      let validPosition = false;
+      
+      // Try to find a valid position (max 100 attempts)
+      while (!validPosition && attempts < 100) {
+        x = _randInt(margin, Math.max(margin, rect.width - crownWidth - margin));
+        y = _randInt(margin, Math.max(margin, rect.height - crownHeight - margin));
+        
+        // Check if this position overlaps too much with existing crowns
+        validPosition = true;
+        for (const placed of placedCrowns) {
+          const dx = Math.abs(x - placed.x);
+          const dy = Math.abs(y - placed.y);
+          if (dx < minDistanceX && dy < minDistanceY) {
+            validPosition = false;
+            break;
+          }
+        }
+        attempts++;
+      }
+      
       const c = document.createElement('div');
       c.className = 'king-crown';
-      // random position within arena, leave margin
-      const margin = 15;
-      const x = _randInt(margin, Math.max(margin, rect.width - 48 - margin));
-      const y = _randInt(margin, Math.max(margin, rect.height - 36 - margin));
       c.style.left = x + 'px';
       c.style.top = y + 'px';
       c.dataset.index = String(i);
       c.title = 'Click!';
+      placedCrowns.push({ x, y });
       // click handler
       c.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -3549,7 +4494,10 @@ function tick() {
     const dtreasury = (t - (save.treasury.lastTs || t)) / 1000;
     save.treasury.lastTs = t;
     if (dtreasury > 0) {
-      gainTreasury(save.treasury.regenPerSec * dtreasury);
+      const baseRegen = save.treasury.regenPerSec || 1;
+      const talentRegenBonus = talentTreasuryRegenBonus();
+      const actualRegen = baseRegen + talentRegenBonus;
+      gainTreasury(actualRegen * dtreasury);
     }
 
     // Engineer effect
@@ -4119,6 +5067,32 @@ statsModal.addEventListener('click', (ev) => {
 });
 }
 
+// Talents modal
+if (talentsBtn) {
+  talentsBtn.addEventListener('click', () => {
+    openTalents();
+  });
+}
+if (talentsClose) {
+  talentsClose.addEventListener('click', () => {
+    closeTalents();
+  });
+}
+if (talentsModal) {
+  talentsModal.addEventListener('click', (ev) => {
+    if (ev.target === talentsModal) closeTalents();
+  });
+}
+if (talentsConfirm) {
+  talentsConfirm.addEventListener('click', confirmTalents);
+}
+if (talentsCancel) {
+  talentsCancel.addEventListener('click', resetTalents);
+}
+if (talentsResetAll) {
+  talentsResetAll.addEventListener('click', resetAllTalents);
+}
+
 // Tab switching
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -4613,6 +5587,7 @@ document.addEventListener('keydown', (e) => {
     save = stored.data;
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
     ensureTreasury(save);
+    ensureTalents(save);
     // Инициализируем достижения, если их нет
     if (!save.achievements) {
       save.achievements = {
@@ -4655,6 +5630,7 @@ document.addEventListener('keydown', (e) => {
 renderAchievements();
 if (save) {
   ensureTreasury(save);
+  ensureTalents(save);
   // Убеждаемся, что bulk инициализирован
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;
@@ -4927,25 +5903,29 @@ startCountdownLoop();
 let selectedStakePercent = null;
 let selectedDiceFace = null;
 
+let _casinoResultTimeout = null;
+
+function hideCasinoResultImmediate() {
+  const resultOverlay = document.getElementById('casino-result-overlay');
+  if (resultOverlay) {
+    resultOverlay.style.display = 'none';
+    resultOverlay.style.opacity = '0';
+    resultOverlay.style.visibility = 'hidden';
+    resultOverlay.classList.add('hidden');
+    resultOverlay.classList.remove('win', 'lose');
+  }
+  if (_casinoResultTimeout) {
+    clearTimeout(_casinoResultTimeout);
+    _casinoResultTimeout = null;
+  }
+}
+
 function openCasinoModal() {
   selectedStakePercent = null;
   selectedDiceFace = null;
   updateCasinoUI();
   if (casinoModal) {
-    // Отменяем предыдущий timeout, если он есть
-    if (casinoModal._hideResultTimeout) {
-      clearTimeout(casinoModal._hideResultTimeout);
-      casinoModal._hideResultTimeout = null;
-    }
-    // Скрываем результат при открытии
-    const resultOverlay = document.getElementById('casino-result-overlay');
-    if (resultOverlay) {
-      resultOverlay.style.display = 'none';
-      resultOverlay.style.opacity = '0';
-      resultOverlay.style.visibility = 'hidden';
-      resultOverlay.classList.add('hidden');
-      resultOverlay.classList.remove('win', 'lose');
-    }
+    hideCasinoResultImmediate();
     casinoModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
   }
@@ -4956,6 +5936,7 @@ function closeCasinoModal() {
     casinoModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
   }
+  hideCasinoResultImmediate();
   selectedStakePercent = null;
   selectedDiceFace = null;
 }
@@ -5027,35 +6008,31 @@ function rollCasinoDice() {
   const resultTextEl = document.getElementById('casino-result-text');
   const resultAmountEl = document.getElementById('casino-result-amount');
   
-  if (roll === selectedDiceFace) {
-    const gain = stake * 3;
-    addPoints(gain);
+  // Перед показом результата очищаем предыдущий таймер
+  hideCasinoResultImmediate();
+
+  const showResult = (isWin, amount, rollValue) => {
     resultOverlay.style.display = 'flex';
     resultOverlay.style.opacity = '1';
     resultOverlay.style.visibility = 'visible';
-    resultOverlay.classList.remove('hidden');
-    resultOverlay.classList.add('win');
-    resultOverlay.classList.remove('lose');
-    resultDiceEl.textContent = `🎲 ${roll}`;
-    resultTextEl.textContent = 'YOU WIN!';
-    resultTextEl.style.color = '#4ade80';
-    resultAmountEl.textContent = `+${fmt(gain)} points`;
-    resultAmountEl.style.color = '#4ade80';
+    resultOverlay.classList.remove('hidden', 'win', 'lose');
+    resultOverlay.classList.add(isWin ? 'win' : 'lose');
+    resultDiceEl.textContent = `🎲 ${rollValue}`;
+    resultTextEl.textContent = isWin ? 'YOU WIN!' : 'YOU LOSE!';
+    resultTextEl.style.color = isWin ? '#4ade80' : '#ff6b6b';
+    resultAmountEl.textContent = `${isWin ? '+' : '-'}${fmt(amount)} points`;
+    resultAmountEl.style.color = isWin ? '#4ade80' : '#ff6b6b';
+  };
+
+  if (roll === selectedDiceFace) {
+    const gain = stake * 3;
+    addPoints(gain);
+    showResult(true, gain, roll);
     toast(`🎲 Dice ${roll}. You win +${fmt(gain)} points!`, 'good');
   } else {
     const loss = stake * 1.2;
     save.points -= loss;
-    resultOverlay.style.display = 'flex';
-    resultOverlay.style.opacity = '1';
-    resultOverlay.style.visibility = 'visible';
-    resultOverlay.classList.remove('hidden');
-    resultOverlay.classList.add('lose');
-    resultOverlay.classList.remove('win');
-    resultDiceEl.textContent = `🎲 ${roll}`;
-    resultTextEl.textContent = 'YOU LOSE!';
-    resultTextEl.style.color = '#ff6b6b';
-    resultAmountEl.textContent = `-${fmt(loss)} points`;
-    resultAmountEl.style.color = '#ff6b6b';
+    showResult(false, loss, roll);
     toast(`🎲 Dice ${roll}. You lose -${fmt(loss)} points.`, 'bad');
   }
   
@@ -5064,15 +6041,8 @@ function rollCasinoDice() {
   renderTopStats();
   
   // Скрываем результат через 3 секунды, но оставляем модальное окно открытым
-  const hideResultTimeout = setTimeout(() => {
-    const resultOverlay = document.getElementById('casino-result-overlay');
-    if (resultOverlay) {
-      resultOverlay.style.display = 'none';
-      resultOverlay.style.opacity = '0';
-      resultOverlay.style.visibility = 'hidden';
-      resultOverlay.classList.add('hidden');
-      resultOverlay.classList.remove('win', 'lose');
-    }
+  _casinoResultTimeout = setTimeout(() => {
+    hideCasinoResultImmediate();
     // Сбрасываем выбор и обновляем UI
     selectedStakePercent = null;
     selectedDiceFace = null;
@@ -5082,11 +6052,6 @@ function rollCasinoDice() {
       casinoRollBtn.disabled = false;
     }
   }, 3000);
-  
-  // Сохраняем timeout ID для возможной отмены
-  if (casinoModal) {
-    casinoModal._hideResultTimeout = hideResultTimeout;
-  }
 }
 
 // Casino modal event handlers
