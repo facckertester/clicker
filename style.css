@@ -693,6 +693,7 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
 [data-treasury-tooltip="true"] .tooltip-stat-label{
   color:#a08f70;
   font-weight:500;
+  margin-right:4px;
 }
 [data-treasury-tooltip="true"] .tooltip-stat-value{
   color:#f4e4b0;

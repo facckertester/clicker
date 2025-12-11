@@ -2262,7 +2262,7 @@ function renderTreasuryActions() {
           }
         }
         
-        upgradeLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">Upgrade to Level ${nextLevelNum}</div>`;
+        upgradeLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">Upgrade to Level  ${nextLevelNum}</div>`;
         upgradeBody.appendChild(upgradeLine);
         
         // Для Lazy Click upgradeCost - это breakDuration в миллисекундах
