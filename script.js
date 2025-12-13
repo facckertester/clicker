@@ -869,12 +869,10 @@ function totalPPC() {
   // Buff 1: No Golden Click - 50% less income
   const act = save.treasury?.actions;
   const noGoldenMult = (act && act.noGoldenUntil > now()) ? 0.5 : 1.0;
-  // Angry Barmatun: Random click multiplier (x0.1 to x100)
-  const angryBarmatunActive = save.modifiers.angryBarmatunUntil > now();
-  const angryBarmatunMult = angryBarmatunActive ? save.modifiers.angryBarmatunMult : 1.0;
-  // Angry Barmatun: Income reduction (50% less)
+  // Angry Barmatun: Income reduction (50% less) - applied to all income
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
-  return ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunMult * angryBarmatunIncomeReduction;
+  // Note: Random click multiplier is applied per-click in clickBtn event handler, not here
+  return ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction;
 }
 
 function totalPPS() {
@@ -3706,6 +3704,68 @@ function showCritDamage(multiplier, event) {
   }, 1500);
 }
 
+// Функция для показа множителя Angry Barmatun над кнопкой Click
+// Числа разлетаются влево и вправо по очереди
+let _angryBarmatunMultiplierCounter = 0; // Счетчик для чередования направления
+function showAngryBarmatunMultiplier(multiplier) {
+  if (!clickBtn) return;
+  
+  const rect = clickBtn.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top;
+  
+  // Чередуем направление: четные - влево, нечетные - вправо
+  const goLeft = (_angryBarmatunMultiplierCounter % 2 === 0);
+  _angryBarmatunMultiplierCounter++;
+  
+  const multEl = document.createElement('div');
+  multEl.className = 'angry-barmatun-multiplier';
+  multEl.textContent = `x${multiplier.toFixed(2)}`;
+  
+  // Определяем размер и цвет в зависимости от множителя
+  if (multiplier >= 50) {
+    multEl.classList.add('mult-very-high');
+  } else if (multiplier >= 10) {
+    multEl.classList.add('mult-high');
+  } else if (multiplier >= 1) {
+    multEl.classList.add('mult-medium');
+  } else {
+    multEl.classList.add('mult-low');
+  }
+  
+  // Начальная позиция (над кнопкой)
+  multEl.style.left = `${centerX}px`;
+  multEl.style.top = `${centerY - 20}px`;
+  multEl.style.opacity = '0';
+  multEl.style.transform = 'translate(-50%, 0) scale(1)';
+  
+  // Направление разлета: влево или вправо
+  const angle = goLeft ? Math.PI * 0.75 : Math.PI * 0.25; // 135° влево или 45° вправо
+  const distance = 120 + Math.random() * 60;
+  const deltaX = Math.cos(angle) * distance;
+  const deltaY = -80 - Math.random() * 40;
+  
+  document.body.appendChild(multEl);
+  
+  // Анимация: сначала появляемся, затем разлетаемся
+  // Используем setTimeout для надежности
+  setTimeout(() => {
+    multEl.style.opacity = '1';
+    // Небольшая задержка перед разлетом
+    setTimeout(() => {
+      multEl.style.transform = `translate(calc(-50% + ${deltaX}px), ${deltaY}px) scale(0.5)`;
+      multEl.style.opacity = '0';
+    }, 100);
+  }, 10);
+  
+  // Удаляем элемент после анимации
+  setTimeout(() => {
+    if (multEl.parentNode) {
+      multEl.remove();
+    }
+  }, 1200);
+}
+
 // Функция для создания эффекта "мина салюта" вокруг плюсика
 function createFireworksEffect(element) {
   if (!element) return;
@@ -3804,7 +3864,27 @@ clickBtn.addEventListener('click', (event) => {
   // Apply points
   const madnessActive = save.treasury?.actions?.clickMadnessUntil > now();
   const basePpc = totalPPC();
-  const gain = basePpc;
+  
+  // Angry Barmatun: Random click multiplier (x0.1 to x100) - generated per click
+  let angryBarmatunClickMult = 1.0;
+  const angryBarmatunActive = save.modifiers.angryBarmatunUntil > now();
+  if (angryBarmatunActive) {
+    // Generate random multiplier between 0.1 and 100 for this click
+    const minMult = 0.1;
+    const maxMult = 100.0;
+    // Use logarithmic distribution for more interesting range
+    const logMin = Math.log10(minMult);
+    const logMax = Math.log10(maxMult);
+    const randomLog = logMin + Math.random() * (logMax - logMin);
+    const randomMult = Math.pow(10, randomLog);
+    angryBarmatunClickMult = randomMult;
+    // Store for potential UI display
+    save.modifiers.angryBarmatunMult = randomMult;
+    // Show multiplier above click button (flies left/right alternately)
+    showAngryBarmatunMultiplier(randomMult);
+  }
+  
+  const gain = basePpc * angryBarmatunClickMult;
   addPoints(gain);
   
   // Создаем частицы при клике
@@ -4954,19 +5034,11 @@ if (angryBarmatunEl) {
       save.modifiers.angryBarmatunIncomeReduction = now() + 12000;
       toast('Angry Barmatun is furious! All income reduced by 50% for 12s.', 'bad');
     } else {
-      // 50% chance: Power of anger - random click multiplier (x0.1 to x100)
-      // Generate random multiplier between 0.1 and 100
-      const minMult = 0.1;
-      const maxMult = 100.0;
-      // Use logarithmic distribution for more interesting range
-      const logMin = Math.log10(minMult);
-      const logMax = Math.log10(maxMult);
-      const randomLog = logMin + Math.random() * (logMax - logMin);
-      const randomMult = Math.pow(10, randomLog);
-      
-      save.modifiers.angryBarmatunMult = randomMult;
+      // 50% chance: Power of anger - activates random click multiplier effect
+      // Each click will get a random multiplier (x0.1 to x100) for 12 seconds
       save.modifiers.angryBarmatunUntil = now() + 12000; // 12 seconds
-      toast(`Angry Barmatun grants power! Click multiplier: x${randomMult.toFixed(2)} for 12s.`, 'good');
+      save.modifiers.angryBarmatunMult = 1.0; // Reset, will be generated per click
+      toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.1 to x100) for 12s.', 'good');
     }
 
     // Hide angry barmatun and stop movement
