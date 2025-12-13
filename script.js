@@ -490,6 +490,7 @@ const treasuryValueEl = document.getElementById('treasury-value');
 const treasuryRegenEl = document.getElementById('treasury-regen');
 const treasuryFillEl = document.getElementById('treasury-progress-fill');
 const treasuryActionsEl = document.getElementById('treasury-actions');
+const gameTitleEl = document.querySelector('.game-title');
 
 const clickBtn = document.getElementById('click-btn');
 const clickStatus = document.getElementById('click-status');
@@ -756,6 +757,9 @@ const ACHIEVEMENTS = [
   { id: 'playtime_2025', type: 'playtime', value: 2025 * 60 * 1000, reward: 0.01, name: '2025 Minutes', icon: '⏱️' },
   { id: 'playtime_5050', type: 'playtime', value: 5050 * 60 * 1000, reward: 0.01, name: '5050 Minutes', icon: '⏱️' },
   { id: 'playtime_9999', type: 'playtime', value: 9999 * 60 * 1000, reward: 0.01, name: '9999 Minutes', icon: '⏱️' },
+  
+  // Специальное достижение: клик на заголовок
+  { id: 'honored_player', type: 'manual', value: 1, reward: 0.03, name: 'Honored Player', icon: '⭐' },
 ];
 
 // Получить общий бонус от всех достижений
@@ -790,6 +794,9 @@ function checkAchievementCondition(ach) {
       return save.achievements.stats.totalDestructions >= ach.value;
     case 'playtime':
       return save.achievements.stats.totalPlayTime >= ach.value;
+    case 'manual':
+      // Ручные достижения разблокируются программно
+      return save.achievements.unlocked[ach.id] || false;
     default:
       return false;
   }
@@ -897,6 +904,11 @@ function totalPPS() {
   const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   // Angry Barmatun: Income reduction (50% less)
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  // Buff 5: Spider Buff - income becomes 0
+  const spiderBuffActive = act && act.spiderBuffUntil > now();
+  if (spiderBuffActive) {
+    return 0;
+  }
   return pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
 }
 
@@ -1006,6 +1018,38 @@ function renderTopStats() {
     treasuryRegenEl.textContent = `+${baseRegen.toFixed(0)} /s`;
     const pct = Math.max(0, Math.min(100, (value / baseMax) * 100));
     treasuryFillEl.style.width = `${pct}%`;
+    
+    // Изменяем цвет текста в зависимости от того, находится ли за ним заполненная часть шкалы
+    const overlayEl = treasuryValueEl.closest('.treasury-overlay');
+    const progressEl = treasuryFillEl.closest('.treasury-progress');
+    if (overlayEl && progressEl) {
+      const labelEl = overlayEl.querySelector('.treasury-label');
+      const amountEl = overlayEl.querySelector('.treasury-amount');
+      const regenEl = overlayEl.querySelector('.treasury-regen');
+      
+      // Получаем позиции элементов относительно шкалы
+      const progressRect = progressEl.getBoundingClientRect();
+      const progressWidth = progressRect.width;
+      const fillWidth = (progressWidth * pct) / 100;
+      
+      // Проверяем каждый элемент
+      if (labelEl) {
+        const labelRect = labelEl.getBoundingClientRect();
+        const labelCenterX = labelRect.left + labelRect.width / 2 - progressRect.left;
+        // Если центр текста находится в пределах заполненной части - темный, иначе светлый
+        labelEl.style.color = labelCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+      }
+      if (amountEl) {
+        const amountRect = amountEl.getBoundingClientRect();
+        const amountCenterX = amountRect.left + amountRect.width / 2 - progressRect.left;
+        amountEl.style.color = amountCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+      }
+      if (regenEl) {
+        const regenRect = regenEl.getBoundingClientRect();
+        const regenCenterX = regenRect.left + regenRect.width / 2 - progressRect.left;
+        regenEl.style.color = regenCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+      }
+    }
   }
 }
 
@@ -2436,16 +2480,6 @@ function updateBuildingLevels() {
       }
     }
     
-    // Элемент 4: Segment info
-    const segInfoEl = metaElements[4];
-    if (segInfoEl) {
-      const seg = segmentIndex(b.level);
-      const within = withinSegment(b.level);
-      const newSegText = `<strong>Segment:</strong> ${seg}, within ${within}/9`;
-      if (segInfoEl.innerHTML !== newSegText) {
-        segInfoEl.innerHTML = newSegText;
-      }
-    }
     
     // Обновляем кнопки (Buy/Upgrade переключение)
     const actionSlot = card.querySelector('.building-action-slot');
@@ -2492,9 +2526,9 @@ function updateBuildingLevels() {
             if (noBreakActive) {
               prevCost *= 2;
             }
-            const newText = `Upgrade (${fmt(prevCost)})`;
-            if (segBtn.textContent !== newText) {
-              segBtn.textContent = newText;
+            const newText = `Upgrade\n(${fmt(prevCost)})`;
+            if (segBtn.textContent !== newText.replace('\n', ' ')) {
+              segBtn.innerHTML = `Upgrade<br>(${fmt(prevCost)})`;
             }
             segBtn.disabled = save.points < prevCost;
             
@@ -2514,6 +2548,27 @@ function updateBuildingLevels() {
             if (segBtn.classList.contains('hidden')) {
               segBtn.classList.remove('hidden');
               segBtn.setAttribute('aria-hidden', 'false');
+            }
+            // Делаем кнопку primary, как у клика
+            if (!segBtn.classList.contains('primary')) {
+              segBtn.classList.add('primary');
+            }
+            
+            // Подсвечиваем карточку здания при наличии апгрейда
+            if (!card.classList.contains('has-upgrade')) {
+              card.classList.add('has-upgrade');
+            }
+            
+            // Обновляем текст в costEl
+            const costEl = card.querySelector('.building-info > div:nth-last-child(2)');
+            if (costEl) {
+              let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+              const act = save.treasury?.actions;
+              const noBreakActive = act && act.noBreakUntil > now();
+              if (noBreakActive) {
+                upgradeCost *= 2;
+              }
+              costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
             }
           } else {
             // Показываем Buy, скрываем Upgrade
@@ -2536,6 +2591,23 @@ function updateBuildingLevels() {
             if (buyBtn.classList.contains('hidden')) {
               buyBtn.classList.remove('hidden');
               buyBtn.setAttribute('aria-hidden', 'false');
+            }
+            
+            // Убираем primary с кнопки апгрейда
+            if (segBtn.classList.contains('primary')) {
+              segBtn.classList.remove('primary');
+            }
+            
+            // Убираем подсветку, если апгрейд не нужен
+            if (card.classList.contains('has-upgrade')) {
+              card.classList.remove('has-upgrade');
+            }
+            
+            // Обновляем текст в costEl
+            const costEl = card.querySelector('.building-info > div:nth-last-child(2)');
+            if (costEl) {
+              const nextCost = computeBulkCostForBuilding(i, save.bulk);
+              costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
             }
           }
         }
@@ -2633,7 +2705,7 @@ function renderClick() {
       clickSegBtn.removeAttribute('aria-hidden');
       // Визуально сделать похожей на primary (если нужно)
       clickSegBtn.classList.add('primary');
-      clickSegBtn.textContent = `Upgrade (${fmt(upgradeCost)})`;
+      clickSegBtn.innerHTML = `Upgrade<br>(${fmt(upgradeCost)})`;
       clickSegBtn.disabled = save.points < upgradeCost;
     } else {
       // Показываем покупку, скрываем апгрейд
@@ -2703,7 +2775,7 @@ function renderBuildings() {
 
     // Segment upgrade button
     const segBtn = document.createElement('button');
-    segBtn.className = 'btn small';
+    segBtn.className = 'btn small seg-upgrade-btn';
 
     const info = document.createElement('div');
     info.className = 'building-info';
@@ -2722,7 +2794,7 @@ function renderBuildings() {
     
     const costEl = document.createElement('div');
     if (needUpgrade) {
-      // Показываем цену апгрейда в строке стоимости
+      // Показываем цену апгрейда в строке стоимости (как у клика)
       let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
       // Buff 6: Master Builder - upgrades cost 2x more
       const act = save.treasury?.actions;
@@ -2730,20 +2802,16 @@ function renderBuildings() {
       if (noBreakActive) {
         upgradeCost *= 2;
       }
-      costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+      costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
     } else {
       // Показываем обычную стоимость покупки
       costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
     }
     
-    const segInfo = document.createElement('div');
-    segInfo.innerHTML = `<strong>Segment:</strong> ${seg}, within ${within}/9`;
-
     info.appendChild(nameEl);
     info.appendChild(lvlEl);
     info.appendChild(incEl);
     info.appendChild(costEl);
-    info.appendChild(segInfo);
 
     // Hide buttons if level >= 1000 and not in Uber Mode yet
     const isInUberMode = save.uber && save.uber.max !== 19;
@@ -2756,7 +2824,7 @@ function renderBuildings() {
       segBtn.classList.add('hidden');
       segBtn.setAttribute('aria-hidden', 'true');
     } else if (needUpgrade) {
-      // Требуется сегментный апгрейд — показываем только segBtn
+      // Требуется сегментный апгрейд — показываем только segBtn (как у клика)
       let prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
       // Buff 6: Master Builder - upgrades cost 2x more
       const act = save.treasury?.actions;
@@ -2764,9 +2832,10 @@ function renderBuildings() {
       if (noBreakActive) {
         prevCost *= 2;
       }
-      segBtn.textContent = `Upgrade (${fmt(prevCost)})`;
+      segBtn.innerHTML = `Upgrade<br>(${fmt(prevCost)})`;
       segBtn.disabled = save.points < prevCost;
       segBtn.classList.remove('hidden');
+      segBtn.classList.add('primary'); // Делаем кнопку primary, как у клика
       const upgradeHandler = () => buyBuildingSegUpgrade(i, seg-1);
       segBtn.addEventListener('click', upgradeHandler);
       segBtn._upgradeHandler = upgradeHandler;
@@ -2775,6 +2844,9 @@ function renderBuildings() {
       buyBtn.setAttribute('aria-hidden', 'true');
       segBtn.classList.remove('hidden');
       segBtn.setAttribute('aria-hidden', 'false');
+      
+      // Подсвечиваем карточку здания при наличии апгрейда
+      card.classList.add('has-upgrade');
     } else {
       // Обычное состояние — показываем покупку, скрываем segBtn
       buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
@@ -2784,8 +2856,12 @@ function renderBuildings() {
 
       segBtn.classList.add('hidden');
       segBtn.setAttribute('aria-hidden', 'true');
+      segBtn.classList.remove('primary'); // Убираем primary, когда апгрейд не нужен
       buyBtn.classList.remove('hidden');
       buyBtn.setAttribute('aria-hidden', 'false');
+      
+      // Убираем подсветку, если апгрейд не нужен
+      card.classList.remove('has-upgrade');
     }
 
     actionSlot.appendChild(buyBtn);
@@ -3349,8 +3425,13 @@ function updateButtonStates() {
     const card = buildingsList?.children[i];
     if (!card) return;
 
-    const buyBtn = card.querySelector('.building-action-slot .btn.primary');
-    const segBtn = card.querySelector('.building-action-slot .btn:not(.primary)');
+    // Ищем кнопки: buyBtn - всегда primary, segBtn - может быть primary или нет
+    const actionSlot = card.querySelector('.building-action-slot');
+    if (!actionSlot) return;
+    const allBtns = actionSlot.querySelectorAll('.btn');
+    // Ищем кнопки по тексту
+    const buyBtn = Array.from(allBtns).find(btn => btn.textContent.includes('Buy'));
+    const segBtn = Array.from(allBtns).find(btn => btn.textContent.includes('Upgrade'));
     
     // Check if buttons should be hidden (level >= 1000 and not in Uber Mode)
     const buildingShouldHide = b.level >= 1000 && !isInUberMode;
@@ -3365,8 +3446,24 @@ function updateButtonStates() {
         const prevCost = (b.pendingSegmentCost[buildingSeg-1] || 0) / 2;
         if (segBtn && !segBtn.classList.contains('hidden')) {
           segBtn.disabled = save.points < prevCost;
+          // Делаем кнопку primary, как у клика
+          if (!segBtn.classList.contains('primary')) {
+            segBtn.classList.add('primary');
+          }
+        }
+        // Подсвечиваем карточку здания при наличии апгрейда
+        if (!card.classList.contains('has-upgrade')) {
+          card.classList.add('has-upgrade');
         }
       } else {
+        // Убираем подсветку, если апгрейд не нужен
+        if (card.classList.contains('has-upgrade')) {
+          card.classList.remove('has-upgrade');
+        }
+        // Убираем primary с кнопки апгрейда
+        if (segBtn && segBtn.classList.contains('primary')) {
+          segBtn.classList.remove('primary');
+        }
         const nextCost = computeBulkCostForBuilding(i, save.bulk);
         if (buyBtn && !buyBtn.classList.contains('hidden')) {
           buyBtn.disabled = (now() < b.blockedUntil) || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
@@ -3821,6 +3918,94 @@ function createFireworksEffect(element) {
       particle.remove();
     }, 600);
   }
+}
+
+// Функция для создания большого салюта (для заголовка)
+function createBigFireworks(element) {
+  if (!element) return;
+  
+  const rect = element.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  // Создаем больше частиц для более эффектного салюта
+  const particleCount = 50;
+  const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#95e1d3', '#f38181', '#ffd93d', '#ff8c00', '#ff1493', '#00ff00', '#00bfff'];
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'fireworks-particle';
+    
+    // Случайный цвет
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    particle.style.backgroundColor = color;
+    const size = 6 + Math.random() * 4;
+    particle.style.width = `${size}px`;
+    particle.style.height = `${size}px`;
+    particle.style.borderRadius = '50%';
+    particle.style.position = 'fixed';
+    particle.style.left = `${centerX}px`;
+    particle.style.top = `${centerY}px`;
+    particle.style.pointerEvents = 'none';
+    particle.style.zIndex = '10001';
+    particle.style.boxShadow = `0 0 8px ${color}, 0 0 16px ${color}`;
+    
+    // Случайное направление и расстояние
+    const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
+    const distance = 80 + Math.random() * 60;
+    const endX = centerX + Math.cos(angle) * distance;
+    const endY = centerY + Math.sin(angle) * distance;
+    
+    // Анимация
+    particle.style.transition = 'all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    particle.style.opacity = '1';
+    particle.style.transform = 'translate(0, 0) scale(1)';
+    
+    document.body.appendChild(particle);
+    
+    // Запускаем анимацию
+    requestAnimationFrame(() => {
+      particle.style.left = `${endX}px`;
+      particle.style.top = `${endY}px`;
+      particle.style.opacity = '0';
+      particle.style.transform = `translate(${Math.cos(angle) * 30}px, ${Math.sin(angle) * 30}px) scale(0.2)`;
+    });
+    
+    // Удаляем частицу после анимации
+    setTimeout(() => {
+      particle.remove();
+    }, 1000);
+  }
+}
+
+// Обработчик клика на заголовок игры
+if (gameTitleEl) {
+  gameTitleEl.style.cursor = 'pointer';
+  gameTitleEl.addEventListener('click', () => {
+    if (!save || !save.achievements) return;
+    
+    // Проверяем, не разблокировано ли уже достижение
+    const achievementId = 'honored_player';
+    if (!save.achievements.unlocked[achievementId]) {
+      // Разблокируем достижение
+      save.achievements.unlocked[achievementId] = true;
+      
+      // Запускаем салют
+      createBigFireworks(gameTitleEl);
+      
+      // Показываем уведомление
+      const achievement = ACHIEVEMENTS.find(a => a.id === achievementId);
+      if (achievement) {
+        toast(`Achievement unlocked: ${achievement.name} (+${(achievement.reward * 100).toFixed(0)}% income)!`, 'good');
+      }
+      
+      // Обновляем отображение достижений
+      renderAchievements();
+      
+      // Обновляем статистику дохода
+      renderTopStats();
+    }
+  });
 }
 
 clickBtn.addEventListener('click', (event) => {
@@ -4562,20 +4747,26 @@ function drawSpider(canvas) {
   const eyeColor = '#ff00ff';
   const highlight = '#6a4a7a';
   
-  // Body (oval)
+  // Body (oval) with purple glow
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = '#8b4a9a';
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.ellipse(32, 36, 14, 10, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.shadowBlur = 0;
   ctx.strokeStyle = '#1a0a2a';
   ctx.lineWidth = 1;
   ctx.stroke();
   
-  // Head (smaller oval)
+  // Head (smaller oval) with purple glow
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = '#8b4a9a';
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.ellipse(32, 20, 8, 6, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.shadowBlur = 0;
   ctx.strokeStyle = '#1a0a2a';
   ctx.stroke();
   
