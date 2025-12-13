@@ -4556,17 +4556,18 @@ function drawSpider(canvas) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 64, 64);
   
-  const bodyColor = '#2a1f14';
-  const legColor = '#1a0f0a';
-  const eyeColor = '#ff0000';
-  const highlight = '#3a2f24';
+  // Purple/violet colors for spider
+  const bodyColor = '#4a2a5a';
+  const legColor = '#2a1a3a';
+  const eyeColor = '#ff00ff';
+  const highlight = '#6a4a7a';
   
   // Body (oval)
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.ellipse(32, 36, 14, 10, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#0a0500';
+  ctx.strokeStyle = '#1a0a2a';
   ctx.lineWidth = 1;
   ctx.stroke();
   
@@ -4575,7 +4576,7 @@ function drawSpider(canvas) {
   ctx.beginPath();
   ctx.ellipse(32, 20, 8, 6, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#0a0500';
+  ctx.strokeStyle = '#1a0a2a';
   ctx.stroke();
   
   // Legs - 8 legs total
