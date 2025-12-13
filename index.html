@@ -171,12 +171,16 @@
           <button class="btn secondary" data-debug="addClickLevels">Add 100 levels to Click</button>
           <button class="btn secondary" data-debug="clickIncomeBoost">Click income x1000</button>
           <button class="btn secondary" data-debug="spawnSpider">Spawn spider</button>
+          <button class="btn secondary" data-debug="spawnAngryBarmatun">Spawn Angry Barmatun</button>
           <button class="btn secondary" data-debug="spawnKing">Spawn king</button>
           <button class="btn secondary" data-debug="addUberLevels">+10 levels to Citadel</button>
           <button class="btn secondary" data-debug="addMillionPoints">+1M points</button>
           <button class="btn secondary" data-debug="cycleSeason">Cycle season</button>
           <button class="btn secondary" data-debug="breakClick">Break click button</button>
           <button class="btn secondary" data-debug="goldenClick">Make click button golden</button>
+          <button class="btn secondary" data-debug="goodLuck">Good luck (toggle: buildings can't break)</button>
+          <button class="btn secondary" data-debug="resetUberBuffs">Reset uber-buffs</button>
+          <button class="btn secondary" data-debug="addTreasury">+1000 treasury coins</button>
           <button class="btn danger" data-debug="resetAll">Reset all levels and points</button>
         </div>
       </div>
@@ -212,7 +216,6 @@
         <div class="userbox">
           <span id="username-display"></span>
           <button id="stats-btn" class="btn tiny">Stats</button>
-          <button id="talents-btn" class="btn tiny secondary">Talents</button>
           <button id="logout-btn" class="btn tiny">Logout</button>
           <button id="debug-open" class="btn tiny secondary">debug</button>
         </div>
@@ -332,6 +335,9 @@
 
     <!-- SPIDER -->
     <div id="spider" class="spider hidden" title="Catch the spider!"></div>
+    
+    <!-- ANGRY BARMATUN -->
+    <div id="angry-barmatun" class="spider hidden" title="Angry Barmatun - click to interact!"></div>
 
   </div>
 
@@ -378,31 +384,6 @@
     </div>
     <div class="modal-body" id="stats-body">
       <!-- Statistics will be rendered here -->
-    </div>
-  </div>
-</div>
-
-<!-- Talents modal -->
-<div id="talents-modal" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal-card talents-card" role="document" aria-labelledby="talents-title">
-    <div class="modal-header">
-      <h3 id="talents-title">Talents</h3>
-    </div>
-    <div class="modal-body">
-      <div class="talents-header">
-        <div>Talent points: <span id="talent-points">0</span></div>
-        <div class="muted">Click branch + global income</div>
-      </div>
-      <div id="talent-tree" class="talent-tree">
-        <!-- JS renders nodes -->
-      </div>
-    </div>
-    <div class="modal-footer">
-      <div class="talents-actions">
-        <button id="talents-reset-all" class="btn danger">Reset All Talents</button>
-        <button id="talents-confirm" class="btn primary">Confirm</button>
-        <button id="talents-cancel" class="btn">Reset</button>
-      </div>
     </div>
   </div>
 </div>

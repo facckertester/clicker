@@ -1,109 +1,10 @@
-let _talentTooltipEl = null;
 let _treasuryTooltipEl = null;
-
-function showTalentTooltip(ev, def, lvl) {
-  hideTalentTooltip();
-  const el = document.createElement('div');
-  el.className = 'talent-tooltip';
-  const nextLvl = Math.min(lvl + 1, def.max);
-  const hasNext = lvl < def.max;
-  const nextText = buildTalentNextText(def, nextLvl);
-  el.innerHTML = `
-    <div class="tt-name">${def.name}</div>
-    <div class="tt-current">Current: ${buildTalentLevelText(def, lvl)}</div>
-    ${hasNext ? `<div class="tt-next">Next level: ${nextText}</div>` : `<div class="tt-next">Maximum level</div>`}
-    ${!talentRequirementMet(def) ? `<div class="tt-req">Requires: ${buildTalentReqText(def)}</div>` : ''}
-  `;
-  document.body.appendChild(el);
-  _talentTooltipEl = el;
-  moveTalentTooltip(ev);
-}
-
-function moveTalentTooltip(ev) {
-  if (!_talentTooltipEl) return;
-  const pad = 12;
-  const x = ev.clientX + 16;
-  const y = ev.clientY + 16;
-  const w = _talentTooltipEl.offsetWidth || 260;
-  const h = _talentTooltipEl.offsetHeight || 120;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = x;
-  let top = y;
-  if (left + w + pad > vw) left = vw - w - pad;
-  if (top + h + pad > vh) top = vh - h - pad;
-  _talentTooltipEl.style.left = `${left}px`;
-  _talentTooltipEl.style.top = `${top}px`;
-}
-
-function hideTalentTooltip() {
-  if (_talentTooltipEl && _talentTooltipEl.parentNode) {
-    _talentTooltipEl.parentNode.removeChild(_talentTooltipEl);
-  }
-  _talentTooltipEl = null;
-}
 
 function hideTreasuryTooltip() {
   if (_treasuryTooltipEl && _treasuryTooltipEl.parentNode) {
     _treasuryTooltipEl.parentNode.removeChild(_treasuryTooltipEl);
   }
   _treasuryTooltipEl = null;
-}
-
-function buildTalentLevelText(def, lvl) {
-  if (def.id === 'income') {
-    const table = ['0%', '+1%', '+3%', '+6%'];
-    return `+${table[lvl] || '0%'} to all income`;
-  }
-  if (def.id === 'treasury') {
-    const bonus = def.bonuses[lvl] || 0;
-    return `+${bonus} to treasury maximum`;
-  }
-  if (def.id === 'taxes') {
-    const bonus = def.bonuses[lvl] || 0;
-    return `+${bonus} treasury per second`;
-  }
-  if (def.id === 'stateDiscounts') {
-    const chance = (def.bonuses[lvl] || 0) * 100;
-    return `${chance.toFixed(1)}% chance to buy abilities for 75% cost`;
-  }
-  if (def.id === 'crit') {
-    const mult = def.multipliers[lvl] || 1;
-    return `Critical multiplier x${mult.toFixed(1)}`;
-  }
-  if (def.id === 'critChance') {
-    const base = 3;
-    const extra = (def.bonuses[lvl] || 0) * 100;
-    return `Critical chance ${(base+extra).toFixed(0)}%`;
-  }
-  if (def.id === 'doubleCrit') {
-    const chance = (def.chances[lvl] || 0) * 100;
-    return `Double critical chance ${chance.toFixed(0)}%`;
-  }
-  if (def.id === 'masterBuilder') {
-    const chance = (def.chances[lvl] || 0) * 100;
-    return `${chance.toFixed(1)}% chance for free building level purchase`;
-  }
-  if (def.id === 'highQualification') {
-    const bonus = (def.bonuses[lvl] || 0) * 100;
-    return `Reduce building break chance by ${bonus.toFixed(0)}%`;
-  }
-  if (def.id === 'secondTeam') {
-    const bonus = (def.bonuses[lvl] || 0) / 1000;
-    return `Reduce repair time by ${bonus.toFixed(0)}s`;
-  }
-  return '';
-}
-
-function buildTalentNextText(def, nextLvl) {
-  return buildTalentLevelText(def, nextLvl);
-}
-
-function buildTalentReqText(def) {
-  if (!def.requires || def.requires.length === 0) return '';
-  const r = def.requires[0];
-  const name = TALENT_DEFS[r.id]?.name || '';
-  return `${name} ${r.level}/${TALENT_DEFS[r.id]?.max || r.level}`;
 }
 /* Medieval Pixel Idle - core logic */
 
@@ -331,6 +232,7 @@ function newSave(username) {
       activeEffects: [],
       lazyClickUntil: 0,
       lazyClickCount: 0,
+      goodLuckMode: false, // Debug mode: buildings can't break
     },
     achievements: {
       unlocked: {}, // key: achievementId, value: true when unlocked
@@ -339,15 +241,6 @@ function newSave(username) {
         totalPlayTime: 0, // в миллисекундах
         totalDestructions: 0, // количество разрушений зданий
         firstBuildingBought: false,
-      }
-    },
-    talents: {
-      points: 5,
-      nodes: {
-        income: 0,
-        crit: 0,
-        critChance: 0,
-        doubleCrit: 0,
       }
     },
     lastTick: now()
@@ -378,6 +271,16 @@ function ensureTreasury(saveObj) {
         clickMadnessUntil: 0,
         profitWithoutTaxUntil: 0,
         casinoCd: 0,
+        // Uber mode buffs (3 hours duration)
+        noGoldenUntil: 0, // Buff 1: Click can't become golden
+        alwaysGoldenUntil: 0, // Buff 2: Click always golden, breaks 3x more
+        fastRepairUntil: 0, // Buff 3: Buildings repair 2x faster, break 3x more
+        passiveBoostUntil: 0, // Buff 4: Passive income boost (resets on click)
+        passiveBoostLevel: 0, // Current boost level (0-150%)
+        passiveBoostLastTick: 0, // Last 3-minute tick
+        spiderBuffUntil: 0, // Buff 5: Spider buff, click gives treasury
+        treasuryNoPassiveUntil: 0, // Treasury doesn't fill passively during buff 5
+        noBreakUntil: 0, // Buff 6: Buildings can't break, but cost 2x more
       }
     };
   } else {
@@ -404,8 +307,28 @@ function ensureTreasury(saveObj) {
         clickMadnessUntil: 0,
         profitWithoutTaxUntil: 0,
         casinoCd: 0,
+        // Uber mode buffs (3 hours duration)
+        noGoldenUntil: 0,
+        alwaysGoldenUntil: 0,
+        fastRepairUntil: 0,
+        passiveBoostUntil: 0,
+        passiveBoostLevel: 0,
+        passiveBoostLastTick: 0,
+        spiderBuffUntil: 0,
+        treasuryNoPassiveUntil: 0,
       };
     }
+    // Ensure new uber mode buff fields exist
+    const act = tObj.actions;
+    if (act.noGoldenUntil === undefined) act.noGoldenUntil = 0;
+    if (act.alwaysGoldenUntil === undefined) act.alwaysGoldenUntil = 0;
+    if (act.fastRepairUntil === undefined) act.fastRepairUntil = 0;
+    if (act.passiveBoostUntil === undefined) act.passiveBoostUntil = 0;
+    if (act.passiveBoostLevel === undefined) act.passiveBoostLevel = 0;
+    if (act.passiveBoostLastTick === undefined) act.passiveBoostLastTick = 0;
+    if (act.spiderBuffUntil === undefined) act.spiderBuffUntil = 0;
+    if (act.treasuryNoPassiveUntil === undefined) act.treasuryNoPassiveUntil = 0;
+    if (act.noBreakUntil === undefined) act.noBreakUntil = 0;
   }
   // Modifiers defaults
   if (!saveObj.modifiers) saveObj.modifiers = {};
@@ -414,27 +337,15 @@ function ensureTreasury(saveObj) {
   if (!saveObj.modifiers.activeEffects) saveObj.modifiers.activeEffects = [];
   if (saveObj.modifiers.lazyClickUntil === undefined) saveObj.modifiers.lazyClickUntil = 0;
   if (saveObj.modifiers.lazyClickCount === undefined) saveObj.modifiers.lazyClickCount = 0;
+  if (saveObj.modifiers.goodLuckMode === undefined) saveObj.modifiers.goodLuckMode = false;
+  if (saveObj.modifiers.angryBarmatunMult === undefined) saveObj.modifiers.angryBarmatunMult = 1.0;
+  if (saveObj.modifiers.angryBarmatunUntil === undefined) saveObj.modifiers.angryBarmatunUntil = 0;
+  if (saveObj.modifiers.angryBarmatunIncomeReduction === undefined) saveObj.modifiers.angryBarmatunIncomeReduction = 0;
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
 }
 
-// Talents defaults / migration
-function ensureTalents(saveObj) {
-  if (!saveObj.talents) {
-    saveObj.talents = { points: 5, nodes: {} };
-  }
-  if (saveObj.talents.points === undefined || saveObj.talents.points === null) {
-    saveObj.talents.points = 0;
-  }
-  if (!saveObj.talents.nodes) saveObj.talents.nodes = {};
-  const defaults = { income: 0, treasury: 0, taxes: 0, stateDiscounts: 0, crit: 0, critChance: 0, doubleCrit: 0, masterBuilder: 0, highQualification: 0, secondTeam: 0 };
-  Object.keys(defaults).forEach(k => {
-    if (saveObj.talents.nodes[k] === undefined || saveObj.talents.nodes[k] === null) {
-      saveObj.talents.nodes[k] = defaults[k];
-    }
-  });
-}
 
 const buildingNames = [
   "Hamlet (1)","Cottage (2)","Hut (3)","Lodge (4)","Cabin (5)","Homestead (6)","House (7)","Manor (8)","Villa (9)","Hall (10)",
@@ -590,14 +501,6 @@ const clickSegInfo = document.getElementById('click-seg-info');
 const clickSegBtn = document.getElementById('click-seg-upgrade');
 const clickBuyBtn = document.getElementById('click-buy');
 
-const talentsBtn = document.getElementById('talents-btn');
-const talentsModal = document.getElementById('talents-modal');
-const talentsClose = document.getElementById('talents-close');
-const talentTreeEl = document.getElementById('talent-tree');
-const talentPointsEl = document.getElementById('talent-points');
-const talentsConfirm = document.getElementById('talents-confirm');
-const talentsCancel = document.getElementById('talents-cancel');
-const talentsResetAll = document.getElementById('talents-reset-all');
 
 // Casino modal elements
 const casinoModal = document.getElementById('casino-modal');
@@ -623,12 +526,12 @@ const uberIncomeEl = document.getElementById('uber-income');
 const uberCostEl = document.getElementById('uber-cost');
 
 const spiderEl = document.getElementById('spider');
+const angryBarmatunEl = document.getElementById('angry-barmatun');
 
 const logoutBtn = document.getElementById('logout-btn');
 const statsBtn = document.getElementById('stats-btn');
 
 ensureTreasury(save || {});
-ensureTalents(save || {});
 const statsModal = document.getElementById('stats-modal');
 const statsBody = document.getElementById('stats-body');
 const statsClose = document.getElementById('stats-close');
@@ -687,13 +590,17 @@ function clickIncomeAt(level, upgradesCount) {
   const basePpc = save.ppcBase;
   const upgradeMult = Math.pow(1.13, upgradesCount || 0);
   // Smooth per-level ppc growth (gentle)
-  return basePpc * Math.pow(1.03, level) * upgradeMult;
+  return basePpc * Math.pow(1.05, level) * upgradeMult;
 }
 
 // Building cost/income per level
 function buildingLevelCostAt(b, level) {
   // baseCost scales gently with level
-  return b.baseCost * Math.pow(1.06, level);
+  const baseCost = b.baseCost * Math.pow(1.06, level);
+  // Buff 6: Buildings can't break, but cost 2x more
+  const act = save.treasury?.actions;
+  const noBreakActive = act && act.noBreakUntil > now();
+  return noBreakActive ? baseCost * 2 : baseCost;
 }
 function buildingIncomeAt(b, level, upgradesCount) {
   const upgradeMult = Math.pow(1.13, upgradesCount || 0);
@@ -702,12 +609,43 @@ function buildingIncomeAt(b, level, upgradesCount) {
 
 // Uber building
 function uberCostAt(level) {
-  // make it hefty
-  const base = 3712345678901234567890.0999;
+  // Cost should be proportional to income
+  // For regular buildings: baseCost/baseIncome ≈ 100 (1.2345/0.0123)
+  // For uber building, use income at level 1 and apply similar ratio
+  // But make it more reasonable - use cost proportional to income with a multiplier
+  const incomeAtLevel1 = uberIncomeAt(1);
+  // Use a cost-to-income ratio similar to regular buildings, but adjusted for uber
+  // Regular building ratio is ~100, but for uber we'll use a higher multiplier
+  const costToIncomeRatio = 200; // More expensive than regular, but not excessive
+  const base = incomeAtLevel1 * costToIncomeRatio;
+  
   return base * Math.pow(1.35, level);
 }
 function uberIncomeAt(level) {
-  const baseInc = 432109876543210.3333;
+  // Calculate total income of all buildings at level 1000 with 100 upgrades (13% each 10 levels)
+  // Each building i: baseIncome_i = 0.0123 * 1.06^i
+  // At level 1000 with 100 upgrades: income_i = baseIncome_i * 1.045^1000 * 1.13^100
+  // Total = sum of all 50 buildings
+  const baseIncome = 0.0123;
+  const incomeStep = 1.06;
+  const levelMult = Math.pow(1.045, 1000);
+  const upgradeMult = Math.pow(1.13, 100); // 100 upgrades (1000/10 = 100 segments)
+  
+  // Calculate sum of geometric series: sum(i=0 to 49) of 1.06^i
+  const numBuildings = 50;
+  let sumBaseIncomes = 0;
+  for (let i = 0; i < numBuildings; i++) {
+    sumBaseIncomes += baseIncome * Math.pow(incomeStep, i);
+  }
+  
+  // Total income at level 1000
+  const totalAt1000 = sumBaseIncomes * levelMult * upgradeMult;
+  
+  // Uber building at level 1 should produce this total
+  // uberIncomeAt(1) = baseInc * 1.22^1 = totalAt1000
+  // Therefore: baseInc = totalAt1000 / 1.22
+  const baseInc = totalAt1000 / 1.22;
+  
   return baseInc * Math.pow(1.22, level);
 }
 
@@ -912,177 +850,6 @@ function migrateAchievements() {
 }
 
 // ======= Game state helpers =======
-// ======= Talents =======
-const TALENT_DEFS = {
-  income: {
-    id: 'income',
-    name: 'Income',
-    max: 3,
-    levels: ['+1% to all income', '+2% to all income', '+3% to all income'],
-    requires: []
-  },
-  treasury: {
-    id: 'treasury',
-    name: 'Treasury',
-    max: 5,
-    requires: [{ id: 'income', level: 3 }],
-    bonuses: [0, 100, 200, 300, 400, 500] // +100 per level to max treasury
-  },
-  taxes: {
-    id: 'taxes',
-    name: 'Taxes',
-    max: 3,
-    requires: [{ id: 'treasury', level: 5 }],
-    bonuses: [0, 1, 2, 3] // +1 per level to treasury regen per second
-  },
-  stateDiscounts: {
-    id: 'stateDiscounts',
-    name: 'State Discounts',
-    max: 3,
-    requires: [{ id: 'taxes', level: 3 }],
-    bonuses: [0, 0.005, 0.01, 0.015] // +0.5% per level chance to buy ability for 75% cost
-  },
-  crit: {
-    id: 'crit',
-    name: 'Critical Strike',
-    max: 5,
-    requires: [{ id: 'income', level: 3 }],
-    multipliers: [0, 1.5, 1.7, 1.9, 2.1, 2.3]
-  },
-  critChance: {
-    id: 'critChance',
-    name: 'Critical Chance',
-    max: 3,
-    requires: [{ id: 'crit', level: 5 }],
-    bonuses: [0, 0.01, 0.02, 0.03] // +to base 3%
-  },
-  doubleCrit: {
-    id: 'doubleCrit',
-    name: 'Double Critical',
-    max: 3,
-    requires: [{ id: 'crit', level: 5 }],
-    chances: [0, 0.03, 0.05, 0.07]
-  },
-  masterBuilder: {
-    id: 'masterBuilder',
-    name: 'Master Builder',
-    max: 5,
-    requires: [{ id: 'income', level: 3 }],
-    chances: [0, 0.011, 0.012, 0.013, 0.014, 0.015] // chance to get +1 extra level per level bought
-  },
-  highQualification: {
-    id: 'highQualification',
-    name: 'High Qualification',
-    max: 4,
-    requires: [{ id: 'masterBuilder', level: 5 }],
-    bonuses: [0, 0.05, 0.10, 0.15, 0.20] // reduce break chance by X% of current chance
-  },
-  secondTeam: {
-    id: 'secondTeam',
-    name: 'Second Team',
-    max: 5,
-    requires: [{ id: 'masterBuilder', level: 5 }],
-    bonuses: [0, 3000, 6000, 9000, 12000, 15000] // reduce repair time by X milliseconds
-  }
-};
-
-let _pendingTalents = null; // session-local pending upgrades
-let _talentZoom = 1.0;
-let _talentPanX = 0;
-let _talentPanY = 0;
-
-function talentLevel(id) {
-  return save?.talents?.nodes?.[id] || 0;
-}
-
-function talentPoints() {
-  return save?.talents?.points || 0;
-}
-
-function _talentPendingNodes() {
-  return _pendingTalents?.nodes || null;
-}
-
-function talentLevelUI(id) {
-  const nodes = _talentPendingNodes() || (save?.talents?.nodes || {});
-  return nodes[id] || 0;
-}
-
-function talentEarnedPoints() {
-  // 1 очко за каждую 1000 уровней всех зданий
-  const earned = Math.floor(totalOpenedBuildingLevels() / 1000);
-  return Math.max(0, earned);
-}
-
-function talentSpent(nodes) {
-  if (!nodes) return 0;
-  return Object.values(nodes).reduce((a,b)=>a+(b||0),0);
-}
-
-function talentAvailablePoints() {
-  const nodes = _talentPendingNodes() || (save?.talents?.nodes || {});
-  const earned = talentEarnedPoints();
-  const spent = talentSpent(nodes);
-  const available = earned - spent;
-  return Math.max(0, available);
-}
-
-function talentRequirementMet(node) {
-  if (!node.requires || node.requires.length === 0) return true;
-  const nodes = _talentPendingNodes() || (save?.talents?.nodes || {});
-  return node.requires.every(req => (nodes[req.id] || 0) >= req.level);
-}
-
-function talentGlobalIncomeMult() {
-  const lvl = talentLevelUI('income');
-  const table = [0, 0.01, 0.03, 0.06];
-  return 1 + (table[lvl] || 0);
-}
-
-function talentTreasuryMaxBonus() {
-  const lvl = talentLevelUI('treasury');
-  return TALENT_DEFS.treasury.bonuses[lvl] || 0;
-}
-
-function talentTreasuryRegenBonus() {
-  const lvl = talentLevelUI('taxes');
-  return TALENT_DEFS.taxes.bonuses[lvl] || 0;
-}
-
-function talentStateDiscountChance() {
-  const lvl = talentLevelUI('stateDiscounts');
-  return TALENT_DEFS.stateDiscounts.bonuses[lvl] || 0;
-}
-
-function talentCritData() {
-  const critLvl = talentLevelUI('crit');
-  if (critLvl <= 0) return { chance: 0, multiplier: 1, doubleChance: 0 };
-  const baseChance = 0.03;
-  const extraChance = (TALENT_DEFS.critChance.bonuses[talentLevelUI('critChance')] || 0);
-  const chance = baseChance + extraChance;
-  const multiplier = TALENT_DEFS.crit.multipliers[critLvl] || 1;
-  const doubleChance = TALENT_DEFS.doubleCrit.chances[talentLevelUI('doubleCrit')] || 0;
-  return { chance, multiplier, doubleChance };
-}
-
-function talentExpectedClickCritMultiplier() {
-  const { chance, multiplier, doubleChance } = talentCritData();
-  if (chance <= 0) return 1;
-  return 1 + chance * (multiplier - 1) + (chance * doubleChance) * (multiplier - 1);
-}
-
-function rollTalentCrit() {
-  const data = talentCritData();
-  if (data.chance <= 0) return { rolled: false, multiplier: 1 };
-  if (randChance(data.chance)) {
-    let mult = data.multiplier;
-    if (data.doubleChance > 0 && randChance(data.doubleChance)) {
-      mult *= data.multiplier;
-    }
-    return { rolled: true, multiplier: mult };
-  }
-  return { rolled: false, multiplier: 1 };
-}
 
 function totalPPC() {
   let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
@@ -1099,8 +866,15 @@ function totalPPC() {
   const achievementMult = getAchievementBonus();
   // Streak multiplier
   const streakMult = save.streak ? save.streak.multiplier : 1.0;
-  const talentMult = talentGlobalIncomeMult();
-  return ppc * goldenMult * spiderMult * achievementMult * streakMult * talentMult;
+  // Buff 1: No Golden Click - 50% less income
+  const act = save.treasury?.actions;
+  const noGoldenMult = (act && act.noGoldenUntil > now()) ? 0.5 : 1.0;
+  // Angry Barmatun: Random click multiplier (x0.1 to x100)
+  const angryBarmatunActive = save.modifiers.angryBarmatunUntil > now();
+  const angryBarmatunMult = angryBarmatunActive ? save.modifiers.angryBarmatunMult : 1.0;
+  // Angry Barmatun: Income reduction (50% less)
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  return ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunMult * angryBarmatunIncomeReduction;
 }
 
 function totalPPS() {
@@ -1120,8 +894,12 @@ function totalPPS() {
   // Achievement bonus
   const achievementMult = getAchievementBonus();
   const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0; // x101
-  const talentMult = talentGlobalIncomeMult();
-  return pps * spiderMult * achievementMult * taxMult * talentMult;
+  // Buff 4: Passive income boost
+  const act = save.treasury?.actions;
+  const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+  // Angry Barmatun: Income reduction (50% less)
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  return pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
 }
 
 function canBuyNextBuilding(i) {
@@ -1147,14 +925,6 @@ function totalOpenedBuildingLevels() {
   return save.buildings.reduce((acc,b)=> acc + (b.level > 0 ? b.level : 0), 0);
 }
 
-// Учёт очков талантов при изменении зданий
-function _recalcTalentPointsCap() {
-  if (!save || !save.talents) return;
-  const earned = talentEarnedPoints();
-  const spent = talentSpent(save.talents.nodes);
-  const available = Math.max(0, earned - spent);
-  save.talents.points = available;
-}
 
 function allBuildingsAtLeastLevel10() {
   if (!save || !save.buildings || save.buildings.length !== 50) return false;
@@ -1169,23 +939,15 @@ function spendPoints(amount) {
 
 function spendTreasury(amount) {
   if (!save.treasury) return false;
-  // Apply State Discounts talent
-  const discountChance = talentStateDiscountChance();
-  let finalAmount = amount;
-  if (discountChance > 0 && randChance(discountChance)) {
-    finalAmount = amount * 0.75; // 75% cost
-  }
-  if (save.treasury.value < finalAmount) return false;
-  save.treasury.value -= finalAmount;
+  if (save.treasury.value < amount) return false;
+  save.treasury.value -= amount;
   return true;
 }
 
 function gainTreasury(delta) {
   if (!save.treasury) return;
   const baseMax = save.treasury.max || 1000;
-  const talentMaxBonus = talentTreasuryMaxBonus();
-  const actualMax = baseMax + talentMaxBonus;
-  save.treasury.value = clamp(save.treasury.value + delta, 0, actualMax);
+  save.treasury.value = clamp(save.treasury.value + delta, 0, baseMax);
 }
 
 // Вычисляет максимальное количество уровней, которое можно добавить до следующего апгрейда
@@ -1234,407 +996,22 @@ function renderTopStats() {
   if (pointsEl) pointsEl.textContent = fmt(save.points);
   if (ppsEl) ppsEl.textContent = fmt(totalPPS());
   if (ppcEl) {
-    const displayPpc = totalPPC() * talentExpectedClickCritMultiplier();
-    ppcEl.textContent = fmt(displayPpc);
+    ppcEl.textContent = fmt(totalPPC());
   }
 
   // Treasury UI
   if (save.treasury && treasuryValueEl && treasuryFillEl && treasuryRegenEl) {
     const { value } = save.treasury;
     const baseMax = save.treasury.max || 1000;
-    const talentMaxBonus = talentTreasuryMaxBonus();
-    const actualMax = baseMax + talentMaxBonus;
     const baseRegen = save.treasury.regenPerSec || 1;
-    const talentRegenBonus = talentTreasuryRegenBonus();
-    const actualRegen = baseRegen + talentRegenBonus;
-    treasuryValueEl.textContent = `${fmt(value)} / ${fmt(actualMax)}`;
-    treasuryRegenEl.textContent = `+${actualRegen.toFixed(0)} /s`;
-    const pct = Math.max(0, Math.min(100, (value / actualMax) * 100));
+    treasuryValueEl.textContent = `${fmt(value)} / ${fmt(baseMax)}`;
+    treasuryRegenEl.textContent = `+${baseRegen.toFixed(0)} /s`;
+    const pct = Math.max(0, Math.min(100, (value / baseMax) * 100));
     treasuryFillEl.style.width = `${pct}%`;
   }
 }
 
-function createTalentNode(def, x, y) {
-  const node = document.createElement('div');
-  node.className = 'talent-node';
-  node.dataset.talentId = def.id;
-  node.style.left = `${x}px`;
-  node.style.top = `${y}px`;
-  
-  const lvl = talentLevelUI(def.id);
-  const maxed = lvl >= def.max;
-  const prereqMet = talentRequirementMet(def);
-  const canUpgrade = !maxed && prereqMet && talentAvailablePoints() > 0;
-  
-  // Color coding
-  if (def.id === 'income' || def.id === 'treasury' || def.id === 'taxes' || def.id === 'stateDiscounts') {
-    node.classList.add('talent-gold');
-  } else if (def.id === 'crit' || def.id === 'critChance' || def.id === 'doubleCrit') {
-    node.classList.add('talent-green');
-  } else if (def.id === 'masterBuilder' || def.id === 'highQualification' || def.id === 'secondTeam') {
-    node.classList.add('talent-red');
-  }
-  
-  // State classes
-  if (lvl > 0) node.classList.add('talent-active');
-  if (maxed) node.classList.add('talent-maxed');
-  if (!prereqMet) node.classList.add('talent-locked');
-  if (!canUpgrade && !maxed) node.classList.add('talent-disabled');
-  
-  // Level indicator
-  if (lvl > 0) {
-    const levelBadge = document.createElement('div');
-    levelBadge.className = 'talent-level-badge';
-    levelBadge.textContent = lvl;
-    node.appendChild(levelBadge);
-  }
-  
-  // Click handler
-  if (canUpgrade) {
-    node.style.cursor = 'pointer';
-    node.addEventListener('click', (e) => {
-      e.stopPropagation();
-      upgradeTalent(def.id);
-    });
-  }
-  
-  // Tooltip handlers
-  node.addEventListener('mouseenter', (e) => {
-    e.stopPropagation();
-    showTalentTooltip(e, def, lvl);
-  });
-  node.addEventListener('mousemove', (e) => {
-    e.stopPropagation();
-    moveTalentTooltip(e);
-  });
-  node.addEventListener('mouseleave', (e) => {
-    e.stopPropagation();
-    hideTalentTooltip();
-  });
-  
-  return node;
-}
-
-function renderTalents() {
-  if (!talentTreeEl || !save) return;
-  if (talentPointsEl) talentPointsEl.textContent = talentAvailablePoints();
-  talentTreeEl.innerHTML = '';
-  if (talentsConfirm) {
-    const changed = _pendingTalents && JSON.stringify(_pendingTalents.nodes) !== JSON.stringify(save.talents.nodes);
-    talentsConfirm.disabled = !changed;
-  }
-
-  // Create container for zoom/pan
-  const container = document.createElement('div');
-  container.className = 'talent-tree-container';
-  container.style.transform = `translate(${_talentPanX}px, ${_talentPanY}px) scale(${_talentZoom})`;
-  container.style.transformOrigin = 'center center';
-  container.style.position = 'absolute';
-  container.style.width = '100%';
-  container.style.height = '100%';
-  talentTreeEl.appendChild(container);
-
-  // Create SVG for lines
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.className = 'talent-lines';
-  svg.setAttribute('width', '100%');
-  svg.setAttribute('height', '100%');
-  svg.style.position = 'absolute';
-  svg.style.top = '0';
-  svg.style.left = '0';
-  svg.style.pointerEvents = 'none';
-  svg.style.zIndex = '1';
-  container.appendChild(svg);
-
-  // Node positions (centered layout, larger canvas)
-  const centerX = 600;
-  const centerY = 400;
-  const nodeRadius = 22.5; // Half of 45px
-  const spacing = 180;
-  
-  // Income (bottom center)
-  const incomeX = centerX;
-  const incomeY = centerY + spacing;
-  
-  // Treasury (right of Income)
-  const treasuryX = centerX + spacing;
-  const treasuryY = centerY + spacing;
-  
-  // Taxes (right of Treasury)
-  const taxesX = centerX + spacing * 2;
-  const taxesY = centerY + spacing;
-  
-  // State Discounts (right of Taxes)
-  const stateDiscountsX = centerX + spacing * 3;
-  const stateDiscountsY = centerY + spacing;
-  
-  // Master Builder (down from Income - MIRRORED from Crit position)
-  const masterBuilderX = centerX;
-  const masterBuilderY = centerY + spacing * 2;
-  
-  // High Qualification (down left from Master Builder - MIRRORED from Crit Chance)
-  const highQualificationX = centerX - spacing;
-  const highQualificationY = centerY + spacing * 3;
-  
-  // Second Team (down right from Master Builder - MIRRORED from Double Crit)
-  const secondTeamX = centerX + spacing;
-  const secondTeamY = centerY + spacing * 3;
-  
-  // Crit (middle center)
-  const critX = centerX;
-  const critY = centerY;
-  
-  // Crit Chance (top left)
-  const critChanceX = centerX - spacing;
-  const critChanceY = centerY - spacing;
-  
-  // Double Crit (top right)
-  const doubleCritX = centerX + spacing;
-  const doubleCritY = centerY - spacing;
-  
-  // Draw lines
-  const lineStyle = 'stroke:#888888;stroke-width:2;fill:none';
-  const activeLineStyle = 'stroke:#d4b24a;stroke-width:3;fill:none';
-  
-  // Income to Master Builder - EXACTLY MIRRORED from Income to Crit (vertical down)
-  const incomeLvlForBuilder = talentLevelUI('income');
-  const lineMasterBuilder = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  lineMasterBuilder.setAttribute('x1', incomeX);
-  lineMasterBuilder.setAttribute('y1', incomeY + nodeRadius);
-  lineMasterBuilder.setAttribute('x2', masterBuilderX);
-  lineMasterBuilder.setAttribute('y2', masterBuilderY - nodeRadius);
-  lineMasterBuilder.setAttribute('style', incomeLvlForBuilder >= 3 ? activeLineStyle : lineStyle);
-  svg.appendChild(lineMasterBuilder);
-  
-  // Master Builder to High Qualification - EXACTLY like Crit to Crit Chance, but mirrored down
-  const masterBuilderLvl = talentLevelUI('masterBuilder');
-  const line4 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line4.setAttribute('x1', masterBuilderX - nodeRadius);
-  line4.setAttribute('y1', masterBuilderY - nodeRadius);
-  line4.setAttribute('x2', highQualificationX + nodeRadius);
-  line4.setAttribute('y2', highQualificationY + nodeRadius);
-  line4.setAttribute('style', masterBuilderLvl >= 5 ? activeLineStyle : lineStyle);
-  svg.appendChild(line4);
-  
-  // Master Builder to Second Team - EXACTLY like Crit to Double Crit, but mirrored down
-  const line5 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line5.setAttribute('x1', masterBuilderX + nodeRadius);
-  line5.setAttribute('y1', masterBuilderY - nodeRadius);
-  line5.setAttribute('x2', secondTeamX - nodeRadius);
-  line5.setAttribute('y2', secondTeamY + nodeRadius);
-  line5.setAttribute('style', masterBuilderLvl >= 5 ? activeLineStyle : lineStyle);
-  svg.appendChild(line5);
-  
-  // Income to Crit
-  const incomeLvl = talentLevelUI('income');
-  const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line1.setAttribute('x1', incomeX);
-  line1.setAttribute('y1', incomeY - nodeRadius);
-  line1.setAttribute('x2', critX);
-  line1.setAttribute('y2', critY + nodeRadius);
-  line1.setAttribute('style', incomeLvl >= 3 ? activeLineStyle : lineStyle);
-  svg.appendChild(line1);
-  
-  // Income to Treasury
-  const lineTreasury = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  lineTreasury.setAttribute('x1', incomeX + nodeRadius);
-  lineTreasury.setAttribute('y1', incomeY);
-  lineTreasury.setAttribute('x2', treasuryX - nodeRadius);
-  lineTreasury.setAttribute('y2', treasuryY);
-  lineTreasury.setAttribute('style', incomeLvl >= 3 ? activeLineStyle : lineStyle);
-  svg.appendChild(lineTreasury);
-  
-  // Treasury to Taxes
-  const treasuryLvl = talentLevelUI('treasury');
-  const lineTaxes = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  lineTaxes.setAttribute('x1', treasuryX + nodeRadius);
-  lineTaxes.setAttribute('y1', treasuryY);
-  lineTaxes.setAttribute('x2', taxesX - nodeRadius);
-  lineTaxes.setAttribute('y2', taxesY);
-  lineTaxes.setAttribute('style', treasuryLvl >= 5 ? activeLineStyle : lineStyle);
-  svg.appendChild(lineTaxes);
-  
-  // Taxes to State Discounts
-  const taxesLvl = talentLevelUI('taxes');
-  const lineDiscounts = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  lineDiscounts.setAttribute('x1', taxesX + nodeRadius);
-  lineDiscounts.setAttribute('y1', taxesY);
-  lineDiscounts.setAttribute('x2', stateDiscountsX - nodeRadius);
-  lineDiscounts.setAttribute('y2', stateDiscountsY);
-  lineDiscounts.setAttribute('style', taxesLvl >= 3 ? activeLineStyle : lineStyle);
-  svg.appendChild(lineDiscounts);
-  
-  // Crit to Crit Chance
-  const critLvl = talentLevelUI('crit');
-  const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line2.setAttribute('x1', critX - nodeRadius);
-  line2.setAttribute('y1', critY - nodeRadius);
-  line2.setAttribute('x2', critChanceX + nodeRadius);
-  line2.setAttribute('y2', critChanceY + nodeRadius);
-  line2.setAttribute('style', critLvl >= 5 ? activeLineStyle : lineStyle);
-  svg.appendChild(line2);
-  
-  // Crit to Double Crit
-  const line3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line3.setAttribute('x1', critX + nodeRadius);
-  line3.setAttribute('y1', critY - nodeRadius);
-  line3.setAttribute('x2', doubleCritX - nodeRadius);
-  line3.setAttribute('y2', doubleCritY + nodeRadius);
-  line3.setAttribute('style', critLvl >= 5 ? activeLineStyle : lineStyle);
-  svg.appendChild(line3);
-  
-  // Create nodes
-  const incomeNode = createTalentNode(TALENT_DEFS.income, incomeX - nodeRadius, incomeY - nodeRadius);
-  const masterBuilderNode = createTalentNode(TALENT_DEFS.masterBuilder, masterBuilderX - nodeRadius, masterBuilderY - nodeRadius);
-  const highQualificationNode = createTalentNode(TALENT_DEFS.highQualification, highQualificationX - nodeRadius, highQualificationY - nodeRadius);
-  const secondTeamNode = createTalentNode(TALENT_DEFS.secondTeam, secondTeamX - nodeRadius, secondTeamY - nodeRadius);
-  const treasuryNode = createTalentNode(TALENT_DEFS.treasury, treasuryX - nodeRadius, treasuryY - nodeRadius);
-  const taxesNode = createTalentNode(TALENT_DEFS.taxes, taxesX - nodeRadius, taxesY - nodeRadius);
-  const stateDiscountsNode = createTalentNode(TALENT_DEFS.stateDiscounts, stateDiscountsX - nodeRadius, stateDiscountsY - nodeRadius);
-  const critNode = createTalentNode(TALENT_DEFS.crit, critX - nodeRadius, critY - nodeRadius);
-  const critChanceNode = createTalentNode(TALENT_DEFS.critChance, critChanceX - nodeRadius, critChanceY - nodeRadius);
-  const doubleCritNode = createTalentNode(TALENT_DEFS.doubleCrit, doubleCritX - nodeRadius, doubleCritY - nodeRadius);
-  
-  container.appendChild(incomeNode);
-  container.appendChild(masterBuilderNode);
-  container.appendChild(highQualificationNode);
-  container.appendChild(secondTeamNode);
-  container.appendChild(treasuryNode);
-  container.appendChild(taxesNode);
-  container.appendChild(stateDiscountsNode);
-  container.appendChild(critNode);
-  container.appendChild(critChanceNode);
-  container.appendChild(doubleCritNode);
-}
-
-function openTalents() {
-  if (!talentsModal) return;
-  _pendingTalents = { nodes: { ...save.talents.nodes } };
-  _talentZoom = 1.0;
-  _talentPanX = 0;
-  _talentPanY = 0;
-  talentsModal.setAttribute('aria-hidden', 'false');
-  renderTalents();
-  
-  // Setup zoom on wheel
-  const treeEl = document.getElementById('talent-tree');
-  if (treeEl) {
-    const wheelHandler = (e) => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      _talentZoom = Math.max(0.5, Math.min(2.0, _talentZoom * delta));
-      renderTalents();
-    };
-    
-    // Remove old handler if exists
-    treeEl.removeEventListener('wheel', treeEl._wheelHandler);
-    treeEl._wheelHandler = wheelHandler;
-    treeEl.addEventListener('wheel', wheelHandler, { passive: false });
-    
-    // Pan on drag
-    let isDragging = false;
-    let startX = 0;
-    let startY = 0;
-    
-    const mouseDownHandler = (e) => {
-      if (e.button === 0 && !e.target.closest('.talent-node')) {
-        isDragging = true;
-        startX = e.clientX - _talentPanX;
-        startY = e.clientY - _talentPanY;
-        treeEl.style.cursor = 'grabbing';
-      }
-    };
-    
-    const mouseMoveHandler = (e) => {
-      if (isDragging) {
-        _talentPanX = e.clientX - startX;
-        _talentPanY = e.clientY - startY;
-        renderTalents();
-      }
-    };
-    
-    const mouseUpHandler = () => {
-      isDragging = false;
-      treeEl.style.cursor = '';
-    };
-    
-    treeEl.removeEventListener('mousedown', treeEl._mouseDownHandler);
-    treeEl.removeEventListener('mousemove', treeEl._mouseMoveHandler);
-    treeEl.removeEventListener('mouseup', treeEl._mouseUpHandler);
-    treeEl.removeEventListener('mouseleave', treeEl._mouseUpHandler);
-    
-    treeEl._mouseDownHandler = mouseDownHandler;
-    treeEl._mouseMoveHandler = mouseMoveHandler;
-    treeEl._mouseUpHandler = mouseUpHandler;
-    
-    treeEl.addEventListener('mousedown', mouseDownHandler);
-    treeEl.addEventListener('mousemove', mouseMoveHandler);
-    treeEl.addEventListener('mouseup', mouseUpHandler);
-    treeEl.addEventListener('mouseleave', mouseUpHandler);
-  }
-}
-
-function closeTalents() {
-  if (!talentsModal) return;
-  talentsModal.setAttribute('aria-hidden', 'true');
-  _pendingTalents = null;
-}
-
-function upgradeTalent(id) {
-  if (!save) return;
-  const def = TALENT_DEFS[id];
-  if (!def) return;
-  if (!_pendingTalents) _pendingTalents = { nodes: { ...save.talents.nodes } };
-  const nodes = _pendingTalents.nodes;
-  const lvl = nodes[id] || 0;
-  if (lvl >= def.max) { toast('Talent is already at maximum level.', 'warn'); return; }
-  if (!talentRequirementMet(def)) { toast('Requires previous talent to be fully upgraded.', 'warn'); return; }
-  if (talentAvailablePoints() <= 0) { toast('Not enough talent points.', 'warn'); return; }
-  nodes[id] = lvl + 1;
-  renderTalents();
-  if (talentsConfirm) talentsConfirm.disabled = false;
-}
-
-function confirmTalents() {
-  if (!_pendingTalents) { closeTalents(); return; }
-  save.talents.nodes = { ..._pendingTalents.nodes };
-  _recalcTalentPointsCap();
-  _pendingTalents = null;
-  renderTalents();
-  renderTopStats();
-  renderClick();
-  toast('Talents applied.', 'good');
-  closeTalents();
-}
-
-function resetTalents() {
-  if (!_pendingTalents) return;
-  _pendingTalents.nodes = { ...save.talents.nodes };
-  renderTalents();
-  toast('Talent selections reset.', 'info');
-}
-
-function resetAllTalents() {
-  if (!save || !save.talents) return;
-  if (!confirm('Are you sure you want to reset ALL talents? This cannot be undone.')) return;
-  
-  // Reset all talent nodes to 0
-  const defaults = { income: 0, treasury: 0, taxes: 0, stateDiscounts: 0, crit: 0, critChance: 0, doubleCrit: 0, masterBuilder: 0, highQualification: 0, secondTeam: 0 };
-  save.talents.nodes = { ...defaults };
-  
-  // Reset pending talents
-  if (_pendingTalents) {
-    _pendingTalents.nodes = { ...defaults };
-  }
-  
-  // Recalculate talent points
-  _recalcTalentPointsCap();
-  
-  renderTalents();
-  renderTopStats();
-  renderClick();
-  toast('All talents have been reset.', 'good');
-}
+// Talent functions removed
 
 // ======= Treasury actions =======
 let _lazyClickInterval = null;
@@ -2023,6 +1400,7 @@ function renderTreasuryActions() {
     el.className = 'btn treasury-action-btn';
     const icon = icons[btn.id] || '?';
     el.setAttribute('data-icon', icon);
+    el.setAttribute('data-btn-id', btn.id); // Сохраняем ID для обновления
     el.disabled = !btn.enabled;
     
     // Tooltip в стиле PoE
@@ -2462,6 +1840,7 @@ function renderTreasuryActions() {
     if (btn.buffUntil && btn.buffUntil > nowTs) {
       const timerEl = document.createElement('div');
       timerEl.className = 'buff-timer';
+      timerEl.setAttribute('data-buff-until', btn.buffUntil); // Сохраняем время окончания
       const updateTimer = () => {
         const remaining = Math.ceil((btn.buffUntil - now())/1000);
         if (remaining > 0) {
@@ -2501,13 +1880,687 @@ function renderTreasuryActions() {
     treasuryActionsEl.appendChild(el);
   });
   
+  // Second row for Uber mode buffs (3 hours duration, cost treasury coins)
+  const isInUberMode = save.uber && save.uber.max !== 19;
+  if (isInUberMode) {
+    const secondRowButtons = [];
+    const hourMs = 10800000; // 3 hours
+    
+    // Check if any buff is currently active - if so, disable all buttons
+    const anyBuffActive = (act.noGoldenUntil > nowTs) || 
+                          (act.alwaysGoldenUntil > nowTs) || 
+                          (act.fastRepairUntil > nowTs) || 
+                          (act.passiveBoostUntil > nowTs) || 
+                          (act.spiderBuffUntil > nowTs) ||
+                          (act.noBreakUntil > nowTs);
+    
+    // Buff 1: Click can't become golden, can't break, -50% income
+    {
+      const active = act.noGoldenUntil > nowTs;
+      const desc = {
+        header: 'NO GOLDEN CLICK',
+        effect: 'Click button cannot become golden or break.',
+        warning: 'Click button brings 50% less income.',
+        cost: 1000,
+        duration: 10800
+      };
+      secondRowButtons.push({
+        id: 'noGolden',
+        label: 'No Golden',
+        desc,
+        enabled: !anyBuffActive && save.treasury.value >= 1000,
+        onClick: () => {
+          if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
+          if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+          act.noGoldenUntil = now() + hourMs;
+          toast('No Golden Click activated for 3 hours.', 'good');
+          renderTreasuryActions();
+        },
+        buffUntil: act.noGoldenUntil
+      });
+    }
+    
+    // Buff 2: Click always golden, breaks 3x more often
+    {
+      const active = act.alwaysGoldenUntil > nowTs;
+      const desc = {
+        header: 'ALWAYS GOLDEN',
+        effect: 'Click button is always golden.',
+        warning: 'Click button breaks 3 times more often.',
+        cost: 1000,
+        duration: 10800
+      };
+      secondRowButtons.push({
+        id: 'alwaysGolden',
+        label: 'Always Golden',
+        desc,
+        enabled: !anyBuffActive && save.treasury.value >= 1000,
+        onClick: () => {
+          if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
+          if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+          act.alwaysGoldenUntil = now() + hourMs;
+          save.click.goldenUntil = now() + hourMs; // Set golden immediately
+          toast('Always Golden Click activated for 3 hours.', 'good');
+          renderTreasuryActions();
+        },
+        buffUntil: act.alwaysGoldenUntil
+      });
+    }
+    
+    // Buff 3: Buildings repair 2x faster, break 3x more often
+    {
+      const active = act.fastRepairUntil > nowTs;
+      const desc = {
+        header: 'FAST REPAIR',
+        effect: 'Buildings repair 2 times faster.',
+        warning: 'Buildings break 3 times more often.',
+        cost: 1000,
+        duration: 10800
+      };
+      secondRowButtons.push({
+        id: 'fastRepair',
+        label: 'Fast Repair',
+        desc,
+        enabled: !anyBuffActive && save.treasury.value >= 1000,
+        onClick: () => {
+          if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
+          if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+          act.fastRepairUntil = now() + hourMs;
+          // Уменьшаем время восстановления для уже сломанных зданий в 2 раза
+          const nowTs = now();
+          save.buildings.forEach(b => {
+            if (b.blockedUntil > nowTs) {
+              const remaining = b.blockedUntil - nowTs;
+              b.blockedUntil = nowTs + (remaining * 0.5); // Уменьшаем оставшееся время в 2 раза
+            }
+          });
+          toast('Fast Repair activated for 3 hours.', 'good');
+          renderTreasuryActions();
+        },
+        buffUntil: act.fastRepairUntil
+      });
+    }
+    
+    // Buff 4: Passive income boost (5% every 3 min, up to 150%, resets on click)
+    {
+      const active = act.passiveBoostUntil > nowTs;
+      const currentBoost = Math.min(act.passiveBoostLevel || 0, 150);
+      const desc = {
+        header: 'PASSIVE BOOST',
+        effect: `Passive income increases by 5% every 3 minutes (current: +${currentBoost}%).`,
+        warning: 'Clicking the click button resets this bonus.',
+        cost: 1000,
+        duration: 10800
+      };
+      secondRowButtons.push({
+        id: 'passiveBoost',
+        label: 'Passive Boost',
+        desc,
+        enabled: !anyBuffActive && save.treasury.value >= 1000,
+        onClick: () => {
+          if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
+          if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+          act.passiveBoostUntil = now() + hourMs;
+          act.passiveBoostLevel = 0;
+          act.passiveBoostLastTick = now();
+          toast('Passive Boost activated for 3 hours.', 'good');
+          renderTreasuryActions();
+        },
+        buffUntil: act.passiveBoostUntil
+      });
+    }
+    
+    // Buff 6: Buildings can't break, but cost 2x more (including upgrades)
+    {
+      const active = act.noBreakUntil > nowTs;
+      const desc = {
+        header: 'MASTER BUILDER',
+        effect: 'Buildings cannot break.',
+        warning: 'Buildings and upgrades cost 2 times more.',
+        cost: 1000,
+        duration: 10800
+      };
+      secondRowButtons.push({
+        id: 'noBreak',
+        label: 'Master Builder',
+        desc,
+        enabled: !anyBuffActive && save.treasury.value >= 1000,
+        onClick: () => {
+          if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
+          if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+          act.noBreakUntil = now() + hourMs;
+          toast('Master Builder activated for 3 hours.', 'good');
+          renderTreasuryActions();
+        },
+        buffUntil: act.noBreakUntil
+      });
+    }
+    
+    // Buff 5: Spider buff + click gives treasury
+    {
+      const active = act.spiderBuffUntil > nowTs;
+      const desc = {
+        header: 'SPIDER BUFF',
+        effect: 'Spider increases chance for positive effects and decreases negative effects. Buff duration: 4s, Debuff duration: 12s.',
+        note: 'Each click gives 0.2 treasury coins. Treasury no longer fills passively. King mini-game requires one less crown to win.',
+        cost: 1000,
+        duration: 10800
+      };
+      secondRowButtons.push({
+        id: 'spiderBuff',
+        label: 'Spider Buff',
+        desc,
+        enabled: !anyBuffActive && save.treasury.value >= 1000,
+        onClick: () => {
+          if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
+          if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
+          act.spiderBuffUntil = now() + hourMs;
+          act.treasuryNoPassiveUntil = now() + hourMs;
+          toast('Spider Buff activated for 3 hours.', 'good');
+          renderTreasuryActions();
+        },
+        buffUntil: act.spiderBuffUntil
+      });
+    }
+    
+    // Create second row container - place it under the notifications window
+    const noticeBoard = document.querySelector('.notice-board');
+    let secondRowEl = document.getElementById('treasury-actions-row2');
+    if (!secondRowEl) {
+      secondRowEl = document.createElement('div');
+      secondRowEl.id = 'treasury-actions-row2';
+      secondRowEl.className = 'treasury-actions-row';
+      // Insert after notice-board (under notifications window in left column)
+      if (noticeBoard && noticeBoard.parentNode) {
+        noticeBoard.parentNode.insertBefore(secondRowEl, noticeBoard.nextSibling);
+      } else {
+        // Fallback: if notice-board not found, place after treasury actions
+        treasuryActionsEl.parentNode.insertBefore(secondRowEl, treasuryActionsEl.nextSibling);
+      }
+    }
+    secondRowEl.innerHTML = '';
+    
+    // Icons for second row buttons (Uber mode buffs)
+    const uberIcons = {
+      'noGolden': '🚫',
+      'alwaysGolden': '✨',
+      'fastRepair': '⚡',
+      'passiveBoost': '📈',
+      'spiderBuff': '🕷️',
+      'noBreak': '🛡️'
+    };
+    
+    // Render second row buttons (same structure as first row, but with Uber mode styling)
+    secondRowButtons.forEach(btn => {
+      const el = document.createElement('button');
+      el.className = 'btn treasury-action-btn uber-mode-btn';
+      const icon = uberIcons[btn.id] || '⭐';
+      el.setAttribute('data-icon', icon);
+      el.setAttribute('data-btn-id', btn.id);
+      el.disabled = !btn.enabled;
+      
+      // Tooltip (same structure as first row)
+      const tooltip = document.createElement('div');
+      tooltip.className = 'tooltip';
+      tooltip.setAttribute('data-treasury-tooltip', 'true');
+      
+      const header = document.createElement('div');
+      header.className = 'tooltip-header';
+      header.textContent = btn.desc.header || btn.label;
+      tooltip.appendChild(header);
+      
+      const body = document.createElement('div');
+      body.className = 'tooltip-body';
+      
+      if (btn.desc.effect) {
+        const effectLine = document.createElement('div');
+        effectLine.className = 'tooltip-line';
+        effectLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">${btn.desc.effect}</div>`;
+        body.appendChild(effectLine);
+      }
+      
+      if (btn.desc.warning) {
+        const warningLine = document.createElement('div');
+        warningLine.style.color = '#ff6b6b';
+        warningLine.style.marginTop = '6px';
+        warningLine.textContent = btn.desc.warning;
+        body.appendChild(warningLine);
+      }
+      
+      if (btn.desc.note) {
+        const noteLine = document.createElement('div');
+        noteLine.style.color = '#a08f70';
+        noteLine.style.fontStyle = 'italic';
+        noteLine.style.marginTop = '4px';
+        noteLine.textContent = btn.desc.note;
+        body.appendChild(noteLine);
+      }
+      
+      const separator = document.createElement('div');
+      separator.className = 'tooltip-line';
+      body.appendChild(separator);
+      
+      if (btn.desc.cost) {
+        const costLine = document.createElement('div');
+        costLine.className = 'tooltip-stat';
+        costLine.innerHTML = `<span class="tooltip-stat-label">Cost:</span> <span class="tooltip-stat-value tooltip-cost">${btn.desc.cost} Treasury</span>`;
+        body.appendChild(costLine);
+      }
+      
+      if (btn.desc.duration) {
+        const durLine = document.createElement('div');
+        durLine.className = 'tooltip-stat';
+        const durRemaining = btn.buffUntil && btn.buffUntil > nowTs ? ` (${Math.ceil((btn.buffUntil - nowTs)/1000)}s)` : '';
+        durLine.innerHTML = `<span class="tooltip-stat-label">Duration:</span> <span class="tooltip-stat-value">${btn.desc.duration}s${durRemaining}</span>`;
+        body.appendChild(durLine);
+      }
+      
+      tooltip.appendChild(body);
+      
+      // Tooltip handlers (same as first row)
+      let tooltipWidth = null;
+      let tooltipHeight = null;
+      
+      const showTreasuryTooltip = (ev) => {
+        hideTreasuryTooltip();
+        _treasuryTooltipEl = tooltip;
+        document.body.appendChild(tooltip);
+        
+        if (tooltipWidth === null || tooltipHeight === null) {
+          tooltip.style.position = 'fixed';
+          tooltip.style.display = 'block';
+          tooltip.style.visibility = 'hidden';
+          tooltip.style.opacity = '0';
+          tooltip.style.top = '-9999px';
+          tooltip.style.left = '-9999px';
+          
+          tooltipWidth = tooltip.offsetWidth || 300;
+          tooltipHeight = tooltip.offsetHeight || 200;
+          
+          tooltip._width = tooltipWidth;
+          tooltip._height = tooltipHeight;
+        } else {
+          tooltipWidth = tooltip._width || tooltipWidth;
+          tooltipHeight = tooltip._height || tooltipHeight;
+        }
+        
+        moveTreasuryTooltip(ev);
+      };
+      
+      const moveTreasuryTooltip = (ev) => {
+        if (!_treasuryTooltipEl) return;
+        const pad = 12;
+        const w = tooltipWidth || 300;
+        const h = tooltipHeight || 200;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        
+        let left = ev.clientX + 16;
+        let top = ev.clientY + 16;
+        
+        if (left + w + pad > vw) {
+          left = vw - w - pad;
+          if (left < pad) left = pad;
+        }
+        if (top + h + pad > vh) {
+          top = vh - h - pad;
+          if (top < pad) top = pad;
+        }
+        if (left < pad) left = pad;
+        if (top < pad) top = pad;
+        
+        _treasuryTooltipEl.style.position = 'fixed';
+        _treasuryTooltipEl.style.width = w + 'px';
+        _treasuryTooltipEl.style.height = h + 'px';
+        _treasuryTooltipEl.style.left = `${left}px`;
+        _treasuryTooltipEl.style.top = `${top}px`;
+        _treasuryTooltipEl.style.zIndex = '2147483647';
+        _treasuryTooltipEl.style.display = 'block';
+        _treasuryTooltipEl.style.visibility = 'visible';
+        _treasuryTooltipEl.style.opacity = '1';
+      };
+      
+      el.addEventListener('mouseenter', (e) => {
+        showTreasuryTooltip(e);
+      });
+      
+      el.addEventListener('mousemove', (e) => {
+        if (_treasuryTooltipEl === tooltip) {
+          moveTreasuryTooltip(e);
+        }
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        if (_treasuryTooltipEl === tooltip) {
+          hideTreasuryTooltip();
+        }
+      });
+      
+      // Buff timer под кнопкой (обновляется через updateTreasuryActions)
+      if (btn.buffUntil && btn.buffUntil > nowTs) {
+        const timerEl = document.createElement('div');
+        timerEl.className = 'buff-timer';
+        timerEl.setAttribute('data-buff-until', btn.buffUntil); // Сохраняем время окончания
+        const remaining = Math.ceil((btn.buffUntil - nowTs)/1000);
+        timerEl.textContent = remaining > 0 ? `${remaining}s` : '';
+        el.appendChild(timerEl);
+      }
+      
+      el.addEventListener('click', (e) => {
+        if (_treasuryTooltipEl === tooltip) {
+          hideTreasuryTooltip();
+        }
+        
+        if (btn.onClick && !el.disabled) {
+          e.preventDefault();
+          e.stopPropagation();
+          el.classList.add('clicked');
+          setTimeout(() => {
+            el.classList.remove('clicked');
+          }, 600);
+          btn.onClick();
+        }
+      }, true);
+      
+      secondRowEl.appendChild(el);
+    });
+  } else {
+    // Remove second row if not in Uber mode
+    const secondRowEl = document.getElementById('treasury-actions-row2');
+    if (secondRowEl) {
+      secondRowEl.remove();
+    }
+  }
+  
+}
+
+// Оптимизированное обновление кнопок treasury - только данные, без пересоздания DOM
+let _lastTreasuryFullRender = 0;
+function updateTreasuryActions() {
+  if (!treasuryActionsEl || !save || !save.treasury) return;
+  
+  const nowTs = now();
+  
+  // Полный перерендер раз в секунду или если кнопок нет
+  if (treasuryActionsEl.children.length === 0 || (nowTs - _lastTreasuryFullRender) >= 1000) {
+    renderTreasuryActions();
+    _lastTreasuryFullRender = nowTs;
+    return;
+  }
+  
+  // Быстрое обновление только данных
+  const act = save.treasury.actions;
+  const buttons = treasuryActionsEl.querySelectorAll('.treasury-action-btn');
+  
+  buttons.forEach((el) => {
+    const btnId = el.getAttribute('data-btn-id');
+    if (!btnId) return;
+    
+    // Обновляем cooldown
+    let cooldownUntil = 0;
+    if (btnId === 'casino') {
+      cooldownUntil = act.casinoCd || 0;
+    } else if (btnId === 'repair') {
+      cooldownUntil = act.repairCd || 0;
+    } else if (btnId === 'lazyClick') {
+      cooldownUntil = act.lazyClickCd || 0;
+    } else if (btnId === 'taxfree') {
+      cooldownUntil = act.taxFreeCd || 0;
+    } else if (btnId === 'engineer') {
+      cooldownUntil = act.engineerCd || 0;
+    } else if (btnId === 'clickMadness') {
+      cooldownUntil = act.clickMadnessCd || 0;
+    }
+    
+    if (cooldownUntil && cooldownUntil > nowTs) {
+      const remaining = Math.ceil((cooldownUntil - nowTs)/1000);
+      el.setAttribute('data-cooldown', remaining);
+      if (!el.disabled) {
+        el.setAttribute('data-cooldown-disabled', 'true');
+      }
+      el.disabled = true;
+    } else {
+      el.removeAttribute('data-cooldown');
+      // Обновляем disabled только для cooldown, остальное обновляется при полном рендере
+      if (el.hasAttribute('data-cooldown-disabled')) {
+        el.disabled = false;
+        el.removeAttribute('data-cooldown-disabled');
+      }
+    }
+    
+    // Обновляем buff timer
+    const timerEl = el.querySelector('.buff-timer');
+    if (timerEl) {
+      const buffUntil = parseFloat(timerEl.getAttribute('data-buff-until') || 0);
+      if (buffUntil > nowTs) {
+        const remaining = Math.ceil((buffUntil - nowTs)/1000);
+        timerEl.textContent = remaining > 0 ? `${remaining}s` : '';
+      } else if (buffUntil > 0 && buffUntil <= nowTs) {
+        timerEl.textContent = '';
+        // Если таймер истек, пересоздаем кнопки
+        renderTreasuryActions();
+        _lastTreasuryFullRender = nowTs;
+      }
+    }
+  });
+  
+  // Обновляем таймеры для кнопок второго ряда (Uber mode)
+  const secondRowEl = document.getElementById('treasury-actions-row2');
+  if (secondRowEl) {
+    const secondRowButtons = secondRowEl.querySelectorAll('.btn');
+    secondRowButtons.forEach((el) => {
+      const timerEl = el.querySelector('.buff-timer');
+      if (timerEl) {
+        const buffUntil = parseFloat(timerEl.getAttribute('data-buff-until') || 0);
+        if (buffUntil > nowTs) {
+          const remaining = Math.ceil((buffUntil - nowTs)/1000);
+          timerEl.textContent = remaining > 0 ? `${remaining}s` : '';
+        } else if (buffUntil > 0 && buffUntil <= nowTs) {
+          timerEl.textContent = '';
+          // Если таймер истек, пересоздаем кнопки
+          renderTreasuryActions();
+          _lastTreasuryFullRender = nowTs;
+        }
+      }
+    });
+  }
+}
+
+// Обновление уровней зданий в реальном времени (без пересоздания карточек)
+let _lastBuildingLevelsUpdate = 0;
+function updateBuildingLevels() {
+  if (!buildingsList || !save) return;
+  
+  const nowTs = now();
+  // Обновляем уровни раз в 100мс для максимально быстрого отклика
+  if (nowTs - _lastBuildingLevelsUpdate < 100) return;
+  _lastBuildingLevelsUpdate = nowTs;
+  
+  const cards = buildingsList.querySelectorAll('.building-card');
+  cards.forEach((card) => {
+    const buildingIndex = parseInt(card.dataset.buildingIndex);
+    if (isNaN(buildingIndex) || buildingIndex >= save.buildings.length) return;
+    
+    const b = save.buildings[buildingIndex];
+    const i = buildingIndex;
+    
+    // Обновляем уровень, доход и стоимость - находим элементы по порядку
+    const infoContainer = card.querySelector('.building-info');
+    if (!infoContainer) return; // Если нет контейнера, пропускаем
+    
+    const metaElements = Array.from(infoContainer.children);
+    if (metaElements.length < 5) return; // Если недостаточно элементов, пропускаем
+    
+    // Элемент 0: name (не трогаем)
+    // Элемент 1: Level
+    const lvlEl = metaElements[1];
+    if (lvlEl) {
+      const newLevelText = `<strong>Level:</strong> ${b.level} / ${b.max}`;
+      if (lvlEl.innerHTML !== newLevelText) {
+        lvlEl.innerHTML = newLevelText;
+      }
+    }
+    
+    // Элемент 2: Income/sec
+    const incEl = metaElements[2];
+    if (incEl) {
+      const newIncomeText = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(b, b.level, b.upgradeBonus))}`;
+      if (incEl.innerHTML !== newIncomeText) {
+        incEl.innerHTML = newIncomeText;
+      }
+    }
+    
+    // Элемент 3: Next Cost
+    const costEl = metaElements[3];
+    if (costEl) {
+      const nextCost = computeBulkCostForBuilding(i, save.bulk);
+      const seg = segmentIndex(b.level);
+      const within = withinSegment(b.level);
+      const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
+      const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+      
+      let newCostText;
+      if (needUpgrade) {
+        let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+        // Buff 6: Master Builder - upgrades cost 2x more
+        const act = save.treasury?.actions;
+        const noBreakActive = act && act.noBreakUntil > now();
+        if (noBreakActive) {
+          upgradeCost *= 2;
+        }
+        newCostText = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+      } else {
+        newCostText = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+      }
+      
+      if (costEl.innerHTML !== newCostText) {
+        costEl.innerHTML = newCostText;
+      }
+    }
+    
+    // Элемент 4: Segment info
+    const segInfoEl = metaElements[4];
+    if (segInfoEl) {
+      const seg = segmentIndex(b.level);
+      const within = withinSegment(b.level);
+      const newSegText = `<strong>Segment:</strong> ${seg}, within ${within}/9`;
+      if (segInfoEl.innerHTML !== newSegText) {
+        segInfoEl.innerHTML = newSegText;
+      }
+    }
+    
+    // Обновляем кнопки (Buy/Upgrade переключение)
+    const actionSlot = card.querySelector('.building-action-slot');
+    if (actionSlot) {
+      // Находим кнопки более надежным способом
+      const allButtons = actionSlot.querySelectorAll('.btn.small');
+      let buyBtn = null;
+      let segBtn = null;
+      
+      allButtons.forEach(btn => {
+        if (btn.classList.contains('primary')) {
+          buyBtn = btn;
+        } else {
+          segBtn = btn;
+        }
+      });
+      
+      if (buyBtn && segBtn) {
+        const isInUberMode = save.uber && save.uber.max !== 19;
+        const shouldHideButtons = b.level >= 1000 && !isInUberMode;
+        
+        if (shouldHideButtons) {
+          // Скрываем обе кнопки
+          if (!buyBtn.classList.contains('hidden')) {
+            buyBtn.classList.add('hidden');
+            buyBtn.setAttribute('aria-hidden', 'true');
+          }
+          if (!segBtn.classList.contains('hidden')) {
+            segBtn.classList.add('hidden');
+            segBtn.setAttribute('aria-hidden', 'true');
+          }
+        } else {
+          const seg = segmentIndex(b.level);
+          const within = withinSegment(b.level);
+          const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
+          const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+          
+          if (needUpgrade) {
+            // Показываем Upgrade, скрываем Buy
+            let prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+            // Buff 6: Master Builder - upgrades cost 2x more
+            const act = save.treasury?.actions;
+            const noBreakActive = act && act.noBreakUntil > now();
+            if (noBreakActive) {
+              prevCost *= 2;
+            }
+            const newText = `Upgrade (${fmt(prevCost)})`;
+            if (segBtn.textContent !== newText) {
+              segBtn.textContent = newText;
+            }
+            segBtn.disabled = save.points < prevCost;
+            
+            // Убеждаемся, что обработчик установлен (удаляем старый если есть)
+            const oldHandler = segBtn._upgradeHandler;
+            if (oldHandler) {
+              segBtn.removeEventListener('click', oldHandler);
+            }
+            const newHandler = () => buyBuildingSegUpgrade(i, seg-1);
+            segBtn.addEventListener('click', newHandler);
+            segBtn._upgradeHandler = newHandler;
+            
+            if (!buyBtn.classList.contains('hidden')) {
+              buyBtn.classList.add('hidden');
+              buyBtn.setAttribute('aria-hidden', 'true');
+            }
+            if (segBtn.classList.contains('hidden')) {
+              segBtn.classList.remove('hidden');
+              segBtn.setAttribute('aria-hidden', 'false');
+            }
+          } else {
+            // Показываем Buy, скрываем Upgrade
+            const nextCost = computeBulkCostForBuilding(i, save.bulk);
+            buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
+            
+            // Убеждаемся, что обработчик установлен (удаляем старый если есть)
+            const oldBuyHandler = buyBtn._buyHandler;
+            if (oldBuyHandler) {
+              buyBtn.removeEventListener('click', oldBuyHandler);
+            }
+            const newBuyHandler = () => buyBuildingLevels(i);
+            buyBtn.addEventListener('click', newBuyHandler);
+            buyBtn._buyHandler = newBuyHandler;
+            
+            if (!segBtn.classList.contains('hidden')) {
+              segBtn.classList.add('hidden');
+              segBtn.setAttribute('aria-hidden', 'true');
+            }
+            if (buyBtn.classList.contains('hidden')) {
+              buyBtn.classList.remove('hidden');
+              buyBtn.setAttribute('aria-hidden', 'false');
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 function renderClick() {
   if (!save || !clickBtn) return;
   
   const brokenActive = save.click.brokenUntil > now();
-  const goldenActive = save.click.goldenUntil > now();
+  const act = save.treasury?.actions;
+  const alwaysGoldenActive = act && act.alwaysGoldenUntil > now();
+  // Buff 2: Always golden - force golden state
+  let goldenActive = save.click.goldenUntil > now();
+  if (alwaysGoldenActive && !brokenActive) {
+    goldenActive = true;
+    // Extend golden until buff ends
+    if (save.click.goldenUntil < act.alwaysGoldenUntil) {
+      save.click.goldenUntil = act.alwaysGoldenUntil;
+    }
+  }
 
   // Явно удаляем и добавляем классы для гарантированного обновления
   if (brokenActive) {
@@ -2605,7 +2658,11 @@ function computeBulkCostForClick(bulk) {
   if (bulk === 'max') {
     needLevels = save.click.max - save.click.level;
   } else {
-    needLevels = bulk;
+    // Ensure bulk is a number
+    needLevels = typeof bulk === 'number' ? bulk : parseInt(bulk, 10);
+    if (isNaN(needLevels) || needLevels < 1) {
+      needLevels = 1;
+    }
   }
   let allowedLevels = 0;
   for (let i = 0; i < needLevels; i++) {
@@ -2668,7 +2725,13 @@ function renderBuildings() {
     const costEl = document.createElement('div');
     if (needUpgrade) {
       // Показываем цену апгрейда в строке стоимости
-      const upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      // Buff 6: Master Builder - upgrades cost 2x more
+      const act = save.treasury?.actions;
+      const noBreakActive = act && act.noBreakUntil > now();
+      if (noBreakActive) {
+        upgradeCost *= 2;
+      }
       costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
     } else {
       // Показываем обычную стоимость покупки
@@ -2696,11 +2759,19 @@ function renderBuildings() {
       segBtn.setAttribute('aria-hidden', 'true');
     } else if (needUpgrade) {
       // Требуется сегментный апгрейд — показываем только segBtn
-      const prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      let prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      // Buff 6: Master Builder - upgrades cost 2x more
+      const act = save.treasury?.actions;
+      const noBreakActive = act && act.noBreakUntil > now();
+      if (noBreakActive) {
+        prevCost *= 2;
+      }
       segBtn.textContent = `Upgrade (${fmt(prevCost)})`;
       segBtn.disabled = save.points < prevCost;
       segBtn.classList.remove('hidden');
-      segBtn.addEventListener('click', ()=> buyBuildingSegUpgrade(i, seg-1));
+      const upgradeHandler = () => buyBuildingSegUpgrade(i, seg-1);
+      segBtn.addEventListener('click', upgradeHandler);
+      segBtn._upgradeHandler = upgradeHandler;
 
       buyBtn.classList.add('hidden');
       buyBtn.setAttribute('aria-hidden', 'true');
@@ -2709,7 +2780,9 @@ function renderBuildings() {
     } else {
       // Обычное состояние — показываем покупку, скрываем segBtn
       buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
-      buyBtn.addEventListener('click', () => buyBuildingLevels(i));
+      const buyHandler = () => buyBuildingLevels(i);
+      buyBtn.addEventListener('click', buyHandler);
+      buyBtn._buyHandler = buyHandler;
 
       segBtn.classList.add('hidden');
       segBtn.setAttribute('aria-hidden', 'true');
@@ -2739,7 +2812,12 @@ function renderBuildings() {
     } else if (!canBuyNextBuilding(i)) {
       note.textContent = 'Locked: previous building must reach level 67.';
     } else if (now() < b.blockedUntil) {
-      const remain = Math.ceil((b.blockedUntil - now()) / 1000);
+      // Учитываем модификатор Fast Repair при отображении оставшегося времени
+      const act = save.treasury?.actions;
+      const fastRepairActive = act && act.fastRepairUntil > now();
+      let remain = Math.ceil((b.blockedUntil - now()) / 1000);
+      // Если бафф активен, время восстановления уменьшается в 2 раза быстрее
+      // Но blockedUntil уже уменьшается в tick(), так что просто показываем реальное оставшееся время
       note.classList.add('building-downnote');
       note.dataset.blockedUntil = String(b.blockedUntil);
       note.textContent = `Under repair: ${remain}s`;
@@ -2823,7 +2901,11 @@ function computeBulkCostForBuilding(i, bulk) {
   if (bulk === 'max') {
     needLevels = b.max - b.level;
   } else {
-    needLevels = bulk;
+    // Ensure bulk is a number
+    needLevels = typeof bulk === 'number' ? bulk : parseInt(bulk, 10);
+    if (isNaN(needLevels) || needLevels < 1) {
+      needLevels = 1;
+    }
   }
   let allowed = 0;
   for (let k = 0; k < needLevels; k++) {
@@ -3209,13 +3291,11 @@ function renderAll() {
   renderUber(); // Рендерим Uber здание (после проверки разблокировки)
   renderEffects();
   renderAchievements();
-  renderTalents();
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk
   updateSeason(); // Обновляем сезонную тему
   startAutosave();
 
   updateEndgameButtons();
-  _recalcTalentPointsCap();
 }
 
 // ======= Actions =======
@@ -3309,8 +3389,13 @@ function updateButtonStates() {
 function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
   const { totalCost, totalLevels } = computeFn(save.bulk);
   if (totalLevels === 0) {
-    toast('Cannot progress: segment upgrade required.', 'warn');
+    const requestedBulk = save.bulk === 'max' ? 'max' : save.bulk;
+    toast(`Cannot progress: segment upgrade required. (Requested: ${requestedBulk}, Available: 0)`, 'warn');
     return false;
+  }
+  // Warn if fewer levels available than requested
+  if (save.bulk !== 'max' && typeof save.bulk === 'number' && totalLevels < save.bulk) {
+    toast(`Only ${totalLevels} level(s) available (requested ${save.bulk}). Segment upgrade may be required.`, 'info');
   }
   if (save.points < totalCost) {
     toast('Not enough points.', 'warn');
@@ -3367,6 +3452,9 @@ function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
 
   // After buy, re-render immediately for critical operations
   renderAll();
+  // Принудительно обновляем уровни зданий сразу после покупки
+  _lastBuildingLevelsUpdate = 0; // Сбрасываем таймер для немедленного обновления
+  updateBuildingLevels();
   // Проверяем разблокировку Uber здания после покупки уровней
   checkUberUnlock();
   return true;
@@ -3390,7 +3478,13 @@ function buyClickLevels() {
 }
 
 function buyClickSegmentUpgrade(segIndex) {
-  const costSum = (save.click.pendingSegmentCost[segIndex] || 0) / 2;
+  let costSum = (save.click.pendingSegmentCost[segIndex] || 0) / 2;
+  // Buff 6: Master Builder - upgrades cost 2x more
+  const act = save.treasury?.actions;
+  const noBreakActive = act && act.noBreakUntil > now();
+  if (noBreakActive) {
+    costSum *= 2;
+  }
   if (save.points < costSum) {
     toast('Not enough points for segment upgrade.', 'warn');
     return;
@@ -3430,36 +3524,38 @@ function buyBuildingLevels(i) {
     const cost = buildingLevelCostAt(b, lvl);
     const seg = segmentIndex(lvl);
     
-    // Master Builder talent: chance for free purchase (before applying level)
-    // Check Master Builder BEFORE applying level to determine if this purchase is free
-    let isFree = false;
-    const masterBuilderLvl = talentLevelUI('masterBuilder');
-    if (masterBuilderLvl > 0) {
-      const masterBuilderChance = TALENT_DEFS.masterBuilder.chances[masterBuilderLvl] || 0;
-      if (randChance(masterBuilderChance)) {
-        isFree = true;
-        const nextLevel = lvl + 1;
-        toast(`${b.name} Master Builder: Level ${nextLevel} is free! Refunded ${fmt(cost)} points.`, 'good');
-      }
-    }
-    
-    // Track segment cost (only if not free)
-    if (!isFree) {
-      b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
+    // Track segment cost
+    b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg] || 0) + cost;
+
+    // Good luck mode (debug): buildings can't break
+    if (save.modifiers.goodLuckMode) {
+      // Apply level without break check
+      b.level = Math.min(b.level + 1, b.max);
+      return true; // Success, continue buying
     }
 
-    // Random chance to fail and trigger downtime (affected by modifiers and High Qualification talent)
+    // Buff 6: Master Builder - buildings can't break
+    const act = save.treasury?.actions;
+    const noBreakActive = act && act.noBreakUntil > now();
+    if (noBreakActive) {
+      // Apply level without break check
+      b.level = Math.min(b.level + 1, b.max);
+      return true; // Success, continue buying
+    }
+
+    // Random chance to fail and trigger downtime (affected by modifiers)
     // Break can happen on any level, not just levels ending in 9
     const baseFailChance = 0.01; // 1% base chance on any level
     const breakChanceMult = save.modifiers.breakChanceMult || 1;
-    const highQualLvl = talentLevelUI('highQualification');
-    const highQualReduction = TALENT_DEFS.highQualification.bonuses[highQualLvl] || 0;
-    const adjustedFailChance = baseFailChance * breakChanceMult * (1 - highQualReduction);
-    const repairMult = (save.modifiers.repairTimeMult || 1);
+    // Buff 3: Buildings break 3x more often
+    const fastRepairActive = act && act.fastRepairUntil > now();
+    const breakMult = fastRepairActive ? 3 : 1;
+    const adjustedFailChance = baseFailChance * breakChanceMult * breakMult;
     const baseRepairMs = 164000;
-    const secondTeamLvl = talentLevelUI('secondTeam');
-    const secondTeamReduction = TALENT_DEFS.secondTeam.bonuses[secondTeamLvl] || 0;
-    const adjustedRepairMs = Math.max(0, baseRepairMs * repairMult - secondTeamReduction);
+    // Buff 3: Buildings repair 2x faster (x0.5 repair time)
+    // Не используем repairMult здесь, так как он может конфликтовать с другими модификаторами
+    const repairTimeMult = fastRepairActive ? 0.5 : 1;
+    const adjustedRepairMs = baseRepairMs * repairTimeMult;
     
     // Apply level
     b.level = Math.min(b.level + 1, b.max);
@@ -3482,8 +3578,9 @@ function buyBuildingLevels(i) {
       checkAchievements();
     }
     
-    // Return cost if Master Builder made this level free (for refund), otherwise return true
-    return isFree ? cost : true;
+    // Return true to indicate level was successfully applied
+    // (Master Builder free levels are handled elsewhere if needed)
+    return true;
   };
   const bought = buyBulkLevels('building', computeFn, applyFn, i);
   if (bought) {
@@ -3497,7 +3594,13 @@ function buyBuildingLevels(i) {
 
 function buyBuildingSegUpgrade(i, segIndex) {
   const b = save.buildings[i];
-  const costSum = (b.pendingSegmentCost[segIndex] || 0) / 2;
+  let costSum = (b.pendingSegmentCost[segIndex] || 0) / 2;
+  // Buff 6: Master Builder - upgrades cost 2x more
+  const act = save.treasury?.actions;
+  const noBreakActive = act && act.noBreakUntil > now();
+  if (noBreakActive) {
+    costSum *= 2;
+  }
   if (save.points < costSum) {
     toast('Not enough points for segment upgrade.', 'warn');
     return;
@@ -3701,12 +3804,8 @@ clickBtn.addEventListener('click', (event) => {
   // Apply points
   const madnessActive = save.treasury?.actions?.clickMadnessUntil > now();
   const basePpc = totalPPC();
-  const critRoll = rollTalentCrit();
-  const gain = basePpc * (critRoll.multiplier || 1);
+  const gain = basePpc;
   addPoints(gain);
-  if (critRoll.rolled) {
-    showCritDamage(critRoll.multiplier, event);
-  }
   
   // Создаем частицы при клике
   createClickParticles(event, gain);
@@ -3723,41 +3822,101 @@ clickBtn.addEventListener('click', (event) => {
     toast('Click Madness backlash: -3 Click levels!', 'warn');
   }
 
-  // 0.5% шанс на золотую или сломанную кнопку при каждом клике (отключено в Click Madness)
-  if (!madnessActive) {
-    const roll = Math.random();
-  if (roll < 0.005) {
-    // 0.5% шанс - определяем золотую или сломанную
-      const brokenActive = save.click.brokenUntil > now();
-      const goldenActive = save.click.goldenUntil > now();
-      
-      // Золотая кнопка не может сломаться, сломанная кнопка не может стать золотой
-      if (!goldenActive && !brokenActive) {
-    const outcomeRoll = Math.random();
-    if (outcomeRoll < 0.66) {
-      // 66% из 0.5% = сломанная кнопка (0.33% общий шанс)
-      save.click.brokenUntil = now() + 26000;
-      // Сбрасываем стрик при сломанной кнопке
-      save.streak.count = 0;
-      save.streak.multiplier = 1.0;
-      toast('Click button broke for 26s.', 'bad');
-      renderClick(); // обновляем статус сразу
-    } else {
-      // 34% из 0.5% = золотая кнопка (0.17% общий шанс)
-      save.click.goldenUntil = now() + 8000;
-      // Сбрасываем стрик при золотой кнопке
-      save.streak.count = 0;
-      save.streak.multiplier = 1.0;
-      toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
-      renderClick(); // обновляем статус сразу
-
-          // Золотая кнопка просто заканчивается без поломки
-      setTimeout(() => {
-        save.click.goldenUntil = 0;
-            toast('Golden effect ended.', 'warn');
-        renderClick(); // обновляем статус после окончания
-      }, 8000);
+  // Buff 4: Reset passive boost on click
+  const act = save.treasury?.actions;
+  if (act && act.passiveBoostUntil > now()) {
+    const hadBoost = (act.passiveBoostLevel || 0) > 0;
+    act.passiveBoostLevel = 0;
+    act.passiveBoostLastTick = now();
+    // Update UI immediately if boost was reset
+    if (hadBoost) {
+      renderTopStats(); // Update PPS display immediately
+      // Update button description if in Uber mode
+      const isInUberMode = save.uber && save.uber.max !== 19;
+      if (isInUberMode) {
+        const passiveBoostBtn = document.querySelector('#treasury-actions-row2 .btn[data-btn-id="passiveBoost"]');
+        if (passiveBoostBtn) {
+          const tooltip = passiveBoostBtn.querySelector('.tooltip');
+          if (tooltip) {
+            const effectLine = tooltip.querySelector('.tooltip-line > div');
+            if (effectLine) {
+              effectLine.textContent = `Passive income increases by 5% every 3 minutes (current: +0%).`;
+            }
+          }
         }
+      }
+    }
+  }
+  
+  // Buff 5: Click gives 0.2 treasury coins
+  if (act && act.spiderBuffUntil > now()) {
+    gainTreasury(0.2);
+  }
+  
+  // Buff 2: Always golden (handled in renderClick, but ensure it stays golden)
+  const alwaysGoldenActive = act && act.alwaysGoldenUntil > now();
+  
+  // 0.5% шанс на золотую или сломанную кнопку при каждом клике (отключено в Click Madness)
+  // Buff 1: Can't become golden, can't break - skip both chances
+  // Buff 2: Always golden - кнопка всегда золотая, но может сломаться в 3 раза чаще
+  if (!madnessActive) {
+    const noGoldenActive = act && act.noGoldenUntil > now();
+    // Buff 1: Skip all golden/break chances if noGolden is active
+    if (!noGoldenActive) {
+      const brokenActive = save.click.brokenUntil > now();
+      
+      // Проверяем, активна ли обычная золотая кнопка (не от alwaysGolden баффа)
+      // Обычная золотая кнопка определяется как: goldenUntil > now() И это не от alwaysGolden баффа
+      const goldenUntilFromBuff = alwaysGoldenActive ? act.alwaysGoldenUntil : 0;
+      const normalGoldenActive = save.click.goldenUntil > now() && 
+                                 save.click.goldenUntil !== goldenUntilFromBuff &&
+                                 !alwaysGoldenActive;
+      
+      // Обычная золотая кнопка (на 8 секунд) не может сломаться
+      // Но при активном alwaysGolden баффе кнопка может сломаться даже если она золотая
+      if (!brokenActive) {
+        if (alwaysGoldenActive) {
+          // При alwaysGolden баффе: кнопка всегда золотая, но может сломаться в 3 раза чаще
+          const roll = Math.random();
+          const breakChance = 0.015; // 3x break chance (0.005 * 3)
+          if (roll < breakChance) {
+            save.click.brokenUntil = now() + 26000;
+            save.streak.count = 0;
+            save.streak.multiplier = 1.0;
+            toast('Always Golden backlash: Click button broke for 26s!', 'bad');
+            renderClick();
+          }
+        } else if (!normalGoldenActive) {
+          // Обычная логика: шанс на золотую или сломанную кнопку
+          const roll = Math.random();
+          const breakChance = 0.005; // 0.5% base chance
+          if (roll < breakChance) {
+            const outcomeRoll = Math.random();
+            if (outcomeRoll < 0.66) {
+              // 66% из шанса = сломанная кнопка
+              save.click.brokenUntil = now() + 26000;
+              save.streak.count = 0;
+              save.streak.multiplier = 1.0;
+              toast('Click button broke for 26s.', 'bad');
+              renderClick();
+            } else {
+              // 34% из шанса = золотая кнопка
+              save.click.goldenUntil = now() + 8000;
+              save.streak.count = 0;
+              save.streak.multiplier = 1.0;
+              toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
+              renderClick();
+              
+              // Золотая кнопка просто заканчивается без поломки
+              setTimeout(() => {
+                save.click.goldenUntil = 0;
+                toast('Golden effect ended.', 'warn');
+                renderClick();
+              }, 8000);
+            }
+          }
+        }
+        // Если normalGoldenActive = true, ничего не делаем (обычная золотая кнопка не может сломаться)
       }
     }
   }
@@ -4102,7 +4261,11 @@ kingEl.addEventListener('click', (e) => {
 function openKingMiniGame() {
   // initialize state
   const durationMs = 8000;
-  const target = 12;
+  // Buff 5: Spider Buff - requires one less crown to win
+  const act = save.treasury?.actions;
+  const spiderBuffActive = act && act.spiderBuffUntil > now();
+  const baseTarget = 12;
+  const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
   kingModal.classList.add('show');
   kingModal.setAttribute('aria-hidden', 'false');
   kingArena.innerHTML = '';
@@ -4195,7 +4358,7 @@ function openKingMiniGame() {
   }, tickInterval);
 
   // store miniGame state for cleanup if needed
-  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked };
+  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked, target };
 
   // spawn crowns and focus
   spawnCrowns();
@@ -4218,7 +4381,8 @@ function endKingMiniGame(outcome, info = {}) {
 
   // apply effects based on outcome
   const clicked = info.clicked || 0;
-  const target = info.target || 15;
+  // Use target from info if provided, otherwise from miniGame state, otherwise default
+  const target = info.target || (_kingState.miniGame && _kingState.miniGame.target) || 15;
 
   if (outcome === 'success') {
     // reward: +4 levels to each opened Building, +3 Click, +5% points
@@ -4245,6 +4409,9 @@ function endKingMiniGame(outcome, info = {}) {
     // +5% points
     save.points = save.points * 1.05;
     toast(`Success! The King rewarded you: +${totalLevelsAdded} levels to buildings (${openedCount} buildings), +${clickMaxAddable} to Click, +5% points.`, 'good');
+    // Принудительно обновляем уровни зданий после награды короля
+    _lastBuildingLevelsUpdate = 0;
+    updateBuildingLevels();
   } else if (outcome === 'timeout') {
     // not enough crowns in time -> penalty: -1 level each opened building, -2 click
     save.buildings.forEach(b => {
@@ -4252,6 +4419,9 @@ function endKingMiniGame(outcome, info = {}) {
     });
     save.click.level = Math.max(0, save.click.level - 2);
     toast(`Time's up. The King punished you: -1 level Building, -2 Click.`, 'bad');
+    // Принудительно обновляем уровни зданий после наказания
+    _lastBuildingLevelsUpdate = 0;
+    updateBuildingLevels();
   } else if (outcome === 'miss') {
     // immediate heavy penalty: -3 each building, -7 click, -30% points
     save.buildings.forEach(b => {
@@ -4260,6 +4430,9 @@ function endKingMiniGame(outcome, info = {}) {
     save.click.level = Math.max(0, save.click.level - 7);
     save.points = Math.max(0, save.points * 0.7);
     toast(`Miss! The King is furious: -3 levels Buildings, -7 Click, -30% points.`, 'bad');
+    // Принудительно обновляем уровни зданий после наказания
+    _lastBuildingLevelsUpdate = 0;
+    updateBuildingLevels();
   }
 
   // render and schedule next king
@@ -4270,7 +4443,11 @@ function endKingMiniGame(outcome, info = {}) {
 // allow closing mini-game manually (counts as timeout)
 kingCloseBtn.addEventListener('click', () => {
   if (_kingState.miniGame) {
-    endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target:15 });
+    const act = save.treasury?.actions;
+    const spiderBuffActive = act && act.spiderBuffUntil > now();
+    const baseTarget = 15;
+    const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
+    endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target });
   } else {
     kingModal.classList.remove('show');
     kingModal.setAttribute('aria-hidden', 'true');
@@ -4281,7 +4458,13 @@ kingCloseBtn.addEventListener('click', () => {
 // If modal is open and user presses Escape -> cancel (timeout)
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && kingModal.classList.contains('show')) {
-    if (_kingState.miniGame) endKingMiniGame('timeout', { clicked:0, target:15 });
+    if (_kingState.miniGame) {
+      const act = save.treasury?.actions;
+      const spiderBuffActive = act && act.spiderBuffUntil > now();
+      const baseTarget = 15;
+      const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
+      endKingMiniGame('timeout', { clicked:0, target });
+    }
   }
 });
 
@@ -4449,17 +4632,39 @@ if (spiderEl) {
     save.streak.lastClickTs = 0;
     save.streak.multiplier = 1.0;
 
+    const act = save.treasury?.actions;
+    const spiderBuffActive = act && act.spiderBuffUntil > now();
+    
     const roll = Math.random();
-    if (roll < 0.25) {
-      save.modifiers.spiderMult = 0.0001;
-      save.modifiers.spiderUntil = now() + 36000;
-      toast('Spider curse! All income x0.0001 for 36s.', 'bad');
-    } else if (roll < 0.50) {
-      save.modifiers.spiderMult = 100.0;
-      save.modifiers.spiderUntil = now() + 7000;
-      toast('Spider blessing! All income x100 for 7s.', 'good');
+    if (spiderBuffActive) {
+      // Buff 5: Increased chance for positive, decreased for negative
+      // Positive: 75% chance (was 25%), Negative: 5% chance (was 25%), No effect: 20% (was 50%)
+      if (roll < 0.75) {
+        // Positive effect - shorter duration (4s instead of 7s)
+        save.modifiers.spiderMult = 100.0;
+        save.modifiers.spiderUntil = now() + 4000;
+        toast('Spider blessing! All income x100 for 4s.', 'good');
+              } else if (roll < 0.80) {
+                // Negative effect - shorter duration (12s instead of 36s)
+                save.modifiers.spiderMult = 0.0001;
+                save.modifiers.spiderUntil = now() + 12000;
+                toast('Spider curse! All income x0.0001 for 12s.', 'bad');
+      } else {
+        toast('Squished! No effect.', 'info');
+      }
     } else {
-      toast('Squished! No effect.', 'info');
+      // Normal spider behavior
+      if (roll < 0.25) {
+        save.modifiers.spiderMult = 0.0001;
+        save.modifiers.spiderUntil = now() + 36000;
+        toast('Spider curse! All income x0.0001 for 36s.', 'bad');
+      } else if (roll < 0.50) {
+        save.modifiers.spiderMult = 100.0;
+        save.modifiers.spiderUntil = now() + 7000;
+        toast('Spider blessing! All income x100 for 7s.', 'good');
+      } else {
+        toast('Squished! No effect.', 'info');
+      }
     }
 
     // Скрываем паука и останавливаем движение
@@ -4481,6 +4686,307 @@ window.addEventListener('resize', () => {
   if (top > maxTop) spiderEl.style.top = maxTop + 'px';
 });
 
+// ======= Angry Barmatun (similar to spider) =======
+const _angryBarmatunState = {
+  moveTimer: null,
+  moving: false,
+  aliveUntil: 0,
+  escapeTimer: null
+};
+
+// compute angry barmatun size safely
+function _getAngryBarmatunSize() {
+  if (!angryBarmatunEl) return { w: 64, h: 64 };
+  const r = angryBarmatunEl.getBoundingClientRect();
+  return { w: Math.max(1, r.width), h: Math.max(1, r.height) };
+}
+
+// place angry barmatun at a random position within viewport
+function _placeAngryBarmatunRandom() {
+  if (!angryBarmatunEl) return;
+  const { w, h } = _getAngryBarmatunSize();
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+  angryBarmatunEl.style.left = _randInt(0, maxLeft) + 'px';
+  angryBarmatunEl.style.top = _randInt(0, maxTop) + 'px';
+  angryBarmatunEl.style.transform = `rotate(${_randInt(-12,12)}deg)`;
+}
+
+// move angry barmatun once to a new random point
+function _moveAngryBarmatunOnce() {
+  if (!angryBarmatunEl || angryBarmatunEl.classList.contains('hidden')) return;
+  const { w, h } = _getAngryBarmatunSize();
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+
+  const cur = angryBarmatunEl.getBoundingClientRect();
+  let nx, ny, attempts = 0;
+  do {
+    nx = _randInt(0, maxLeft);
+    ny = _randInt(0, maxTop);
+    attempts++;
+  } while (attempts < 8 && Math.hypot(nx - cur.left, ny - cur.top) < Math.max(w,h) * 0.5);
+
+  angryBarmatunEl.style.left = nx + 'px';
+  angryBarmatunEl.style.top = ny + 'px';
+  angryBarmatunEl.style.transform = `rotate(${_randInt(-18,18)}deg)`;
+  setTimeout(()=> {
+    if (!angryBarmatunEl.classList.contains('hidden')) angryBarmatunEl.style.transform = 'rotate(0deg)';
+  }, 900);
+}
+
+// start periodic movement while angry barmatun visible
+function _startAngryBarmatunMovement() {
+  if (_angryBarmatunState.moving) return;
+  _angryBarmatunState.moving = true;
+  const schedule = () => {
+    if (!_angryBarmatunState.moving) return;
+    const delay = _randInt(1200, 3200);
+    _angryBarmatunState.moveTimer = setTimeout(() => {
+      _moveAngryBarmatunOnce();
+      schedule();
+    }, delay);
+  };
+  schedule();
+}
+
+// stop movement and clear timers
+function _stopAngryBarmatunMovement() {
+  _angryBarmatunState.moving = false;
+  if (_angryBarmatunState.moveTimer) {
+    clearTimeout(_angryBarmatunState.moveTimer);
+    _angryBarmatunState.moveTimer = null;
+  }
+}
+
+// draw angry barmatun (evil Satan face - pixel art style)
+function drawAngryBarmatun(canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 64, 64);
+  
+  // Pixel art style - use imageSmoothingEnabled = false for crisp pixels
+  ctx.imageSmoothingEnabled = false;
+  
+  // Dark red/demonic colors
+  const skinDark = '#4a1a1a';
+  const skinMid = '#6b2a2a';
+  const skinLight = '#8b3a3a';
+  const eyeGlow = '#ff0000';
+  const eyeCore = '#ff6666';
+  const hornColor = '#2a1a1a';
+  const hornHighlight = '#4a3a3a';
+  const mouthDark = '#1a0000';
+  const mouthRed = '#cc0000';
+  const shadow = '#2a0a0a';
+  
+  // Face shape (slightly angular, demonic)
+  // Head base
+  ctx.fillStyle = skinDark;
+  ctx.fillRect(16, 12, 32, 40);
+  
+  // Face contour (wider at top, narrower at chin)
+  ctx.fillStyle = skinMid;
+  ctx.fillRect(18, 14, 28, 36);
+  ctx.fillRect(20, 16, 24, 32);
+  
+  // Forehead/cheeks
+  ctx.fillStyle = skinLight;
+  ctx.fillRect(22, 18, 20, 8);
+  ctx.fillRect(20, 26, 24, 6);
+  
+  // Horns (Satan's horns)
+  ctx.fillStyle = hornColor;
+  // Left horn
+  ctx.fillRect(14, 8, 6, 12);
+  ctx.fillRect(12, 10, 4, 8);
+  ctx.fillRect(16, 6, 4, 6);
+  // Right horn
+  ctx.fillRect(44, 8, 6, 12);
+  ctx.fillRect(48, 10, 4, 8);
+  ctx.fillRect(44, 6, 4, 6);
+  // Horn highlights
+  ctx.fillStyle = hornHighlight;
+  ctx.fillRect(15, 9, 3, 5);
+  ctx.fillRect(45, 9, 3, 5);
+  
+  // Angry eyebrows (thick, angled down)
+  ctx.fillStyle = '#1a0000';
+  // Left eyebrow
+  ctx.fillRect(18, 20, 8, 3);
+  ctx.fillRect(20, 18, 6, 2);
+  // Right eyebrow
+  ctx.fillRect(38, 20, 8, 3);
+  ctx.fillRect(38, 18, 6, 2);
+  
+  // Evil eyes (glowing red)
+  // Left eye
+  ctx.fillStyle = eyeGlow;
+  ctx.fillRect(20, 26, 8, 10);
+  ctx.fillStyle = eyeCore;
+  ctx.fillRect(22, 28, 4, 6);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(23, 29, 2, 2); // White highlight
+  // Right eye
+  ctx.fillStyle = eyeGlow;
+  ctx.fillRect(36, 26, 8, 10);
+  ctx.fillStyle = eyeCore;
+  ctx.fillRect(38, 28, 4, 6);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(39, 29, 2, 2); // White highlight
+  
+  // Nose (angular, demonic)
+  ctx.fillStyle = skinDark;
+  ctx.fillRect(30, 32, 4, 8);
+  ctx.fillRect(28, 34, 8, 4);
+  // Nostrils
+  ctx.fillStyle = shadow;
+  ctx.fillRect(29, 36, 2, 2);
+  ctx.fillRect(33, 36, 2, 2);
+  
+  // Mouth (evil grin with sharp teeth)
+  ctx.fillStyle = mouthDark;
+  ctx.fillRect(24, 42, 16, 6);
+  ctx.fillStyle = mouthRed;
+  ctx.fillRect(26, 44, 12, 4);
+  // Teeth (sharp)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(28, 42, 2, 3);
+  ctx.fillRect(32, 42, 2, 3);
+  ctx.fillRect(36, 42, 2, 3);
+  
+  // Facial shadows/contours
+  ctx.fillStyle = shadow;
+  ctx.fillRect(20, 30, 2, 4);
+  ctx.fillRect(42, 30, 2, 4);
+  ctx.fillRect(28, 40, 2, 2);
+  ctx.fillRect(34, 40, 2, 2);
+  
+  // Chin/jawline
+  ctx.fillStyle = skinDark;
+  ctx.fillRect(22, 48, 20, 4);
+  
+  // Re-enable smoothing for other elements if needed
+  ctx.imageSmoothingEnabled = true;
+}
+
+// spawn angry barmatun
+function spawnAngryBarmatun() {
+  if (!angryBarmatunEl) return;
+
+  // Create canvas for angry barmatun if it doesn't exist
+  if (!angryBarmatunEl.querySelector('canvas')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    angryBarmatunEl.innerHTML = '';
+    angryBarmatunEl.appendChild(canvas);
+    drawAngryBarmatun(canvas);
+  } else {
+    drawAngryBarmatun(angryBarmatunEl.querySelector('canvas'));
+  }
+
+  // ensure angry barmatun is visible and positioned inside viewport
+  _placeAngryBarmatunRandom();
+  angryBarmatunEl.classList.remove('hidden');
+
+  // ensure CSS transitions exist for smooth movement
+  const cs = getComputedStyle(angryBarmatunEl);
+  if (!cs.transition || cs.transition.indexOf('left') === -1) {
+    angryBarmatunEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
+  }
+
+  // mark alive window
+  _angryBarmatunState.aliveUntil = now() + 30000; // 30s
+  _startAngryBarmatunMovement();
+  toast('Angry Barmatun appears...', 'warn');
+
+  // clear old timer if exists
+  if (_angryBarmatunState.escapeTimer) {
+    clearTimeout(_angryBarmatunState.escapeTimer);
+    _angryBarmatunState.escapeTimer = null;
+  }
+
+  // create new timer
+  _angryBarmatunState.escapeTimer = setTimeout(() => {
+    _angryBarmatunState.escapeTimer = null;
+    if (!angryBarmatunEl || angryBarmatunEl.classList.contains('hidden')) return;
+    if (now() < _angryBarmatunState.aliveUntil) return;
+    angryBarmatunEl.classList.add('hidden');
+    _stopAngryBarmatunMovement();
+    _angryBarmatunState.aliveUntil = 0;
+    toast('Angry Barmatun left in anger!', 'info');
+  }, 30000);
+}
+
+// spawn scheduling - same as spider (4-10 minutes)
+let nextAngryBarmatunTs = now() + _randInt(240000, 600000);
+function maybeSpawnAngryBarmatun() {
+  const t = now();
+  if (t >= nextAngryBarmatunTs) {
+    spawnAngryBarmatun();
+    nextAngryBarmatunTs = t + _randInt(240000, 600000);
+  }
+}
+
+// click handler for angry barmatun
+if (angryBarmatunEl) {
+  const cs = getComputedStyle(angryBarmatunEl);
+  if (!cs.transition || cs.transition.indexOf('left') === -1) {
+    angryBarmatunEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
+  }
+
+  angryBarmatunEl.addEventListener('click', () => {
+    // cancel escape timer
+    if (_angryBarmatunState.escapeTimer) {
+      clearTimeout(_angryBarmatunState.escapeTimer);
+      _angryBarmatunState.escapeTimer = null;
+    }
+    _angryBarmatunState.aliveUntil = 0;
+
+    // Reset streak
+    save.streak.count = 0;
+    save.streak.lastClickTs = 0;
+    save.streak.multiplier = 1.0;
+
+    const roll = Math.random();
+    if (roll < 0.5) {
+      // 50% chance: Angry - reduce all income by 50% for 12 seconds
+      save.modifiers.angryBarmatunIncomeReduction = now() + 12000;
+      toast('Angry Barmatun is furious! All income reduced by 50% for 12s.', 'bad');
+    } else {
+      // 50% chance: Power of anger - random click multiplier (x0.1 to x100)
+      // Generate random multiplier between 0.1 and 100
+      const minMult = 0.1;
+      const maxMult = 100.0;
+      // Use logarithmic distribution for more interesting range
+      const logMin = Math.log10(minMult);
+      const logMax = Math.log10(maxMult);
+      const randomLog = logMin + Math.random() * (logMax - logMin);
+      const randomMult = Math.pow(10, randomLog);
+      
+      save.modifiers.angryBarmatunMult = randomMult;
+      save.modifiers.angryBarmatunUntil = now() + 12000; // 12 seconds
+      toast(`Angry Barmatun grants power! Click multiplier: x${randomMult.toFixed(2)} for 12s.`, 'good');
+    }
+
+    // Hide angry barmatun and stop movement
+    angryBarmatunEl.classList.add('hidden');
+    _stopAngryBarmatunMovement();
+  });
+}
+
+// ensure angry barmatun stays inside viewport on resize
+window.addEventListener('resize', () => {
+  if (!angryBarmatunEl || angryBarmatunEl.classList.contains('hidden')) return;
+  const { w, h } = _getAngryBarmatunSize();
+  const left = parseInt(angryBarmatunEl.style.left || 0, 10);
+  const top = parseInt(angryBarmatunEl.style.top || 0, 10);
+  const maxLeft = Math.max(0, window.innerWidth - w);
+  const maxTop = Math.max(0, window.innerHeight - h);
+  if (left > maxLeft) angryBarmatunEl.style.left = maxLeft + 'px';
+  if (top > maxTop) angryBarmatunEl.style.top = maxTop + 'px';
+});
+
 // ======= Ticker =======
 let _lastAchievementCheck = 0;
 function tick() {
@@ -4491,22 +4997,100 @@ function tick() {
 
   // Treasury regen
   if (save.treasury) {
-    const dtreasury = (t - (save.treasury.lastTs || t)) / 1000;
-    save.treasury.lastTs = t;
-    if (dtreasury > 0) {
-      const baseRegen = save.treasury.regenPerSec || 1;
-      const talentRegenBonus = talentTreasuryRegenBonus();
-      const actualRegen = baseRegen + talentRegenBonus;
-      gainTreasury(actualRegen * dtreasury);
+    const act = save.treasury.actions;
+    // Buff 5: Treasury doesn't fill passively
+    const noPassiveRegen = act && act.treasuryNoPassiveUntil > t;
+    if (!noPassiveRegen) {
+      const dtreasury = (t - (save.treasury.lastTs || t)) / 1000;
+      save.treasury.lastTs = t;
+      if (dtreasury > 0) {
+        const baseRegen = save.treasury.regenPerSec || 1;
+        const actualRegen = baseRegen;
+        gainTreasury(actualRegen * dtreasury);
+      }
+    }
+    
+    // Buff 4: Passive income boost (5% every 3 minutes, up to 500%)
+    let passiveBoostChanged = false;
+    if (act && act.passiveBoostUntil > t) {
+      const threeMinMs = 180000; // 3 minutes
+      const lastTick = act.passiveBoostLastTick || t;
+      const oldLevel = act.passiveBoostLevel || 0;
+      if (t - lastTick >= threeMinMs) {
+        act.passiveBoostLevel = Math.min((act.passiveBoostLevel || 0) + 5, 150);
+        act.passiveBoostLastTick = t;
+        if (act.passiveBoostLevel !== oldLevel) {
+          passiveBoostChanged = true;
+        }
+      }
+    } else if (act) {
+      const oldLevel = act.passiveBoostLevel || 0;
+      act.passiveBoostLevel = 0;
+      if (oldLevel !== 0) {
+        passiveBoostChanged = true;
+      }
+    }
+    
+    // Update UI immediately if passive boost changed
+    if (passiveBoostChanged) {
+      renderTopStats(); // Update PPS display immediately
+      // Update button description if in Uber mode
+      const isInUberMode = save.uber && save.uber.max !== 19;
+      if (isInUberMode) {
+        const passiveBoostBtn = document.querySelector('#treasury-actions-row2 .btn[data-btn-id="passiveBoost"]');
+        if (passiveBoostBtn) {
+          const tooltip = passiveBoostBtn.querySelector('.tooltip');
+          if (tooltip) {
+            const effectLine = tooltip.querySelector('.tooltip-line > div');
+            if (effectLine) {
+              const currentBoost = Math.min(act.passiveBoostLevel || 0, 150);
+              effectLine.textContent = `Passive income increases by 5% every 3 minutes (current: +${currentBoost}%).`;
+            }
+          }
+        }
+      }
     }
 
+    // Buff 3: Fast Repair - ускоряет восстановление зданий в 2 раза
+    const fastRepairActive = act && act.fastRepairUntil > t;
+    if (fastRepairActive) {
+      save.modifiers.breakChanceMult = 3.0; // Breaks 3x more often
+      // Ускоряем восстановление уже сломанных зданий в 2 раза
+      // За каждую секунду реального времени проходит 2 секунды времени восстановления
+      // Это означает, что за dt секунд реального времени должно пройти dt * 2 секунд времени восстановления
+      // Время естественным образом проходит (now() увеличивается на dt * 1000 мс)
+      // Мы дополнительно уменьшаем blockedUntil на dt * 1000 мс, чтобы ускорить в 2 раза
+      if (dt > 0 && dt < 10) { // Проверяем, что dt разумный (не слишком большой)
+        const fastRepairSpeed = dt * 1000; // Дополнительное уменьшение времени за этот тик (в миллисекундах)
+        save.buildings.forEach(b => {
+          if (b.blockedUntil > t) {
+            // Уменьшаем blockedUntil на fastRepairSpeed миллисекунд дополнительно
+            // Время естественным образом проходит: now() увеличивается на dt * 1000
+            // Мы дополнительно уменьшаем blockedUntil на dt * 1000
+            // Итого: оставшееся время уменьшается на dt * 2000 мс за dt секунд реального времени
+            // Это означает, что за 1 секунду реального времени проходит 2 секунды времени восстановления
+            const oldBlockedUntil = b.blockedUntil;
+            b.blockedUntil = Math.max(t, b.blockedUntil - fastRepairSpeed);
+            // Отладочная информация (можно убрать позже)
+            // if (oldBlockedUntil !== b.blockedUntil) {
+            //   console.log(`Fast Repair: reduced repair time by ${fastRepairSpeed}ms`);
+            // }
+          }
+        });
+      }
+    }
+    
     // Engineer effect
     if (save.treasury.actions.engineerUntil > t) {
-      save.modifiers.breakChanceMult = 0.34; // -66%
-      save.modifiers.repairTimeMult = 2.0;
+      if (!fastRepairActive) {
+        save.modifiers.breakChanceMult = 0.34; // -66%
+        save.modifiers.repairTimeMult = 2.0;
+      }
     } else {
-      save.modifiers.breakChanceMult = 1.0;
-      save.modifiers.repairTimeMult = 1.0;
+      if (!fastRepairActive) {
+        save.modifiers.breakChanceMult = 1.0;
+        save.modifiers.repairTimeMult = 1.0;
+      }
     }
   }
 
@@ -4526,14 +5110,34 @@ function tick() {
 
   // Spider spawn check
   maybeSpawnSpider();
+  
+  // Angry Barmatun spawn check
+  maybeSpawnAngryBarmatun();
 
   // Update UI
   renderTopStats();
   renderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
   renderEffects();
-  renderTreasuryActions();
+  updateTreasuryActions(); // Оптимизированное обновление - только данные, без пересоздания DOM
+  updateBuildingLevels(); // Обновляем уровни зданий в реальном времени
   // Обновляем состояние кнопок (disabled/enabled) в зависимости от поинтов
   updateButtonStates();
+  
+  // Update Passive Boost button description in real-time if active
+  const isInUberMode = save.uber && save.uber.max !== 19;
+  if (isInUberMode && act && act.passiveBoostUntil > t) {
+    const passiveBoostBtn = document.querySelector('#treasury-actions-row2 .btn[data-btn-id="passiveBoost"]');
+    if (passiveBoostBtn) {
+      const tooltip = passiveBoostBtn.querySelector('.tooltip');
+      if (tooltip) {
+        const effectLine = tooltip.querySelector('.tooltip-line > div');
+        if (effectLine) {
+          const currentBoost = Math.min(act.passiveBoostLevel || 0, 500);
+          effectLine.textContent = `Passive income increases by 5% every 3 minutes (current: +${currentBoost}%).`;
+        }
+      }
+    }
+  }
 
   // Render some parts less often
 }
@@ -5067,31 +5671,7 @@ statsModal.addEventListener('click', (ev) => {
 });
 }
 
-// Talents modal
-if (talentsBtn) {
-  talentsBtn.addEventListener('click', () => {
-    openTalents();
-  });
-}
-if (talentsClose) {
-  talentsClose.addEventListener('click', () => {
-    closeTalents();
-  });
-}
-if (talentsModal) {
-  talentsModal.addEventListener('click', (ev) => {
-    if (ev.target === talentsModal) closeTalents();
-  });
-}
-if (talentsConfirm) {
-  talentsConfirm.addEventListener('click', confirmTalents);
-}
-if (talentsCancel) {
-  talentsCancel.addEventListener('click', resetTalents);
-}
-if (talentsResetAll) {
-  talentsResetAll.addEventListener('click', resetAllTalents);
-}
+// Talent event handlers removed
 
 // Tab switching
 tabBtns.forEach(btn => {
@@ -5152,6 +5732,8 @@ debugTools.addEventListener('click', (e) => {
       break;
     case 'spawnSpider':
       spawnSpider(); break;
+    case 'spawnAngryBarmatun':
+      spawnAngryBarmatun(); break;
     case 'spawnKing':
       spawnKing(); break;
     case 'addUberLevels':
@@ -5180,6 +5762,43 @@ debugTools.addEventListener('click', (e) => {
     case 'goldenClick':
       save.click.goldenUntil = now() + 8000;
       toast('Click button golden.', 'good'); break;
+    case 'goodLuck':
+      // Toggle режим, где здания не могут ломаться
+      if (!save.modifiers.goodLuckMode) {
+        save.modifiers.goodLuckMode = true;
+        toast('Good luck mode ON: Buildings cannot break.', 'good');
+      } else {
+        save.modifiers.goodLuckMode = false;
+        toast('Good luck mode OFF: Buildings can break again.', 'warn');
+      }
+      break;
+    case 'resetUberBuffs':
+      // Сбросить все активные uber-баффы
+      const act = save.treasury?.actions;
+      if (act) {
+        act.noGoldenUntil = 0;
+        act.alwaysGoldenUntil = 0;
+        act.fastRepairUntil = 0;
+        act.passiveBoostUntil = 0;
+        act.passiveBoostLevel = 0;
+        act.passiveBoostLastTick = 0;
+        act.spiderBuffUntil = 0;
+        act.noBreakUntil = 0;
+        act.treasuryNoPassiveUntil = 0;
+        toast('All uber-buffs reset.', 'good');
+        renderTreasuryActions();
+      } else {
+        toast('No treasury actions to reset.', 'warn');
+      }
+      break;
+    case 'addTreasury':
+      if (save.treasury) {
+        gainTreasury(1000);
+        toast('Added 1000 treasury coins.', 'good');
+      } else {
+        toast('Treasury not available.', 'warn');
+      }
+      break;
     case 'resetAll':
       const uname = save.meta.username;
       save = newSave(uname); initBuildings(save);
@@ -5587,7 +6206,6 @@ document.addEventListener('keydown', (e) => {
     save = stored.data;
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
     ensureTreasury(save);
-    ensureTalents(save);
     // Инициализируем достижения, если их нет
     if (!save.achievements) {
       save.achievements = {
@@ -5630,7 +6248,6 @@ document.addEventListener('keydown', (e) => {
 renderAchievements();
 if (save) {
   ensureTreasury(save);
-  ensureTalents(save);
   // Убеждаемся, что bulk инициализирован
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;

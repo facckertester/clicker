@@ -1,150 +1,41 @@
 :root{
-  /* --- Палитра: пергамент, камень, дуб, гербовые цвета --- */
-  --bg: #0b0f0b;               /* глубокий вечерний фон */
-  --parchment: #efe6cf;        /* светлый пергамент */
-  --paper-crease: rgba(0,0,0,0.06);
-  --stone: #3a3a36;            /* холодный камень */
-  --wood: #3b2b18;             /* тёмный дуб */
-  --text: #efe6cf;             /* текст на пергаменте */
-  --muted: #b7a07a;            /* выцветший пергамент */
-  --gold: #d4b24a;             /* золотой гербовый акцент */
-  --gold-dark: #a07a2a;
-  --heraldic-blue: #2a4b7a;    /* гербовый синий */
-  --danger: #8b1b1b;
-  --success: #2f6a2f;
-  --warn: #a86a12;
-  --border: #2e241b;           /* тёмная рама */
-  --shadow-strong: rgba(0,0,0,0.65);
+  /* --- Path of Exile Color Palette --- */
+  --bg: #0a0a0a;               /* почти черный фон PoE */
+  --bg-dark: #050505;          /* самый темный */
+  --bg-panel: #1a1a1a;         /* темные панели */
+  --bg-card: #2a2a2a;          /* карточки */
+  --text: #c8c8c8;             /* основной текст PoE */
+  --text-bright: #f0c090;      /* яркий текст */
+  --muted: #888888;            /* приглушенный текст */
+  --muted-dark: #666666;      /* очень приглушенный */
+  --poe-orange: #c8aa6e;       /* классический PoE оранжевый */
+  --poe-orange-bright: #f0c090; /* яркий оранжевый */
+  --poe-orange-dark: #af6025;  /* темный оранжевый */
+  --poe-amber: #d4a574;        /* янтарный акцент */
+  --gold: #c8aa6e;             /* золотой (PoE стиль) */
+  --gold-dark: #af6025;
+  --danger: #cc3333;           /* красный PoE */
+  --success: #4a8a4a;          /* зеленый PoE */
+  --warn: #cc9933;             /* предупреждение */
+  --border: #3a3a3a;           /* границы */
+  --border-bright: #5a5a5a;    /* яркие границы */
+  --border-orange: #c8aa6e;    /* оранжевые границы */
+  --shadow-strong: rgba(0,0,0,0.9);
+  --shadow-orange: rgba(200, 170, 110, 0.3);
 
   --max-width: 1200px;
   --gap: 16px;
-  --radius: 10px;
+  --radius: 4px;               /* более острые углы PoE */
   --panel-padding: 16px;
 
-  /* Шрифты: старая эпоха + пиксельный моно для чисел */
-  --ui-font: "IM Fell English", "Goudy Old Style", Georgia, "Times New Roman", serif;
-  --mono-font: "Courier New", Courier, monospace;
+  /* Шрифты: современные, как в PoE */
+  --ui-font: "Arial", "Helvetica", sans-serif;
+  --mono-font: "Consolas", "Courier New", monospace;
 
-  /* Курсоры: детальный меч и щит в стиле ретро (SVG data-URI) */
-  /* Age of Empires II styled cursors */
-  --sword-cursor: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
-  <defs>\
-    <linearGradient id='sg' x1='0%' y1='0%' x2='0%' y2='100%'>\
-      <stop offset='0%' stop-color='%23f9f3dc'/>\
-      <stop offset='50%' stop-color='%23e4d3a5'/>\
-      <stop offset='100%' stop-color='%23c89a3c'/>\
-    </linearGradient>\
-    <linearGradient id='hg' x1='0%' y1='0%' x2='100%' y2='100%'>\
-      <stop offset='0%' stop-color='%23c89a3c'/>\
-      <stop offset='100%' stop-color='%23846824'/>\
-    </linearGradient>\
-  </defs>\
-  <rect width='48' height='48' fill='none'/>\
-  <g transform='translate(8,2) rotate(-25 16 22)'>\
-    <path d='M16 1 L19 9 L19 26 L16 38 L13 26 L13 9 Z' fill='url(%23sg)' stroke='%23000000' stroke-width='1.4' stroke-linejoin='round'/>\
-    <path d='M16 1 L19 9 L19 26 L16 30' fill='none' stroke='%23ffffff' stroke-width='0.8' opacity='0.55'/>\
-    <rect x='10' y='24' width='12' height='3' rx='1' fill='%23362418' stroke='%23000000' stroke-width='1'/>\
-    <rect x='12' y='22' width='8' height='1' fill='%235a4a36' stroke='%23000000' stroke-width='0.8'/>\
-    <rect x='14' y='27' width='4' height='12' rx='1' fill='url(%23hg)' stroke='%23000000' stroke-width='1'/>\
-    <line x1='15' y1='30' x2='15' y2='36' stroke='%23000000' stroke-width='0.6'/>\
-    <line x1='17' y1='30' x2='17' y2='36' stroke='%23000000' stroke-width='0.6'/>\
-    <circle cx='16' cy='39.5' r='2.4' fill='%23c89a3c' stroke='%23000000' stroke-width='1'/>\
-    <circle cx='16' cy='39.5' r='1.2' fill='%23846824'/>\
-  </g>\
-</svg>") 6 4, auto;
-
-  --shield-cursor: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
-  <defs>\
-    <filter id='goldGlow' x='-50%' y='-50%' width='200%' height='200%'>\
-      <feGaussianBlur stdDeviation='2' result='coloredBlur'/>\
-      <feMerge>\
-        <feMergeNode in='coloredBlur'/>\
-        <feMergeNode in='SourceGraphic'/>\
-      </feMerge>\
-    </filter>\
-    <linearGradient id='swordGold' x1='0%' y1='0%' x2='0%' y2='100%'>\
-      <stop offset='0%' stop-color='%23f9f3dc'/>\
-      <stop offset='50%' stop-color='%23e4d3a5'/>\
-      <stop offset='100%' stop-color='%23c89a3c'/>\
-    </linearGradient>\
-    <linearGradient id='hiltGold' x1='0%' y1='0%' x2='100%' y2='100%'>\
-      <stop offset='0%' stop-color='%23c89a3c'/>\
-      <stop offset='100%' stop-color='%23846824'/>\
-    </linearGradient>\
-  </defs>\
-  <rect width='48' height='48' fill='none'/>\
-  <g transform='translate(8,2) rotate(-25 16 22)' filter='url(%23goldGlow)'>\
-    <path d='M16 1 L19 9 L19 26 L16 38 L13 26 L13 9 Z' fill='url(%23swordGold)' stroke='%23d4b24a' stroke-width='1.4' stroke-linejoin='round' opacity='0.95'/>\
-    <path d='M16 1 L19 9 L19 26 L16 30' fill='none' stroke='%23fff8dc' stroke-width='0.8' opacity='0.75'/>\
-    <rect x='10' y='24' width='12' height='3' rx='1' fill='%23362418' stroke='%23d4b24a' stroke-width='1'/>\
-    <rect x='12' y='22' width='8' height='1' fill='%235a4a36' stroke='%23d4b24a' stroke-width='0.8'/>\
-    <rect x='14' y='27' width='4' height='12' rx='1' fill='url(%23hiltGold)' stroke='%23d4b24a' stroke-width='1'/>\
-    <line x1='15' y1='30' x2='15' y2='36' stroke='%23000000' stroke-width='0.6'/>\
-    <line x1='17' y1='30' x2='17' y2='36' stroke='%23000000' stroke-width='0.6'/>\
-    <circle cx='16' cy='39.5' r='2.4' fill='%23d4b24a' stroke='%23000000' stroke-width='1'/>\
-    <circle cx='16' cy='39.5' r='1.2' fill='%23846824'/>\
-  </g>\
-  <circle cx='24' cy='24' r='18' fill='none' stroke='%23d4b24a' stroke-width='0.5' opacity='0.3'/>\
-</svg>") 6 4, pointer;
-
-  /* Кастомный «запрещено» курсор (скрещенные мечи) */
-  --forbidden-cursor: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
-  <defs>\
-    <filter id='redGlow' x='-50%' y='-50%' width='200%' height='200%'>\
-      <feGaussianBlur stdDeviation='2.5' result='coloredBlur'/>\
-      <feMerge>\
-        <feMergeNode in='coloredBlur'/>\
-        <feMergeNode in='SourceGraphic'/>\
-      </feMerge>\
-    </filter>\
-    <linearGradient id='swordRed1' x1='0%' y1='0%' x2='0%' y2='100%'>\
-      <stop offset='0%' stop-color='%23ffcccc'/>\
-      <stop offset='50%' stop-color='%23ff9999'/>\
-      <stop offset='100%' stop-color='%23cc3333'/>\
-    </linearGradient>\
-    <linearGradient id='swordRed2' x1='0%' y1='0%' x2='0%' y2='100%'>\
-      <stop offset='0%' stop-color='%23ffcccc'/>\
-      <stop offset='50%' stop-color='%23ff9999'/>\
-      <stop offset='100%' stop-color='%23cc3333'/>\
-    </linearGradient>\
-    <linearGradient id='hiltRed' x1='0%' y1='0%' x2='100%' y2='100%'>\
-      <stop offset='0%' stop-color='%23cc3333'/>\
-      <stop offset='100%' stop-color='%23880000'/>\
-    </linearGradient>\
-  </defs>\
-  <rect width='48' height='48' fill='none'/>\
-  <g transform='translate(24,24) rotate(45) translate(-16,-22)' filter='url(%23redGlow)'>\
-    <path d='M16 1 L19 9 L19 26 L16 38 L13 26 L13 9 Z' fill='url(%23swordRed1)' stroke='%23ff0000' stroke-width='1.4' stroke-linejoin='round' opacity='0.95'/>\
-    <rect x='10' y='24' width='12' height='3' rx='1' fill='%23362418' stroke='%23ff0000' stroke-width='1'/>\
-    <rect x='12' y='22' width='8' height='1' fill='%235a4a36' stroke='%23ff0000' stroke-width='0.8'/>\
-    <rect x='14' y='27' width='4' height='12' rx='1' fill='url(%23hiltRed)' stroke='%23ff0000' stroke-width='1'/>\
-    <circle cx='16' cy='39.5' r='2.4' fill='%23ff0000' stroke='%23000000' stroke-width='1'/>\
-  </g>\
-  <g transform='translate(24,24) rotate(-45) translate(-16,-22)' filter='url(%23redGlow)'>\
-    <path d='M16 1 L19 9 L19 26 L16 38 L13 26 L13 9 Z' fill='url(%23swordRed2)' stroke='%23ff0000' stroke-width='1.4' stroke-linejoin='round' opacity='0.95'/>\
-    <rect x='10' y='24' width='12' height='3' rx='1' fill='%23362418' stroke='%23ff0000' stroke-width='1'/>\
-    <rect x='12' y='22' width='8' height='1' fill='%235a4a36' stroke='%23ff0000' stroke-width='0.8'/>\
-    <rect x='14' y='27' width='4' height='12' rx='1' fill='url(%23hiltRed)' stroke='%23ff0000' stroke-width='1'/>\
-    <circle cx='16' cy='39.5' r='2.4' fill='%23ff0000' stroke='%23000000' stroke-width='1'/>\
-  </g>\
-  <circle cx='24' cy='24' r='18' fill='none' stroke='%23ff0000' stroke-width='0.8' opacity='0.4'/>\
-</svg>") 12 12, not-allowed;
-
-  /* Кастомный курсор для корон (мини-игра) */
-  --crown-cursor: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'>\
-  <rect width='48' height='48' fill='none'/>\
-  <g transform='translate(6,10)'>\
-    <path d='M0 22 L4 8 L10 16 L16 6 L22 16 L28 8 L32 22 Z' fill='%23f4d26a' stroke='%23000000' stroke-width='1.6' stroke-linejoin='round'/>\
-    <circle cx='6' cy='12' r='1.8' fill='%23ffffff' fill-opacity='0.8'/>\
-    <circle cx='16' cy='9' r='1.8' fill='%23ffffff' fill-opacity='0.75'/>\
-    <circle cx='26' cy='12' r='1.8' fill='%23ffffff' fill-opacity='0.8'/>\
-    <rect x='0' y='22' width='32' height='6' rx='2' fill='%23221a12' fill-opacity='0.35'/>\
-  </g>\
-</svg>") 10 4, pointer;
+  /* Курсоры: простые, темные, в стиле PoE */
+  --default-cursor: default;
+  --pointer-cursor: pointer;
+  --forbidden-cursor: not-allowed;
 }
 
 /* Базовое масштабирование интерфейса под разные разрешения */
@@ -158,20 +49,20 @@ body{
   font-family:var(--ui-font);
   color:var(--text);
   background:
-    radial-gradient(900px 320px at 12% 8%, rgba(0,0,0,0.5), transparent 8%),
-    linear-gradient(180deg,#071009,#0f120e);
+    radial-gradient(ellipse at center, rgba(200, 170, 110, 0.02) 0%, transparent 70%),
+    linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
-  line-height:1.25;
+  line-height:1.4;
   -webkit-tap-highlight-color:transparent;
   user-select: none;
-  cursor: var(--sword-cursor);
+  cursor: var(--default-cursor);
 }
 /* Ensure all modals inherit cursor styles */
-#talents-modal, #casino-modal, #king-modal, #stats-modal, #updates-modal, #confirm-modal, #debug-modal {
-  cursor: var(--sword-cursor);
+#casino-modal, #king-modal, #stats-modal, #updates-modal, #confirm-modal, #debug-modal {
+  cursor: var(--default-cursor);
 }
-#talents-modal *, #casino-modal *, #king-modal *, #stats-modal *, #updates-modal *, #confirm-modal *, #debug-modal * {
+#casino-modal *, #king-modal *, #stats-modal *, #updates-modal *, #confirm-modal *, #debug-modal * {
   cursor: inherit;
 }
 
@@ -186,56 +77,31 @@ input, textarea, select { user-select: text; cursor: text; }
 .page{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:calc(var(--gap)*1.25);padding:20px}
 .container{width:100%;max-width:var(--max-width);margin:0 auto;padding:0 16px}
 
-/* ---------- AUTH / CARVED STONE CARD (AoE2 стиль) ---------- */
-.screen{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+/* ---------- AUTH CARD (PoE стиль) ---------- */
+.screen{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
 .auth-card{
   width:420px;
   position:relative;
   padding:24px;
-  border-radius:8px;
-  background:
-    linear-gradient(180deg,#2a2418,#1f1a12); /* темный камень AoE2 */
-  border: 3px solid #1a1610;
+  border-radius:var(--radius);
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 2px solid var(--border-orange);
   box-shadow:
-    0 20px 50px var(--shadow-strong),
-    inset 0 1px 0 rgba(139, 115, 85, 0.15),
-    inset 0 -1px 0 rgba(0,0,0,0.8);
-  cursor: var(--sword-cursor);
-  background-image:
-    url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'>\
-  <defs>\
-    <pattern id='stone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
-      <rect width='20' height='20' fill='%232a2418'/>\
-      <circle cx='5' cy='5' r='0.5' fill='%23000000' opacity='0.3'/>\
-      <circle cx='15' cy='12' r='0.5' fill='%23000000' opacity='0.3'/>\
-      <circle cx='10' cy='18' r='0.5' fill='%23000000' opacity='0.3'/>\
-    </pattern>\
-  </defs>\
-  <rect width='100' height='100' fill='url(%23stone)'/>\
-</svg>");
-}
-.auth-card::before{
-  content:"";
-  position:absolute;
-  inset: -10px;
-  border-radius:16px;
-  pointer-events:none;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,0.6), rgba(255,255,255,0.01));
-  mask: linear-gradient(#000,#000) content-box;
-  -webkit-mask: linear-gradient(#000,#000) content-box;
+    0 0 20px rgba(200, 170, 110, 0.2),
+    0 8px 32px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(200, 170, 110, 0.1);
+  cursor: var(--default-cursor);
 }
 
 /* Headings */
 h1,h2,h3{
   margin:0 0 12px;
-  color:var(--gold);
-  font-weight:900;
-  letter-spacing:0.6px;
+  color:var(--poe-orange);
+  font-weight:bold;
+  letter-spacing:0.5px;
   text-shadow:
-    0 1px 0 rgba(0,0,0,0.6),
-    0 3px 0 rgba(0,0,0,0.8);
+    0 0 8px rgba(200, 170, 110, 0.4),
+    0 2px 4px rgba(0,0,0,0.9);
   font-family:var(--ui-font);
 }
 
@@ -259,153 +125,151 @@ h1,h2,h3{
   line-height:1.4;
 }
 
-/* Tabs (гербовые вкладки) */
+/* Tabs (PoE стиль) */
 .auth-tabs{display:flex;gap:8px;margin-bottom:12px}
 .tab-btn{
   flex:1;
   padding:8px 10px;
-  border-radius:8px;
-  cursor: var(--shield-cursor);
-  font-weight:800;
+  border-radius:var(--radius);
+  cursor: var(--pointer-cursor);
+  font-weight:bold;
   font-size:0.95rem;
-  color:var(--text);
-  background:
-    linear-gradient(180deg,#3a332b,#2f2720);
-  border:1px solid rgba(0,0,0,0.6);
-  box-shadow: inset 0 -6px 8px rgba(0,0,0,0.6);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='80' height='24' viewBox='0 0 80 24'>\
-  <g opacity='0.03' fill='%23000000'><rect width='80' height='24'/></g>\
-</svg>");
+  color:var(--muted);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border:1px solid var(--border);
+  transition: all 0.2s ease;
+}
+.tab-btn:hover{
+  border-color: var(--border-orange);
+  color: var(--text);
 }
 .tab-btn.active{
-  background:
-    linear-gradient(180deg, rgba(212,178,74,0.98), #2a4b7a);
-  color:#0b0b0b;
-  border-color: rgba(0,0,0,0.8);
-  box-shadow: 0 6px 0 rgba(0,0,0,0.6), inset 0 -6px 10px rgba(255,255,255,0.02);
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  color: var(--poe-orange);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3);
 }
 
-/* Inputs: пергаментные поля */
+/* Inputs: PoE стиль */
 .label{display:grid;gap:6px;margin-bottom:10px}
 .label span{color:var(--muted);font-size:0.95rem}
 input,textarea,select{
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.00)),
-    url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='160' height='40' viewBox='0 0 160 40'>\
-  <g opacity='0.03' fill='%23ffffff'>\
-    <rect x='0' y='0' width='160' height='40' rx='4'/>\
-  </g>\
-</svg>");
-  border:2px solid rgba(0,0,0,0.06);
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border:1px solid var(--border);
   color:var(--text);
   padding:10px;
-  border-radius:6px;
+  border-radius:var(--radius);
   font-size:0.95rem;
   outline:none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 4px 0 rgba(0,0,0,0.6);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   background-clip: padding-box;
   cursor:text;
+  transition: all 0.2s ease;
 }
 input:focus,textarea:focus,select:focus{
-  box-shadow: 0 0 0 6px rgba(212,178,74,0.06), inset 0 1px 0 rgba(255,255,255,0.02);
-  border-color: rgba(212,178,74,0.12);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
-/* ---------- BUTTONS (ретро-стиль) ---------- */
+/* ---------- BUTTONS (PoE стиль) ---------- */
 .btn{
   display:inline-flex;align-items:center;gap:10px;
-  padding:10px 14px;border-radius:10px;font-weight:800;font-size:0.95rem;
-  cursor: var(--shield-cursor);white-space:nowrap;line-height:1;min-height:36px;flex-shrink:0;
-  transition: transform .08s ease, box-shadow .12s ease, filter .12s ease;
-  border:2px solid rgba(0,0,0,0.6);
-  background: linear-gradient(180deg,#5a4a36,#3b2f24);
+  padding:10px 14px;border-radius:var(--radius);font-weight:bold;font-size:0.95rem;
+  cursor: var(--pointer-cursor);white-space:nowrap;line-height:1;min-height:36px;flex-shrink:0;
+  transition: all 0.2s ease;
+  border:1px solid var(--border);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
   color: var(--text);
-  box-shadow: 0 10px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.02);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   position:relative;
   overflow:visible;
 }
 
 /* Кнопка активного нажатия */
-.btn:active{transform:translateY(1px);box-shadow:0 6px 0 rgba(0,0,0,0.6)}
-.btn:focus{outline:none;box-shadow:0 0 0 6px rgba(212,178,74,0.06)}
+.btn:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,0.6)}
+.btn:focus{outline:none;box-shadow:0 0 0 2px rgba(200, 170, 110, 0.4)}
+.btn:hover{
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.2), inset 0 2px 4px rgba(0,0,0,0.5);
+}
 
-/* Золотая кнопка: золотой градиент + лёгкое пульсирование */
-@keyframes gold-pulse {
-  0% { box-shadow: 0 12px 0 rgba(0,0,0,0.6), 0 0 0 0 rgba(212,178,74,0.00); transform: translateY(0); }
-  50% { box-shadow: 0 14px 0 rgba(0,0,0,0.6), 0 0 18px rgba(212,178,74,0.06); transform: translateY(-1px); }
-  100% { box-shadow: 0 12px 0 rgba(0,0,0,0.6), 0 0 0 0 rgba(212,178,74,0.00); transform: translateY(0); }
+/* Основная кнопка: оранжевая PoE */
+@keyframes poe-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5); }
+  50% { box-shadow: 0 0 12px rgba(200, 170, 110, 0.5), inset 0 2px 4px rgba(0,0,0,0.5); }
 }
 .btn.primary{
-  background:
-    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), rgba(255,255,255,0.00) 8%),
-    linear-gradient(180deg, var(--gold), var(--heraldic-blue));
-  color:#0b0b0b;border-color:rgba(0,0,0,0.7);
-  box-shadow: 0 12px 0 rgba(0,0,0,0.6), inset 0 -8px 18px rgba(255,255,255,0.02);
-  border-radius:12px;
-  animation: gold-pulse 2.6s ease-in-out infinite;
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  color: var(--poe-orange);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
+  animation: poe-glow 2.5s ease-in-out infinite;
 }
 
-/* Второстепенная кнопка — дубовая */
-.btn.secondary{background:linear-gradient(180deg,#3b322b,#2f2620);color:var(--muted)}
+/* Второстепенная кнопка */
+.btn.secondary{
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  color: var(--muted);
+  border-color: var(--border);
+}
+.btn.secondary:hover{
+  color: var(--text);
+  border-color: var(--border-bright);
+}
 
-/* Кнопка опасности — кроваво-бархатная */
-.btn.danger{background:linear-gradient(180deg,var(--danger),#5a0f0f);color:var(--text)}
+/* Кнопка опасности */
+.btn.danger{
+  background: linear-gradient(180deg, #3a1a1a, #2a0a0a);
+  color: #ff6666;
+  border-color: #cc3333;
+}
+.btn.danger:hover{
+  box-shadow: 0 0 8px rgba(204, 51, 51, 0.4), inset 0 2px 4px rgba(0,0,0,0.5);
+}
 
 /* Малые размеры */
-.btn.small{padding:6px 10px;font-size:0.85rem;border-radius:8px;min-height:30px}
-.btn.tiny{padding:4px 8px;font-size:0.8rem;border-radius:8px;min-height:26px}
+.btn.small{padding:6px 10px;font-size:0.85rem;border-radius:var(--radius);min-height:30px}
+.btn.tiny{padding:4px 8px;font-size:0.8rem;border-radius:var(--radius);min-height:26px}
 .btn:disabled{
-  opacity:0.45;
+  opacity:0.4;
   cursor: var(--forbidden-cursor);
   transform:none;
-  box-shadow:none;
+  box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);
+  filter: grayscale(0.5);
+}
+.btn:disabled:hover{
+  border-color: var(--border);
+  box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Иконки */
 .btn.icon{
-  width:44px;height:44px;padding:8px;border-radius:8px;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
+  width:44px;height:44px;padding:8px;border-radius:var(--radius);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
   display:inline-flex;align-items:center;justify-content:center;
-  box-shadow: 0 8px 0 rgba(0,0,0,0.6), inset 0 -4px 8px rgba(255,255,255,0.02);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
-/* Сломанная кнопка: серые оттенки + текстура трещин */
+/* Сломанная кнопка: серые оттенки */
 .btn.broken{
-  background:
-    linear-gradient(180deg,#6b6b67,#4f4f4b);
-  color:#dcd6c8;
-  border-color: rgba(0,0,0,0.7);
-  box-shadow: 0 6px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.01);
-  filter: grayscale(0.25) contrast(0.9);
+  background: linear-gradient(180deg, #3a3a3a, #2a2a2a);
+  color: #888888;
+  border-color: #4a4a4a;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  filter: grayscale(0.5) contrast(0.8);
   position:relative;
   overflow:hidden;
 }
-/* Текстура трещин (SVG) поверх сломанной кнопки */
-.btn.broken::after{
-  content:"";
-  position:absolute;inset:0;border-radius:inherit;
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'>\
-  <g stroke='%23000000' stroke-opacity='0.18' stroke-width='1' fill='none'>\
-    <path d='M5 10 L30 12 L50 8 L70 14 L95 11'/>\
-    <path d='M10 25 L35 23 L60 27 L85 24 L110 26'/>\
-  </g>\
-</svg>");
-  mix-blend-mode: multiply;
-  opacity:0.9;
-  pointer-events:none;
-}
 
-/* Если кнопка сломана и отключена — ещё более «пыльный» вид */
+/* Если кнопка сломана и отключена */
 .btn.broken:disabled{
-  opacity:0.6;
-  filter: grayscale(0.6) brightness(0.85);
+  opacity:0.5;
+  filter: grayscale(0.7) brightness(0.7);
 }
 
-/* ensure anchor links also use shield cursor */
-a, a:link, a:visited { cursor: var(--shield-cursor); }
+/* ensure anchor links also use pointer cursor */
+a, a:link, a:visited { cursor: var(--pointer-cursor); color: var(--poe-orange); }
+a:hover { color: var(--poe-orange-bright); }
 
 /* ---------- GAME LAYOUT: TITLE / STATS (в стиле интерфейса AoE2) ---------- */
 #game-screen{
@@ -421,17 +285,13 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
 }
 .game-title{
   font-size:clamp(20px,3.2vw,34px);
-  font-weight:900;color:var(--gold);letter-spacing:1px;text-align:center;margin-top:10px;
-  padding:8px 14px;border-radius:8px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
-  border:2px solid rgba(0,0,0,0.6);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.02);
+  font-weight:bold;color:var(--poe-orange);letter-spacing:1px;text-align:center;margin-top:10px;
+  padding:8px 14px;border-radius:var(--radius);
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border:1px solid var(--border-orange);
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
   font-family:var(--ui-font);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='220' height='40' viewBox='0 0 220 40'>\
-  <g opacity='0.03' fill='%23000000'><rect width='220' height='40'/></g>\
-</svg>");
+  text-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
 }
 
 /* Treasury row */
@@ -454,15 +314,17 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   position:relative;
   width:100%;
   height:30px;
-  background:#1b140e;
-  border-radius:15px;
+  background:#0a0a0a;
+  border-radius:var(--radius);
   overflow:hidden;
-  border:1px solid rgba(0,0,0,0.6);
+  border:1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 #treasury-progress-fill{
   height:100%;
   width:0%;
-  background:linear-gradient(90deg,#d4b24a,#f7e09a);
+  background:linear-gradient(90deg, #c8aa6e, #f0c090);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
 }
 .treasury-overlay{
   position:absolute;
@@ -472,15 +334,15 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   align-items:center;
   padding:0 10px;
   font-family:var(--mono-font);
-  font-weight:900;
-  color:#3d2201;
+  font-weight:bold;
+  color:#1a0a00;
   pointer-events:none;
   font-size:1.15rem;
-  text-shadow:0.5px 0.5px 0px rgba(0,0,0,0.5);
+  text-shadow:1px 1px 2px rgba(0,0,0,0.8);
 }
-.treasury-label{font-weight:900;}
-.treasury-amount{text-align:center;font-weight:900;}
-.treasury-regen{text-align:right;color:var(--muted);font-weight:900;}
+.treasury-label{font-weight:bold;color:var(--poe-orange);}
+.treasury-amount{text-align:center;font-weight:bold;color:var(--poe-orange);}
+.treasury-regen{text-align:right;color:var(--muted);font-weight:bold;}
 .treasury-actions{
   position:absolute;
   right:23px;
@@ -511,20 +373,22 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   max-height:60px !important;
   flex-shrink:0;
   text-align:center;
-  background: linear-gradient(180deg,#5a4a36,#3b2f24);
-  border:2px solid rgba(0,0,0,0.6);
-  box-shadow: 0 10px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.02);
-  border-radius:10px;
-  cursor: var(--shield-cursor);
-  transition: none;
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border:1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  border-radius:var(--radius);
+  cursor: var(--pointer-cursor);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   overflow:visible;
+  will-change: border-color, box-shadow;
 }
 .treasury-actions .btn:hover{
-  box-shadow: 0 12px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.04);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .treasury-actions .btn:active{
   transform:translateY(1px);
-  box-shadow:0 6px 0 rgba(0,0,0,0.6);
+  box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
 }
 
 .treasury-actions .btn::after{
@@ -593,49 +457,144 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   height:24px;
   border-radius:50%;
   background:rgba(0,0,0,0.8);
-  border:2px solid var(--gold);
+  border:2px solid var(--poe-orange);
   display:flex;
   align-items:center;
   justify-content:center;
   font-size:18px;
   font-weight:bold;
-  color:var(--gold);
+  color:var(--poe-orange);
   pointer-events:auto;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   z-index:10;
-  transition:none;
-  box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  transition:all 0.2s ease;
+  box-shadow:0 0 8px rgba(200, 170, 110, 0.4);
 }
 .treasury-actions .btn[data-can-upgrade] .upgrade-badge:hover{
-  background:rgba(212,178,74,0.2);
+  background:rgba(200, 170, 110, 0.2);
+  box-shadow:0 0 12px rgba(200, 170, 110, 0.6);
 }
-.treasury-actions .btn .buff-timer{
+.treasury-actions .btn .buff-timer,
+.treasury-actions-row .btn .buff-timer{
   position:absolute;
   bottom:-18px;
   left:50%;
   transform:translateX(-50%);
   font-size:10px;
-  color:var(--gold);
+  color:var(--poe-orange);
   font-weight:bold;
   white-space:nowrap;
   pointer-events:none;
-  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+  text-shadow:0 0 4px rgba(200, 170, 110, 0.4);
   z-index:3;
+}
+
+/* Second row container for Uber mode buttons */
+.treasury-actions-row{
+  display:flex;
+  flex-direction:row;
+  flex-wrap:nowrap;
+  gap:8px;
+  align-items:center;
+  flex-shrink:0;
+  margin-top:10px;
+}
+
+/* Second row buttons inherit all size styles from .treasury-actions .btn */
+.treasury-actions-row .btn{
+  width:60px !important;
+  height:60px !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:flex !important;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  line-height:1;
+  position:relative;
+  min-width:60px !important;
+  max-width:60px !important;
+  min-height:60px !important;
+  max-height:60px !important;
+  flex-shrink:0;
+  text-align:center;
+  border-radius:var(--radius);
+  cursor: var(--pointer-cursor);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow:visible;
+  will-change: border-color, box-shadow;
+}
+.treasury-actions-row .btn::before{
+  content:attr(data-icon);
+  font-size:28px;
+  line-height:1;
+  display:block;
+  position:relative;
+  z-index:2;
+}
+.treasury-actions-row .btn::after{
+  content:'';
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:0;
+  height:0;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  opacity:0;
+}
+.treasury-actions-row .btn.clicked::after{
+  animation:ripple 0.6s ease-out;
+}
+.treasury-actions-row .btn:active{
+  transform:translateY(1px);
+  box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
+}
+.treasury-actions-row .btn:disabled{
+  opacity:0.5;
+  cursor:not-allowed;
+  filter:grayscale(0.3);
+}
+.treasury-actions-row .btn:disabled:hover{
+  transform:none;
+}
+
+/* Uber mode buttons - different color scheme (purple/blue instead of orange) */
+/* They inherit all size and layout styles from .treasury-actions .btn */
+.treasury-actions-row .btn.uber-mode-btn,
+.treasury-actions .btn.uber-mode-btn{
+  background: linear-gradient(180deg, #2a1a2a, #1a0a1a);
+  border-color: #6b4c9b;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 8px rgba(107, 76, 155, 0.3);
+}
+.treasury-actions-row .btn.uber-mode-btn:hover,
+.treasury-actions .btn.uber-mode-btn:hover{
+  border-color: #8b6cbb;
+  box-shadow: 0 0 12px rgba(139, 108, 187, 0.5), inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.treasury-actions-row .btn.uber-mode-btn::after,
+.treasury-actions .btn.uber-mode-btn::after{
+  background:rgba(139, 108, 187, 0.3);
+}
+.treasury-actions-row .btn.uber-mode-btn .buff-timer,
+.treasury-actions .btn.uber-mode-btn .buff-timer{
+  color:#b89cd9;
+  text-shadow:0 0 4px rgba(184, 156, 217, 0.6);
 }
 [data-treasury-tooltip="true"]{
   position:fixed !important;
-  background:linear-gradient(180deg, #1a1612 0%, #0f0d0a 100%) !important;
-  border:2px solid #8b7355 !important;
-  border-top:3px solid #d4b24a !important;
-  border-radius:6px !important;
+  background:linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%) !important;
+  border:1px solid var(--border-orange) !important;
+  border-radius:var(--radius) !important;
   padding:0 !important;
   min-width:300px !important;
   max-width:400px !important;
   box-shadow:
-    0 0 0 1px rgba(0,0,0,0.8),
+    0 0 16px rgba(200, 170, 110, 0.3),
     0 8px 32px rgba(0,0,0,0.9),
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    inset 0 -1px 0 rgba(0,0,0,0.5) !important;
+    inset 0 2px 4px rgba(0,0,0,0.5) !important;
   z-index:2147483647 !important;
   pointer-events:none !important;
   opacity:0;
@@ -652,64 +611,62 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   max-width:300px !important;
 }
 [data-treasury-tooltip="true"] .tooltip-header{
-  background:linear-gradient(180deg, #2a2418 0%, #1a1610 100%);
+  background:linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
   padding:12px 14px;
-  border-bottom:2px solid #3a2f20;
-  border-top-left-radius:4px;
-  border-top-right-radius:4px;
-  font-weight:900;
+  border-bottom:1px solid var(--border);
+  border-top-left-radius:calc(var(--radius) - 1px);
+  border-top-right-radius:calc(var(--radius) - 1px);
+  font-weight:bold;
   font-size:1.05rem;
-  color:#d4b24a;
+  color:var(--poe-orange);
   text-align:center;
   text-transform:uppercase;
   letter-spacing:1px;
-  text-shadow:0 1px 2px rgba(0,0,0,0.8);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);
+  text-shadow:0 0 6px rgba(200, 170, 110, 0.4);
 }
 [data-treasury-tooltip="true"] .tooltip-body{
   padding:12px 14px;
   font-size:0.9rem;
   line-height:1.7;
-  color:#c8b99c;
-  background:#1a1612;
+  color:var(--text);
+  background:#1a1a1a;
   box-sizing:border-box;
   text-align:center;
 }
 [data-treasury-tooltip="true"] .tooltip-line{
   margin:10px 0;
   padding:10px 0;
-  border-top:1px solid rgba(58,47,32,0.8);
-  border-bottom:1px solid rgba(26,22,18,0.8);
+  border-top:1px solid var(--border);
 }
 [data-treasury-tooltip="true"] .tooltip-stat{
   display:flex;
   justify-content:center;
   margin:6px 0;
-  color:#e8dcc0;
+  color:var(--text);
   font-size:0.92rem;
   padding:2px 0;
   text-align:center;
 }
 [data-treasury-tooltip="true"] .tooltip-stat-label{
-  color:#a08f70;
-  font-weight:500;
+  color:var(--muted);
+  font-weight:normal;
   margin-right:4px;
 }
 [data-treasury-tooltip="true"] .tooltip-stat-value{
-  color:#f4e4b0;
+  color:var(--poe-orange);
   font-weight:bold;
   text-align:center;
-  text-shadow:0 1px 1px rgba(0,0,0,0.5);
+  text-shadow:0 0 4px rgba(200, 170, 110, 0.3);
 }
 [data-treasury-tooltip="true"] .tooltip-cost{
-  color:#ff6b6b;
+  color:#ff6666;
   font-weight:bold;
   text-shadow:0 1px 2px rgba(0,0,0,0.8);
 }
 [data-treasury-tooltip="true"] .tooltip-cooldown{
-  color:#ffd700;
+  color:var(--poe-orange);
   font-weight:bold;
-  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+  text-shadow:0 0 4px rgba(200, 170, 110, 0.3);
 }
 
 /* Stats container: обертка для stats-bar и кнопок */
@@ -721,35 +678,24 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   align-items:center;
 }
 
-/* Stats bar: деревянная панель AoE2 стиль */
+/* Stats bar: PoE стиль */
 .stats-bar{
   display:flex;align-items:center;justify-content:center;gap:28px;
-  background: linear-gradient(180deg,#2a2418,#1f1a12);
-  border: 3px solid #1a1610;
-  padding:12px 20px;border-radius:8px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border);
+  padding:12px 20px;border-radius:var(--radius);
   width:100%;
   max-width:920px;
   box-shadow: 
-    0 14px 34px rgba(0,0,0,0.8),
-    inset 0 1px 0 rgba(139, 115, 85, 0.15),
-    inset 0 -1px 0 rgba(0,0,0,0.8);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'>\
-  <defs>\
-    <pattern id='wood' x='0' y='0' width='15' height='15' patternUnits='userSpaceOnUse'>\
-      <rect width='15' height='15' fill='%232a2418'/>\
-      <line x1='0' y1='7' x2='15' y2='7' stroke='%23000000' stroke-width='0.5' opacity='0.2'/>\
-      <line x1='0' y1='12' x2='15' y2='12' stroke='%23000000' stroke-width='0.5' opacity='0.2'/>\
-    </pattern>\
-  </defs>\
-  <rect width='60' height='60' fill='url(%23wood)'/>\
-</svg>");
+    0 0 12px rgba(0,0,0,0.8),
+    inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .stat{display:flex;flex-direction:column;align-items:center;min-width:120px;max-width:220px}
-.stat-label{font-size:12px;color:var(--muted)}
+.stat-label{font-size:12px;color:var(--muted);font-weight:normal}
 .stat-value{
-  font-size:18px;font-weight:900;color:var(--text);font-family:var(--mono-font);
-  letter-spacing:0.6px;text-align:center;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:18px;font-weight:bold;color:var(--poe-orange);font-family:var(--mono-font);
+  letter-spacing:0.5px;text-align:center;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 
 /* ---------- PANELS: WOOD FRAME + STONE INSET (AoE2 tiles) ---------- */
@@ -789,13 +735,10 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   width: calc(100% - 40px);
   margin: 0 20px;
   box-sizing: border-box;
-  background: linear-gradient(180deg,#3b352f,#2f2a24); /* тёплый камень AoE2 */
-  border: 5px solid var(--border);
-  box-shadow: 0 20px 50px var(--shadow-strong), inset 0 2px 0 rgba(255,255,255,0.02);
-  background-image: 
-    linear-gradient(180deg,#3b352f,#2f2a24),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><g opacity='0.03' fill='%23000000'><path d='M0 0 L200 0 L200 200 L0 200 Z'/></g></svg>");
-  border-radius: 8px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  box-shadow: 0 0 24px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  border-radius: var(--radius);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -821,17 +764,10 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   width: calc(100% - 40px);
   margin: 0 20px;
   box-sizing: border-box;
-  background: linear-gradient(180deg,#3b352f,#2f2a24); /* тёплый камень AoE2 */
-  border: 6px solid var(--border);
-  box-shadow: 
-    0 25px 60px var(--shadow-strong), 
-    inset 0 2px 0 rgba(255,255,255,0.03),
-    inset 0 -2px 0 rgba(0,0,0,0.6),
-    0 0 0 1px rgba(212, 178, 74, 0.1);
-  background-image: 
-    linear-gradient(180deg,#3b352f,#2f2a24),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><g opacity='0.04' fill='%23000000'><path d='M0 0 L200 0 L200 200 L0 200 Z'/></g></svg>");
-  border-radius: 10px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  box-shadow: 0 0 24px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  border-radius: var(--radius);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -868,7 +804,7 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 178, 74, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(200, 170, 110, 0.3), transparent);
 }
 #confirm-modal .modal-footer .btn {
   min-width: 100px;
@@ -876,20 +812,21 @@ a, a:link, a:visited { cursor: var(--shield-cursor); }
   font-size: 16px;
   font-weight: bold;
   text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   transition: all 0.2s;
 }
 #confirm-modal .modal-footer .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 #confirm-modal .modal-footer .btn.primary {
-  background: linear-gradient(180deg, #4a5a2a, #3a4a1a);
-  border: 2px solid #5a6a3a;
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  border: 1px solid var(--border-orange);
+  color: var(--poe-orange);
 }
 #confirm-modal .modal-footer .btn.primary:hover {
-  background: linear-gradient(180deg, #5a6a3a, #4a5a2a);
-  border-color: #6a7a4a;
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.4), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* 4. Когда модалка открыта — блокируем прокрутку страницы без "скачка" */
@@ -907,63 +844,30 @@ body.modal-open .game-columns {
 }
 
 
-/* Панели — деревянная рама и каменная вставка */
+/* Панели — PoE стиль */
 .panel{
   position:relative;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.01), var(--stone));
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
   border-radius:var(--radius);
   padding:var(--panel-padding);
-  border:6px solid var(--border);
-  box-shadow:
-    0 18px 40px rgba(0,0,0,0.6),
-    inset 0 2px 0 rgba(255,255,255,0.02);
+  border:1px solid var(--border);
+  box-shadow: 0 0 12px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
   display:flex;flex-direction:column;gap:16px;min-height:420px;
   overflow:hidden;
-  background-image:
-    linear-gradient(180deg, rgba(255,255,255,0.01), var(--stone)),
-    url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'>\
-  <g opacity='0.03' fill='%23000000'>\
-    <rect x='0' y='0' width='200' height='200'/>\
-  </g>\
-</svg>");
-}
-.panel::after{
-  content:"";
-  position:absolute;inset:10px;border-radius:calc(var(--radius) - 6px);
-  background: linear-gradient(180deg,#2b241f,#3b322b);
-  border:1px solid rgba(255,255,255,0.02);
-  z-index:0;
-  pointer-events:none;
 }
 .panel > *{position:relative;z-index:1}
 
-/* ---------- LEFT: CLICK AREA — карточка в стиле строений AoE2 ---------- */
+/* ---------- LEFT: CLICK AREA — PoE стиль ---------- */
 .click-area {
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 12px;
-  background: linear-gradient(180deg,#2a2418,#1f1a12);
-  border-radius: 8px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border-radius: var(--radius);
   padding: 14px;
-  border: 3px solid #1a1610;
-  box-shadow: 
-    inset 0 6px 12px rgba(0,0,0,0.6),
-    inset 0 1px 0 rgba(139, 115, 85, 0.1),
-    inset 0 -1px 0 rgba(0,0,0,0.8);
+  border: 1px solid var(--border);
+  box-shadow: 0 0 12px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
   min-height: 220px;
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'>\
-  <defs>\
-    <pattern id='clickStone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
-      <rect width='20' height='20' fill='%232a2418'/>\
-      <circle cx='5' cy='5' r='0.5' fill='%23000000' opacity='0.25'/>\
-      <circle cx='15' cy='12' r='0.5' fill='%23000000' opacity='0.25'/>\
-    </pattern>\
-  </defs>\
-  <rect width='100' height='100' fill='url(%23clickStone)'/>\
-</svg>");
 }
 
 /* Top row: click button + status + bulk buttons + quick actions */
@@ -976,7 +880,7 @@ body.modal-open .game-columns {
   padding: 0 4px; /* Небольшой отступ от краев */
 }
 
-/* Click button — пиксельный значок строения/юнита */
+/* Click button — PoE стиль */
 .click-row #click-btn {
   width: 96px;
   height: 96px;
@@ -985,46 +889,43 @@ body.modal-open .game-columns {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: linear-gradient(180deg,#6b5638,#4b3a26);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
   color: var(--text);
-  border: 2px solid rgba(0,0,0,0.6);
-  box-shadow: inset 0 -6px 12px rgba(255,255,255,0.02);
-  cursor: var(--shield-cursor);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'>\
-  <rect width='96' height='96' rx='8' fill='%236b5638'/>\
-  <g opacity='0.06' fill='%23000000'><rect x='6' y='6' width='84' height='84' rx='6'/></g>\
-</svg>");
-  transition: all 0.3s ease;
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  cursor: var(--pointer-cursor);
+  transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+}
+.click-row #click-btn:hover {
+  border-color: var(--border-orange);
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.4), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Golden click button state */
 .click-row #click-btn.golden {
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.00) 20%),
-    linear-gradient(180deg, var(--gold), #d4a017);
-  border-color: rgba(212, 178, 74, 0.6);
-  box-shadow: 0 8px 16px rgba(212, 178, 74, 0.4),
-    inset 0 -6px 12px rgba(255, 255, 255, 0.1),
-    inset 0 2px 4px rgba(255, 255, 255, 0.2);
-  animation: goldenGlow 2s ease-in-out infinite;
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 16px rgba(200, 170, 110, 0.6),
+    inset 0 2px 4px rgba(0,0,0,0.5);
+  animation: poe-golden-glow 2s ease-in-out infinite;
 }
 
-@keyframes goldenGlow {
-  0%, 100% { box-shadow: 0 8px 16px rgba(212, 178, 74, 0.4), inset 0 -6px 12px rgba(255, 255, 255, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.2); }
-  50% { box-shadow: 0 12px 24px rgba(212, 178, 74, 0.6), inset 0 -6px 12px rgba(255, 255, 255, 0.15), inset 0 2px 4px rgba(255, 255, 255, 0.3); }
+@keyframes poe-golden-glow {
+  0%, 100% { box-shadow: 0 0 16px rgba(200, 170, 110, 0.6), inset 0 2px 4px rgba(0,0,0,0.5); }
+  50% { box-shadow: 0 0 24px rgba(200, 170, 110, 0.8), inset 0 2px 4px rgba(0,0,0,0.5); }
 }
 
 /* Broken click button state */
 .click-row #click-btn.broken {
-  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
-  border-color: rgba(139, 69, 19, 0.4);
-  box-shadow: inset 0 6px 12px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border-color: #4a4a4a;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
   position: relative;
-  opacity: 0.7;
-  filter: grayscale(0.3);
+  opacity: 0.6;
+  filter: grayscale(0.5);
 }
 
 .click-row #click-btn.broken::before {
@@ -1095,12 +996,12 @@ body.modal-open .game-columns {
   justify-self: start;
   align-self: center;
   padding: 8px 12px;
-  border-radius: 6px;
-  background: linear-gradient(180deg,#2f2a22,#3b2f28);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
   color: var(--muted);
-  border: 1px solid rgba(255,255,255,0.02);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  font-weight:700;
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  font-weight:bold;
 }
 
 /* Quick actions column */
@@ -1131,18 +1032,18 @@ body.modal-open .game-columns {
   gap: 12px;
   align-items: center;
   padding: 10px;
-  background: linear-gradient(180deg,#2f2a22,#3b2f28);
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.02);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   min-height: 44px;
   color: var(--muted);
   font-size: 1.02rem;
 }
 
 /* Left label and right value */
-.click-info .info-left { font-weight:700; color:var(--muted); }
-.click-info .info-right { text-align:right; font-family:var(--mono-font); font-weight:900; color:var(--text); }
+.click-info .info-left { font-weight:bold; color:var(--muted); }
+.click-info .info-right { text-align:right; font-family:var(--mono-font); font-weight:bold; color:var(--poe-orange); }
 
 /* Upgrade button inside info row */
 .click-info .info-item .btn.small {
@@ -1162,10 +1063,10 @@ body.modal-open .game-columns {
 }
 /* Подсветка активной кнопки bulk */
 .bulk-buttons .btn.bulk.active {
-  background: linear-gradient(180deg, var(--gold), var(--heraldic-blue));
-  color: #0b0b0b;
-  border-color: rgba(0,0,0,0.7);
-  box-shadow: 0 8px 0 rgba(0,0,0,0.6), inset 0 -6px 12px rgba(255,255,255,0.02);
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  color: var(--poe-orange);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 #click-buy { justify-self: end; min-width: 140px; }
 
@@ -1183,32 +1084,33 @@ body.modal-open .game-columns {
   .click-info .info-item span { text-align:left; }
 }
 
-/* ---------- EFFECTS & NOTICES (фиксированная высота) ---------- */
+/* ---------- EFFECTS & NOTICES (PoE стиль) ---------- */
 .effects-board,.notice-board{
-  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
   padding:12px;
-  border-radius:8px;
-  border:2px solid var(--border);
+  border-radius:var(--radius);
+  border:1px solid var(--border);
   font-size:0.95rem;
   color:var(--muted);
   height:220px;
   max-height:360px;
   overflow-y:auto;
   flex:0 0 auto;
-  box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .effects-board h3,.notice-board h3{
   margin:0 0 8px 0;
-  color:var(--gold);
-  font-weight:800;
+  color:var(--poe-orange);
+  font-weight:bold;
   font-size:0.95rem;
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 .toast{
   padding:8px;
   margin-bottom:6px;
-  background:linear-gradient(180deg, rgba(0,0,0,0.05), rgba(255,255,255,0.00));
-  border-radius:6px;
-  border:1px solid rgba(0,0,0,0.05);
+  background:linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border-radius:var(--radius);
+  border:1px solid var(--border);
   color:var(--muted);
   font-size:0.9rem;
   transition: all 0.2s ease;
@@ -1216,36 +1118,36 @@ body.modal-open .game-columns {
 
 /* Зеленый для положительных эффектов, бонусов, баффов, улучшений */
 .toast.good {
-  background: linear-gradient(180deg, rgba(34, 139, 34, 0.2), rgba(34, 139, 34, 0.05));
-  border-color: rgba(34, 139, 34, 0.4);
+  background: linear-gradient(180deg, #1a2a1a, #0f1a0f);
+  border-color: #4a8a4a;
   color: #90ee90;
-  box-shadow: 0 2px 4px rgba(34, 139, 34, 0.2);
+  box-shadow: 0 0 8px rgba(74, 138, 74, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Красный для отрицательных действий */
 .toast.bad {
-  background: linear-gradient(180deg, rgba(220, 20, 60, 0.2), rgba(220, 20, 60, 0.05));
-  border-color: rgba(220, 20, 60, 0.4);
-  color: #ff6b6b;
-  box-shadow: 0 2px 4px rgba(220, 20, 60, 0.2);
+  background: linear-gradient(180deg, #2a1a1a, #1a0f0f);
+  border-color: #cc3333;
+  color: #ff6666;
+  box-shadow: 0 0 8px rgba(204, 51, 51, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Оранжевый/желтый для предупреждений */
 .toast.warn {
-  background: linear-gradient(180deg, rgba(255, 165, 0, 0.2), rgba(255, 165, 0, 0.05));
-  border-color: rgba(255, 165, 0, 0.4);
-  color: #ffd700;
-  box-shadow: 0 2px 4px rgba(255, 165, 0, 0.2);
+  background: linear-gradient(180deg, #2a1a0a, #1a0f05);
+  border-color: #cc9933;
+  color: #ffcc66;
+  box-shadow: 0 0 8px rgba(204, 153, 51, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Серый для информативных сообщений (по умолчанию) */
 .toast:not(.good):not(.bad):not(.warn) {
-  background: linear-gradient(180deg, rgba(128, 128, 128, 0.15), rgba(128, 128, 128, 0.05));
-  border-color: rgba(128, 128, 128, 0.3);
-  color: #b0b0b0;
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
-/* ---------- RIGHT: BUILDINGS — каменные плитки с гербом ---------- */
+/* ---------- RIGHT: BUILDINGS — PoE стиль ---------- */
 .buildings-list{
   display:grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1258,26 +1160,16 @@ body.modal-open .game-columns {
   display:flex;
   flex-direction:column;
   gap:10px;
-  background: linear-gradient(180deg,#2a2418,#1f1a12);
-  border-radius:8px;padding:14px;border:3px solid #1a1610;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border-radius:var(--radius);padding:14px;border:1px solid var(--border);
   min-height:72px;
   position: relative;
-  box-shadow: 
-    inset 0 6px 12px rgba(0,0,0,0.6),
-    inset 0 1px 0 rgba(139, 115, 85, 0.1),
-    inset 0 -1px 0 rgba(0,0,0,0.8);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'>\
-  <defs>\
-    <pattern id='stoneCard' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
-      <rect width='20' height='20' fill='%232a2418'/>\
-      <circle cx='4' cy='4' r='0.4' fill='%23000000' opacity='0.25'/>\
-      <circle cx='16' cy='10' r='0.4' fill='%23000000' opacity='0.25'/>\
-      <circle cx='8' cy='16' r='0.4' fill='%23000000' opacity='0.25'/>\
-    </pattern>\
-  </defs>\
-  <rect width='80' height='80' fill='url(%23stoneCard)'/>\
-</svg>");
+  box-shadow: 0 0 12px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+}
+.building-card:hover {
+  border-color: var(--border-orange);
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.2), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .building-card.upgrade-flash {
   animation: upgradeFlash 0.35s ease-out;
@@ -1352,15 +1244,10 @@ body.modal-open .game-columns {
   color:#c23b3b;
 }
 .building-pixel{
-  width:64px;height:64px;border-radius:8px;
-  background: linear-gradient(180deg,#6b5638,#4b3a26);
-  border:2px solid rgba(0,0,0,0.6);
-  box-shadow: inset 0 -6px 12px rgba(255,255,255,0.02);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'>\
-  <rect width='64' height='64' rx='8' fill='%236b5638'/>\
-  <g opacity='0.06' fill='%23000000'><rect x='4' y='4' width='56' height='56' rx='6'/></g>\
-</svg>");
+  width:64px;height:64px;border-radius:var(--radius);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border:1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Пиксельные иконки для зданий (canvas) */
@@ -1377,11 +1264,11 @@ body.modal-open .game-columns {
   width:100%;
 }
 .building-name{
-  color:var(--gold);
-  font-weight:900;
+  color:var(--poe-orange);
+  font-weight:bold;
   font-size:1.25rem;
-  letter-spacing:0.4px;
-  text-shadow:0 1px 0 rgba(0,0,0,0.6);
+  letter-spacing:0.3px;
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 .building-meta{color:var(--muted);font-size:0.98rem}
 .building-actions{
@@ -1392,7 +1279,7 @@ body.modal-open .game-columns {
   width:100%;
   margin-top:12px;
   padding-top:12px;
-  border-top:1px solid rgba(255,255,255,0.05);
+  border-top:1px solid var(--border);
 }
 .building-actions .btn{
   width:100%;
@@ -1406,41 +1293,30 @@ body.modal-open .game-columns {
   .building-name{font-size:1.4rem}
 }
 
-/* ---------- UBER FOOTER (нижняя панель) ---------- */
-/* Scope larger pixel size only inside the footer card, avoid overriding the main Uber card */
+/* ---------- UBER FOOTER (PoE стиль) ---------- */
 .uber-footer .uber-pixel {
   width: 96px;
   height: 96px;
 }
 
-/* REMOVE this entire block from the <style> in the <head> */
 .uber-building-card {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: center;
-  background: linear-gradient(180deg,#2a2418,#1f1a12);
-  border-radius:8px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border-radius:var(--radius);
   padding:14px;
-  border:3px solid #1a1610;
-  box-shadow: 
-    inset 0 6px 12px rgba(0,0,0,0.6),
-    inset 0 1px 0 rgba(139, 115, 85, 0.1),
-    inset 0 -1px 0 rgba(0,0,0,0.8);
+  border:1px solid var(--border);
+  box-shadow: 0 0 12px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
   min-height:86px;
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'>\
-  <defs>\
-    <pattern id='uberStone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
-      <rect width='20' height='20' fill='%232a2418'/>\
-      <circle cx='4' cy='4' r='0.4' fill='%23000000' opacity='0.25'/>\
-      <circle cx='16' cy='10' r='0.4' fill='%23000000' opacity='0.25'/>\
-    </pattern>\
-  </defs>\
-  <rect width='80' height='80' fill='url(%23uberStone)'/>\
-</svg>");
 }
-.uber-pixel { width:80px;height:80px;border-radius:8px;background:linear-gradient(180deg,#2a2418,#1f1a12);border:3px solid #1a1610; }
+.uber-pixel { 
+  width:80px;height:80px;border-radius:var(--radius);
+  background:linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border:1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
 .uber-actions { 
   display:flex;
   flex-direction:column;
@@ -1452,23 +1328,9 @@ body.modal-open .game-columns {
 /* Make Uber card the same height as the Click block */
 #uber-card {
   min-height: 220px; /* equals .click-area min-height */
-  background: linear-gradient(180deg,#2a2418,#1f1a12);
-  border: 3px solid #1a1610;
-  box-shadow: 
-    inset 0 6px 12px rgba(0,0,0,0.6),
-    inset 0 1px 0 rgba(139, 115, 85, 0.1),
-    inset 0 -1px 0 rgba(0,0,0,0.8);
-  background-image: url("data:image/svg+xml;utf8,\
-<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'>\
-  <defs>\
-    <pattern id='uberCardStone' x='0' y='0' width='20' height='20' patternUnits='userSpaceOnUse'>\
-      <rect width='20' height='20' fill='%232a2418'/>\
-      <circle cx='4' cy='4' r='0.4' fill='%23000000' opacity='0.25'/>\
-      <circle cx='16' cy='10' r='0.4' fill='%23000000' opacity='0.25'/>\
-    </pattern>\
-  </defs>\
-  <rect width='80' height='80' fill='url(%23uberCardStone)'/>\
-</svg>");
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border);
+  box-shadow: 0 0 12px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Ensure Uber pixel matches building-pixel sizes (64px default, 80px at ≥1100px) */
@@ -1485,24 +1347,25 @@ body.modal-open .game-columns {
   }
 }
 
-/* ---------- ACHIEVEMENTS ---------- */
+/* ---------- ACHIEVEMENTS (PoE стиль) ---------- */
 .achievements-container {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
-  border-radius: 8px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border-radius: var(--radius);
   padding: 12px;
-  border: 2px solid rgba(0,0,0,0.6);
-  box-shadow: inset 0 6px 12px rgba(0,0,0,0.45);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   min-height: 200px;
   max-height: 400px;
 }
 .achievements-title {
   margin: 0 0 8px 0;
-  color: var(--gold);
-  font-weight: 800;
+  color: var(--poe-orange);
+  font-weight: bold;
   font-size: 1rem;
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 .achievements-list {
   display: grid;
@@ -1518,26 +1381,27 @@ body.modal-open .game-columns {
   align-items: center;
   gap: 6px;
   padding: 8px;
-  border-radius: 6px;
-  background: linear-gradient(180deg,#2f2a22,#3b2f28);
-  border: 1px solid rgba(255,255,255,0.02);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-  cursor: var(--shield-cursor);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+  cursor: var(--pointer-cursor);
 }
 .achievement-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.2), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .achievement-item.locked {
   filter: grayscale(100%);
-  opacity: 0.6;
+  opacity: 0.5;
 }
 .achievement-item.unlocked {
   filter: none;
   opacity: 1;
-  border-color: rgba(212,178,74,0.3);
-  box-shadow: 0 2px 4px rgba(212,178,74,0.1), inset 0 1px 0 rgba(255,255,255,0.02);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .achievement-icon {
   width: 48px;
@@ -1546,14 +1410,14 @@ body.modal-open .game-columns {
   align-items: center;
   justify-content: center;
   font-size: 32px;
-  background: linear-gradient(180deg,#3b322b,#2f2620);
-  border-radius: 6px;
-  border: 1px solid rgba(0,0,0,0.3);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .achievement-item.unlocked .achievement-icon {
-  background: linear-gradient(180deg, rgba(212,178,74,0.15), rgba(42,75,122,0.15));
-  border-color: rgba(212,178,74,0.4);
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  border-color: var(--border-orange);
 }
 .achievement-info {
   display: flex;
@@ -1596,7 +1460,7 @@ body.modal-open .game-columns {
   position:fixed;
   top:40px;left:40px;
   width:64px;height:64px;z-index:9999;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   transform-origin:center;
   background: transparent;
   border: none;
@@ -1652,8 +1516,8 @@ body.modal-open .game-columns {
 .btn{white-space:nowrap}
 .mt-6{margin-top:6px}.mb-6{margin-bottom:6px}.p-6{padding:6px}
 
-/* Ensure interactive elements use shield cursor for clarity */
-button, .btn, .click-btn, .building-actions .btn, .tab-btn, a { cursor: var(--shield-cursor); }
+/* Ensure interactive elements use pointer cursor for clarity */
+button, .btn, .click-btn, .building-actions .btn, .tab-btn, a { cursor: var(--pointer-cursor); }
 
 /* Make sure inputs keep text selection and caret */
 input, textarea, select { cursor: text; }
@@ -1675,16 +1539,16 @@ input, textarea, select { cursor: text; }
 }
 
 /* Золотой акцент для текста */
-.gold-accent{color:var(--gold);text-shadow:0 1px 0 rgba(0,0,0,0.6)}
+.gold-accent{color:var(--poe-orange);text-shadow:0 0 6px rgba(200, 170, 110, 0.4)}
 
-/* ---------- Дополнительные мелкие эффекты (AoE2 feel) ---------- */
-/* Небольшая вибрация при наведении на важные элементы (имитация «живости» интерфейса) */
+/* ---------- Дополнительные мелкие эффекты (PoE стиль) ---------- */
+/* Небольшая вибрация при наведении на важные элементы */
 .hover-bump:hover{transform:translateY(-2px);transition:transform .12s ease}
 
-/* Подсветка выбранного строения (рамка герба) */
+/* Подсветка выбранного строения */
 .selected{
-  box-shadow: 0 0 0 4px rgba(212,178,74,0.08), 0 12px 30px rgba(0,0,0,0.6);
-  border-color: rgba(212,178,74,0.6);
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.4), inset 0 2px 4px rgba(0,0,0,0.5);
+  border-color: var(--border-orange);
 }
 
 /* Адаптивность: сохраняем расположение и читаемость */
@@ -1715,26 +1579,26 @@ input, textarea, select { cursor: text; }
 
 /*00001
 
-/* King styles (heraldic, distinct from spider) */
+/* King styles (PoE стиль) */
 .king{
   position:fixed;
   width:64px;
   height:64px;
   z-index:10000;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   transform-origin:center;
   display:none;
   align-items:center;
   justify-content:center;
   pointer-events:auto;
 
-  /* base look: deep heraldic plate */
-  background: linear-gradient(180deg,#24364f,#16202a);
-  border-radius:10px;
-  border:2px solid rgba(0,0,0,0.6);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.02);
-  color:var(--gold);
-  font-weight:900;
+  /* base look: PoE dark panel */
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border-radius:var(--radius);
+  border:1px solid var(--border-orange);
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.4), inset 0 2px 4px rgba(0,0,0,0.5);
+  color:var(--poe-orange);
+  font-weight:bold;
   font-family:var(--mono-font);
   text-align:center;
   overflow:visible;
@@ -1757,13 +1621,13 @@ input, textarea, select { cursor: text; }
   position:absolute;
   width:56px;
   height:40px;
-  border-radius:6px;
+  border-radius:var(--radius);
   display:flex;
   align-items:center;
   justify-content:center;
-  font-weight:900;
+  font-weight:bold;
   color:#2b1f00;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   user-select:none;
   transition: transform .08s ease, box-shadow .12s ease, opacity .12s ease;
   box-shadow: 0 8px 18px rgba(0,0,0,0.45), inset 0 -4px 8px rgba(255,255,255,0.06);
@@ -1812,11 +1676,11 @@ input, textarea, select { cursor: text; }
 #king-modal .king-game {
   width: min(720px, 92vw);
   height: min(420px, 60vh);
-  background: linear-gradient(180deg,#2f2a22,#3b322b);
-  border:4px solid var(--border);
-  border-radius:12px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border:1px solid var(--border-orange);
+  border-radius:var(--radius);
   padding:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,0.7);
+  box-shadow:0 0 24px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
   display:flex;
   flex-direction:column;
   gap:12px;
@@ -1827,18 +1691,20 @@ input, textarea, select { cursor: text; }
   display:flex;
   justify-content:space-between;
   align-items:center;
-  color:var(--gold);
-  font-weight:900;
+  color:var(--poe-orange);
+  font-weight:bold;
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 
 #king-modal .kg-arena {
   flex:1;
   position:relative;
-  background:linear-gradient(180deg,#1f1b1a,#2b2624);
-  border-radius:8px;
+  background:linear-gradient(180deg, #0a0a0a, #050505);
+  border-radius:var(--radius);
   overflow:hidden;
   padding:8px;
-  cursor: var(--shield-cursor);
+  border: 1px solid var(--border);
+  cursor: var(--pointer-cursor);
 }
 
 /* timer and footer */
@@ -1850,8 +1716,9 @@ input, textarea, select { cursor: text; }
 }
 #king-modal .kg-timer {
   font-family:var(--mono-font);
-  font-weight:900;
-  color:var(--gold);
+  font-weight:bold;
+  color:var(--poe-orange);
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 
 /* small responsive adjustments for crowns inside arena */
@@ -1861,7 +1728,7 @@ input, textarea, select { cursor: text; }
 }
 
 /* Accessibility: focus outline for arena */
-#king-arena:focus { outline: 3px solid rgba(212,178,74,0.12); outline-offset:4px; }
+#king-arena:focus { outline: 2px solid rgba(200, 170, 110, 0.4); outline-offset:2px; }
 
 /* Updates button + modal */
 #updates-btn {
@@ -1869,15 +1736,21 @@ input, textarea, select { cursor: text; }
   left: 12px;
   top: 12px;
   z-index: 1200;
-  background: linear-gradient(180deg,#2b6bff,#1a4fe0);
-  color: #fff;
-  border: none;
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  color: var(--text);
+  border: 1px solid var(--border);
   padding: 8px 12px;
-  border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(26,79,224,0.35);
-  cursor: var(--shield-cursor);
-  font-weight: 600;
+  border-radius: var(--radius);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  cursor: var(--pointer-cursor);
+  font-weight: bold;
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+#updates-btn:hover {
+  border-color: var(--border-orange);
+  color: var(--poe-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 #updates-btn:focus { outline: 2px solid rgba(255,255,255,0.12); }
 
@@ -1921,14 +1794,15 @@ input, textarea, select { cursor: text; }
   border:none;
   color:var(--text);
   font-size:20px;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.2s;
+  border-radius: var(--radius);
+  transition: all 0.2s;
 }
 #updates-modal .modal-close:hover,
 #confirm-modal .modal-close:hover {
-  background: rgba(0,0,0,0.3);
+  background: rgba(200, 170, 110, 0.1);
+  color: var(--poe-orange);
 }
 
 /* Content (scrollable) */
@@ -1981,7 +1855,7 @@ input, textarea, select { cursor: text; }
   z-index: 100000;
   font-weight: bold;
   font-family: var(--mono-font);
-  color: #ffd700;
+  color: #c8aa6e;
   text-shadow: 
     0 0 10px rgba(255, 215, 0, 0.8),
     0 0 20px rgba(255, 215, 0, 0.6),
@@ -2056,9 +1930,9 @@ input, textarea, select { cursor: text; }
   pointer-events: none;
   z-index: 10000;
   font-family: var(--mono-font);
-  font-weight: 900;
+  font-weight: bold;
   font-size: 16px;
-  color: #ffd700;
+  color: #c8aa6e;
   text-shadow: 
     0 0 10px rgba(255, 215, 0, 1),
     0 0 20px rgba(255, 215, 0, 0.8),
@@ -2213,17 +2087,10 @@ body.season-winter .achievement-item {
   width: calc(100% - 40px);
   margin: 0 20px;
   box-sizing: border-box;
-  background: linear-gradient(180deg,#3b352f,#2f2a24);
-  border: 6px solid var(--border);
-  box-shadow: 
-    0 25px 60px var(--shadow-strong), 
-    inset 0 2px 0 rgba(255,255,255,0.03),
-    inset 0 -2px 0 rgba(0,0,0,0.6),
-    0 0 0 1px rgba(212, 178, 74, 0.1);
-  background-image: 
-    linear-gradient(180deg,#3b352f,#2f2a24),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><g opacity='0.04' fill='%23000000'><path d='M0 0 L200 0 L200 200 L0 200 Z'/></g></svg>");
-  border-radius: 10px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  box-shadow: 0 0 24px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  border-radius: var(--radius);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -2244,8 +2111,8 @@ body.season-winter .achievement-item {
 #stats-modal .modal-header h3 {
   margin: 0;
   font-size: 20px;
-  color: var(--text);
-  text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 8px rgba(212, 178, 74, 0.2);
+  color: var(--poe-orange);
+  text-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
   font-weight: bold;
   letter-spacing: 0.5px;
 }
@@ -2276,7 +2143,7 @@ body.season-winter .achievement-item {
 }
 
 #stats-modal .stat-value {
-  color: var(--text);
+  color: var(--poe-orange);
   font-weight: bold;
   font-family: var(--mono-font);
 }
@@ -2288,9 +2155,9 @@ body.season-winter .achievement-item {
 #stats-modal .stat-section-title {
   font-size: 18px;
   font-weight: bold;
-  color: var(--gold);
+  color: var(--poe-orange);
   margin-bottom: 12px;
-  text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 
 #stats-modal .modal-close {
@@ -2298,7 +2165,7 @@ body.season-winter .achievement-item {
   border: none;
   color: var(--text);
   font-size: 24px;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   padding: 0;
   width: 32px;
   height: 32px;
@@ -2306,7 +2173,12 @@ body.season-winter .achievement-item {
   align-items: center;
   justify-content: center;
   opacity: 0.7;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
+}
+#stats-modal .modal-close:hover {
+  opacity: 1;
+  color: var(--poe-orange);
+  background: rgba(200, 170, 110, 0.1);
 }
 
 #stats-modal .modal-close:hover {
@@ -2340,14 +2212,10 @@ body.season-winter .achievement-item {
   width: calc(100% - 40px);
   margin: 0 20px;
   box-sizing: border-box;
-  background: linear-gradient(180deg,#3b352f,#2f2a24);
-  border: 6px solid var(--border);
-  box-shadow: 
-    0 25px 60px var(--shadow-strong), 
-    inset 0 2px 0 rgba(255,255,255,0.03),
-    inset 0 -2px 0 rgba(0,0,0,0.6),
-    0 0 0 1px rgba(212, 178, 74, 0.1);
-  border-radius: 10px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  box-shadow: 0 0 24px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  border-radius: var(--radius);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -2369,8 +2237,8 @@ body.season-winter .achievement-item {
 #casino-modal .modal-header h3 {
   margin: 0;
   font-size: 20px;
-  color: var(--text);
-  text-shadow: 2px 2px 6px rgba(0,0,0,0.9), 0 0 8px rgba(212, 178, 74, 0.2);
+  color: var(--poe-orange);
+  text-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
   font-weight: bold;
   letter-spacing: 0.5px;
 }
@@ -2380,7 +2248,7 @@ body.season-winter .achievement-item {
   border: none;
   color: var(--text);
   font-size: 24px;
-  cursor: var(--shield-cursor);
+  cursor: var(--pointer-cursor);
   padding: 0;
   width: 32px;
   height: 32px;
@@ -2388,7 +2256,12 @@ body.season-winter .achievement-item {
   align-items: center;
   justify-content: center;
   opacity: 0.7;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
+}
+#casino-modal .modal-close:hover {
+  opacity: 1;
+  color: var(--poe-orange);
+  background: rgba(200, 170, 110, 0.1);
 }
 
 #casino-modal .modal-close:hover {
@@ -2419,8 +2292,8 @@ body.season-winter .achievement-item {
 .casino-section h4 {
   margin: 0;
   font-size: 16px;
-  color: var(--gold);
-  text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+  color: var(--poe-orange);
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
 }
 
 .casino-buttons {
@@ -2438,10 +2311,10 @@ body.season-winter .achievement-item {
 }
 
 .casino-bet-btn.selected {
-  background: linear-gradient(180deg, var(--gold), #d4a017);
-  color: #000;
-  border-color: rgba(212, 178, 74, 0.8);
-  box-shadow: 0 4px 8px rgba(212, 178, 74, 0.4);
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  color: var(--poe-orange);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .casino-dice {
@@ -2459,10 +2332,10 @@ body.season-winter .achievement-item {
 }
 
 .casino-dice-btn.selected {
-  background: linear-gradient(180deg, var(--gold), #d4a017);
-  color: #000;
-  border-color: rgba(212, 178, 74, 0.8);
-  box-shadow: 0 4px 8px rgba(212, 178, 74, 0.4);
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  color: var(--poe-orange);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .casino-stake-info,
@@ -2481,7 +2354,7 @@ body.season-winter .achievement-item {
 
 .casino-stake-info span,
 .casino-face-info span {
-  color: var(--gold);
+  color: var(--poe-orange);
   font-weight: bold;
 }
 
@@ -2587,193 +2460,5 @@ body.season-winter .achievement-item {
   }
 }
 
-/* ===== Talents modal ===== */
-#talents-modal[aria-hidden="true"] { display:none; }
-#talents-modal[aria-hidden="false"] { display:flex; }
-.talents-card { 
-  max-width: 90vw; 
-  max-height: 90vh;
-  width: 1200px;
-  height: 800px;
-  display: flex;
-  flex-direction: column;
-}
-#talents-modal {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.85);
-  z-index: 9999;
-}
-.talents-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:12px;
-}
-#talents-modal .modal-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-.talent-tree {
-  position:relative;
-  padding:40px;
-  background:#0f0e0a;
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:10px;
-  flex:1;
-  overflow:auto;
-  min-height:0;
-}
-.talent-tree-container {
-  position:relative;
-  width:1200px;
-  height:800px;
-}
-.talents-actions {
-  display:flex;
-  gap:12px;
-  justify-content:flex-end;
-}
-.talent-node {
-  width:45px;
-  height:45px;
-  border-radius:50%;
-  position:absolute;
-  z-index:10;
-  background:#1a1815;
-  border:2px solid #3a3a3a;
-  box-shadow:0 0 0 2px #0a0a0a, inset 0 2px 4px rgba(0,0,0,0.5);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor: var(--shield-cursor);
-  transition:all 0.2s ease;
-}
-.talent-node.talent-active {
-  border-color:#d4b24a;
-  box-shadow:0 0 0 2px #0a0a0a, 0 0 12px rgba(212,178,74,0.6), inset 0 2px 4px rgba(0,0,0,0.5);
-  background:radial-gradient(circle at 30% 30%, rgba(212,178,74,0.2), #1a1815);
-}
-.talent-node.talent-gold.talent-active {
-  border-color:#d4b24a;
-  box-shadow:0 0 0 2px #0a0a0a, 0 0 12px rgba(212,178,74,0.6), inset 0 2px 4px rgba(0,0,0,0.5);
-}
-.talent-node.talent-green.talent-active {
-  border-color:#5cd67e;
-  box-shadow:0 0 0 2px #0a0a0a, 0 0 12px rgba(92,214,126,0.6), inset 0 2px 4px rgba(0,0,0,0.5);
-  background:radial-gradient(circle at 30% 30%, rgba(92,214,126,0.2), #1a1815);
-}
-.talent-node.talent-red {
-  /* Default gray like other talents */
-  border-color:#3a3a3a;
-  background:#1a1815;
-}
-.talent-node.talent-red.talent-active {
-  /* Red only when active/upgraded */
-  border-color:#cc6666;
-  box-shadow:0 0 0 2px #0a0a0a, 0 0 12px rgba(204,102,102,0.6), inset 0 2px 4px rgba(0,0,0,0.5);
-  background:radial-gradient(circle at 30% 30%, rgba(204,102,102,0.3), #1a1815);
-}
-.talent-node.talent-red.talent-maxed {
-  border-color:#cc6666;
-  box-shadow:0 0 0 2px #0a0a0a, 0 0 16px rgba(204,102,102,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
-}
-.talent-node.talent-locked {
-  opacity:0.3;
-  cursor:not-allowed;
-  filter:grayscale(1);
-}
-.talent-node.talent-disabled {
-  opacity:0.5;
-  cursor:not-allowed;
-}
-.talent-node.talent-maxed {
-  border-color:#d4b24a;
-  box-shadow:0 0 0 2px #0a0a0a, 0 0 16px rgba(212,178,74,0.8), inset 0 2px 4px rgba(0,0,0,0.5);
-}
-.talent-node:hover:not(.talent-locked):not(.talent-disabled) {
-  transform:scale(1.1);
-  z-index:20;
-}
-.talent-level-badge {
-  position:absolute;
-  bottom:-6px;
-  right:-6px;
-  width:18px;
-  height:18px;
-  border-radius:50%;
-  background:#d4b24a;
-  color:#0a0a0a;
-  font-size:10px;
-  font-weight:bold;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border:2px solid #0a0a0a;
-  box-shadow:0 0 4px rgba(0,0,0,0.8);
-}
-.talent-label {
-  font-size:12px;
-  color:#c9b9a5;
-  text-align:center;
-  pointer-events:none;
-  font-weight:500;
-  text-shadow:0 1px 2px rgba(0,0,0,0.8);
-}
-.talent-lines {
-  position:absolute;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  pointer-events:none;
-  z-index:1;
-}
-.talent-tooltip {
-  position:fixed;
-  background:linear-gradient(180deg,#1a1512,#0f0e0a);
-  border:2px solid #3a3a3a;
-  border-top:2px solid #d4b24a;
-  border-radius:4px;
-  padding:12px 14px;
-  color:#e9e2d4;
-  box-shadow:0 8px 24px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05);
-  max-width:280px;
-  z-index:10001;
-  pointer-events:none;
-  font-size:13px;
-  line-height:1.4;
-}
-.talent-tooltip .tt-name {
-  font-weight:700;
-  color:#d4b24a;
-  margin-bottom:8px;
-  font-size:14px;
-  text-transform:uppercase;
-  letter-spacing:0.5px;
-}
-.talent-tooltip .tt-current {
-  color:#b7a07a;
-  margin-bottom:4px;
-}
-.talent-tooltip .tt-next {
-  color:#9fc7ff;
-  margin-top:8px;
-  padding-top:8px;
-  border-top:1px solid rgba(255,255,255,0.1);
-}
-.talent-tooltip .tt-req {
-  color:#ff9f6b;
-  margin-top:8px;
-  padding-top:8px;
-  border-top:1px solid rgba(255,255,255,0.1);
-  font-style:italic;
-}
 
 /* Конец файла: все элементы сохранены на своих местах, но визуально переработаны под AoE2 */
