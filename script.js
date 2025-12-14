@@ -6695,6 +6695,7 @@ function tick() {
   
   // Update Passive Boost button description in real-time if active
   const isInUberMode = save.uber && save.uber.max !== 19;
+  const act = save.treasury?.actions;
   if (isInUberMode && act && act.passiveBoostUntil > t) {
     const passiveBoostBtn = document.querySelector('#treasury-actions-row2 .btn[data-btn-id="passiveBoost"]');
     if (passiveBoostBtn) {
