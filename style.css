@@ -294,6 +294,20 @@ a:hover { color: var(--poe-orange-bright); }
   text-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
 }
 
+/* Sort button container between treasury and buildings */
+.sort-button-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: -36px auto -10px auto;
+  padding: 0;
+}
+
+.sort-button-container .btn {
+  min-width: 140px;
+}
+
 /* Treasury row */
 .treasury-row{
   width:100%;
@@ -843,6 +857,181 @@ a:hover { color: var(--poe-orange-bright); }
   align-items:center;
 }
 
+/* Music control menu */
+.music-control-container {
+  position: relative;
+  display: inline-block;
+}
+
+.music-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  min-width: 180px;
+  z-index: 1000;
+}
+
+.music-menu-header {
+  color: var(--poe-orange);
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
+}
+
+.volume-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.volume-control-label {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.volume-slider {
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 8px 0;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--poe-orange);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
+  border: 1px solid var(--border-orange);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--poe-orange);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
+  border: 1px solid var(--border-orange);
+}
+
+.music-volume-value {
+  text-align: center;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: var(--mono-font);
+  margin-top: 4px;
+}
+
+.music-volume-value span {
+  color: var(--poe-orange);
+  font-weight: bold;
+}
+
+/* Hints system */
+.game-hint {
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  border-radius: var(--radius);
+  padding: 0;
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  min-width: 280px;
+  max-width: 400px;
+  z-index: 10000;
+  animation: hintFadeIn 0.3s ease-out;
+}
+
+@keyframes hintFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hintFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.hint-header {
+  background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: calc(var(--radius) - 1px);
+  border-top-right-radius: calc(var(--radius) - 1px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hint-icon {
+  font-size: 1.2rem;
+}
+
+.hint-title {
+  flex: 1;
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: var(--poe-orange);
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
+}
+
+.hint-close {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.hint-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--poe-orange);
+}
+
+.hint-body {
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text);
+  background: #1a1a1a;
+}
+
 /* Stats bar: PoE стиль */
 .stats-bar{
   display:flex;align-items:center;justify-content:center;gap:28px;
@@ -1079,7 +1268,7 @@ body.modal-open .game-columns {
   border-color: #ffd700;
   box-shadow: 0 0 24px rgba(255, 215, 0, 0.9),
               0 0 40px rgba(255, 215, 0, 0.6),
-              inset 0 2px 4px rgba(0,0,0,0.5);
+    inset 0 2px 4px rgba(0,0,0,0.5);
   animation: poe-golden-glow 2s ease-in-out infinite;
 }
 
@@ -1316,6 +1505,7 @@ body.modal-open .game-columns {
   border-color: var(--border);
   color: var(--muted);
 }
+
 
 /* ---------- RIGHT: BUILDINGS — PoE стиль ---------- */
 .buildings-list{

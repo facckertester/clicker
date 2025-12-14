@@ -8,6 +8,391 @@ function hideTreasuryTooltip() {
 }
 /* Medieval Pixel Idle - core logic */
 
+// ======= Background Music System =======
+let musicVolume = 50; // 0-100
+const MUSIC_VOLUME_KEY = 'mpi_music_volume';
+// Общий множитель громкости для уменьшения изначальной громкости
+// Уменьшено до 0.1 (в 10 раз) для более комфортной громкости
+const MUSIC_VOLUME_MULTIPLIER = 0.1;
+let backgroundMusic = null;
+
+// ======= Sound Effects System =======
+// Громкость звуковых эффектов (0-100)
+let soundEffectsVolume = 50;
+const SOUND_EFFECTS_VOLUME_KEY = 'mpi_sound_effects_volume';
+
+// Звуковые эффекты для событий игры
+const soundEffects = {
+  spider: 'music/spider.mp3',
+  barmatun: 'music/barmatun.mp3',
+  barmatunBuff: 'music/barmatun baff.mp3',
+  king: 'music/king.mp3',
+  kingBuff: 'music/king buff.mp3',
+  spiderSquish: 'music/spider squish.mp3',
+  spiderBuff: 'music/spider buff.mp3',
+  debuff: 'music/debuff.mp3',
+  clickGold: 'music/click gold.mp3',
+  clickBroken: 'music/click broken.mp3',
+  archer: 'music/archer.mp3'
+};
+
+// Кэш для аудио элементов звуков
+const soundCache = {};
+
+// Загружаем настройку громкости звуковых эффектов из localStorage
+function loadSoundEffectsVolume() {
+  const stored = localStorage.getItem(SOUND_EFFECTS_VOLUME_KEY);
+  if (stored !== null) {
+    const vol = parseInt(stored, 10);
+    if (!isNaN(vol) && vol >= 0 && vol <= 100) {
+      soundEffectsVolume = vol;
+    }
+  }
+}
+
+// Сохраняем настройку громкости звуковых эффектов
+function saveSoundEffectsVolume() {
+  localStorage.setItem(SOUND_EFFECTS_VOLUME_KEY, String(soundEffectsVolume));
+}
+
+// Обновляем громкость всех звуковых эффектов
+function updateSoundEffectsVolume() {
+  // Обновляем громкость для всех закэшированных звуков
+  Object.values(soundCache).forEach(audio => {
+    if (audio) {
+      audio.volume = soundEffectsVolume / 100;
+    }
+  });
+}
+
+// Воспроизведение звукового эффекта
+function playSound(soundName) {
+  if (!soundEffects[soundName]) {
+    console.warn('Sound effect not found:', soundName);
+    return;
+  }
+  
+  try {
+    // Используем кэш для избежания повторной загрузки
+    let audio = soundCache[soundName];
+    if (!audio) {
+      audio = new Audio(soundEffects[soundName]);
+      soundCache[soundName] = audio;
+    }
+    
+    // Устанавливаем текущую громкость
+    audio.volume = soundEffectsVolume / 100;
+    
+    // Сбрасываем время воспроизведения и играем
+    audio.currentTime = 0;
+    const playPromise = audio.play();
+    
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        // Игнорируем ошибки автовоспроизведения (браузер может блокировать)
+        console.warn('Sound playback failed:', error);
+      });
+    }
+  } catch (e) {
+    console.warn('Error playing sound:', e);
+  }
+}
+
+// Инициализация громкости звуковых эффектов при загрузке
+loadSoundEffectsVolume();
+
+// Загружаем настройку громкости из localStorage
+function loadMusicVolume() {
+  const stored = localStorage.getItem(MUSIC_VOLUME_KEY);
+  if (stored !== null) {
+    const vol = parseInt(stored, 10);
+    if (!isNaN(vol) && vol >= 0 && vol <= 100) {
+      musicVolume = vol;
+    }
+  }
+}
+
+// Сохраняем настройку громкости
+function saveMusicVolume() {
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
+}
+
+// Инициализация музыки при загрузке
+loadMusicVolume();
+
+// Используем HTML5 Audio элемент для воспроизведения музыки
+let musicAudioElement = null;
+let musicIsPlaying = false;
+
+// Список файлов музыки для циклического воспроизведения
+// Поддерживаются форматы: mp3, ogg, wav
+const musicFiles = [
+  'music/medieval1.mp3',
+  'music/medieval2.mp3',
+  'music/medieval3.mp3'
+];
+let currentMusicIndex = 0;
+let musicLoadErrorCount = 0;
+
+function loadNextMusic() {
+  if (!musicAudioElement || musicFiles.length === 0) return;
+  
+  // Загружаем следующий файл
+  musicAudioElement.src = musicFiles[currentMusicIndex];
+  musicAudioElement.load();
+  console.log('Loading music:', musicFiles[currentMusicIndex]);
+}
+
+function initBackgroundMusic() {
+  musicAudioElement = document.getElementById('background-music');
+  if (!musicAudioElement) {
+    console.warn('Background music element not found');
+    return;
+  }
+  
+  // Выбираем случайный трек для начала воспроизведения
+  if (musicFiles.length > 0) {
+    currentMusicIndex = Math.floor(Math.random() * musicFiles.length);
+    console.log('Starting with random track:', musicFiles[currentMusicIndex]);
+  }
+  
+  // Устанавливаем начальную громкость
+  updateMusicVolume();
+  
+  // Обработка окончания трека - переключаем на следующий
+  musicAudioElement.addEventListener('ended', () => {
+    console.log('Music track ended, switching to next');
+    currentMusicIndex = (currentMusicIndex + 1) % musicFiles.length;
+    loadNextMusic();
+    if (musicIsPlaying) {
+      startBackgroundMusic();
+    }
+  });
+  
+  // Обработка ошибок загрузки
+  musicAudioElement.addEventListener('error', (e) => {
+    musicLoadErrorCount++;
+    console.warn('Music loading error:', musicFiles[currentMusicIndex], e);
+    
+    // Пытаемся загрузить следующий файл
+    currentMusicIndex = (currentMusicIndex + 1) % musicFiles.length;
+    
+    // Если все файлы не загрузились (прошли полный круг), используем программную генерацию
+    if (musicLoadErrorCount >= musicFiles.length) {
+      console.log('All music files failed, using programmatic medieval music generation');
+      setTimeout(() => {
+        if (!musicIsPlaying) {
+          useProgrammaticMedievalMusic();
+        }
+      }, 1000);
+      return;
+    }
+    
+    // Пытаемся загрузить следующий файл
+    loadNextMusic();
+    if (musicIsPlaying) {
+      startBackgroundMusic();
+    }
+  });
+  
+  // Обработка успешной загрузки
+  musicAudioElement.addEventListener('canplaythrough', () => {
+    console.log('Music loaded successfully:', musicFiles[currentMusicIndex]);
+    musicLoadErrorCount = 0; // Сбрасываем счетчик ошибок при успешной загрузке
+    if (!musicIsPlaying) {
+      startBackgroundMusic();
+    }
+  });
+  
+  // Загружаем случайный файл
+  loadNextMusic();
+  
+  // Запускаем музыку при первом взаимодействии пользователя (клик, нажатие клавиши)
+  const startMusicOnInteraction = () => {
+    if (!musicIsPlaying && musicAudioElement) {
+      startBackgroundMusic();
+    }
+    // Удаляем обработчики после первого запуска
+    document.removeEventListener('click', startMusicOnInteraction);
+    document.removeEventListener('keydown', startMusicOnInteraction);
+  };
+  
+  // Всегда добавляем обработчики для запуска музыки при взаимодействии
+  document.addEventListener('click', startMusicOnInteraction, { once: true });
+  document.addEventListener('keydown', startMusicOnInteraction, { once: true });
+}
+
+function startBackgroundMusic() {
+  if (!musicAudioElement) {
+    console.warn('Music audio element not available');
+    return;
+  }
+  
+  // Устанавливаем громкость перед воспроизведением (даже если она 0%)
+  updateMusicVolume();
+  
+  // Пытаемся воспроизвести музыку (даже при громкости 0%)
+  const playPromise = musicAudioElement.play();
+  
+  if (playPromise !== undefined) {
+    playPromise
+      .then(() => {
+        musicIsPlaying = true;
+        console.log('Music started successfully (volume:', musicVolume + '%)');
+        updateMusicVolume(); // Устанавливаем громкость после начала воспроизведения
+      })
+      .catch(error => {
+        // Автовоспроизведение заблокировано браузером
+        console.warn('Music autoplay blocked:', error);
+        // Музыка начнется после взаимодействия пользователя
+        musicIsPlaying = false;
+      });
+  } else {
+    // Старые браузеры могут не возвращать Promise
+    musicIsPlaying = true;
+    console.log('Music started (legacy browser, volume:', musicVolume + '%)');
+  }
+}
+
+function stopBackgroundMusic() {
+  if (useProgrammaticMusicFlag) {
+    // Останавливаем программную музыку
+    if (musicTimeoutId) {
+      clearTimeout(musicTimeoutId);
+      musicTimeoutId = null;
+    }
+    if (musicAudioContext) {
+      try {
+        musicAudioContext.close();
+      } catch (e) {}
+      musicAudioContext = null;
+    }
+    useProgrammaticMusicFlag = false;
+  } else if (musicAudioElement) {
+    musicAudioElement.pause();
+    musicAudioElement.currentTime = 0;
+  }
+  musicIsPlaying = false;
+}
+
+function updateMusicVolume() {
+  if (musicAudioElement) {
+    // Преобразуем громкость из 0-100 в 0-1 и применяем множитель для уменьшения громкости
+    musicAudioElement.volume = (musicVolume / 100) * MUSIC_VOLUME_MULTIPLIER;
+  }
+}
+
+// Fallback: программная генерация средневековой музыки
+let musicTimeoutId = null;
+let musicAudioContext = null;
+let useProgrammaticMusicFlag = false;
+
+function useProgrammaticMedievalMusic() {
+  if (useProgrammaticMusicFlag) return;
+  
+  useProgrammaticMusicFlag = true;
+  stopBackgroundMusic(); // Останавливаем HTML5 audio
+  
+  try {
+    musicAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Аутентичная средневековая мелодия в дорийском ладу (Dorian mode)
+    // Характерные интервалы и ритмы средневековой музыки
+    const notes = [
+      // Первая фраза - медленная и торжественная
+      { freq: 196.00, duration: 1.2 }, // G3 - басовая нота
+      { freq: 220.00, duration: 0.6 }, // A3
+      { freq: 246.94, duration: 0.6 }, // B3
+      { freq: 261.63, duration: 1.0 }, // C4
+      { freq: 293.66, duration: 1.4 }, // D4 - тоника дорийского лада
+      { freq: 329.63, duration: 0.8 }, // E4
+      { freq: 293.66, duration: 0.8 }, // D4
+      { freq: 261.63, duration: 1.0 }, // C4
+      // Вторая фраза - развитие темы
+      { freq: 293.66, duration: 0.8 }, // D4
+      { freq: 329.63, duration: 0.8 }, // E4
+      { freq: 349.23, duration: 0.6 }, // F4
+      { freq: 392.00, duration: 1.6 }, // G4 - кульминация
+      { freq: 349.23, duration: 0.8 }, // F4
+      { freq: 329.63, duration: 0.8 }, // E4
+      { freq: 293.66, duration: 1.2 }, // D4
+      // Третья фраза - возврат к началу
+      { freq: 261.63, duration: 0.8 }, // C4
+      { freq: 246.94, duration: 0.8 }, // B3
+      { freq: 220.00, duration: 1.0 }, // A3
+      { freq: 196.00, duration: 1.8 }  // G3 - завершение
+    ];
+    
+    let currentTime = musicAudioContext.currentTime;
+    const totalDuration = notes.reduce((sum, note) => sum + note.duration, 0);
+    const volumeMultiplier = musicVolume / 100;
+    
+    function playSequence() {
+      if (!musicAudioContext || useProgrammaticMusicFlag === false) {
+        return;
+      }
+      
+      notes.forEach((note) => {
+        const oscillator = musicAudioContext.createOscillator();
+        const gainNode = musicAudioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(musicAudioContext.destination);
+        
+        oscillator.frequency.value = note.freq;
+        // Используем более мягкий тип волны для средневекового звучания
+        oscillator.type = 'triangle'; // Более мягкий звук, чем sine
+        
+        // Уменьшаем базовую громкость в 2 раза (0.08 -> 0.04) и применяем множитель пользователя
+        const baseVolume = 0.04 * volumeMultiplier;
+        // Более плавное нарастание и затухание для аутентичного звучания
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(baseVolume, currentTime + 0.15);
+        gainNode.gain.linearRampToValueAtTime(baseVolume, currentTime + note.duration - 0.15);
+        gainNode.gain.linearRampToValueAtTime(0, currentTime + note.duration);
+        
+        oscillator.start(currentTime);
+        oscillator.stop(currentTime + note.duration);
+        
+        currentTime += note.duration;
+      });
+      
+      musicTimeoutId = setTimeout(() => {
+        if (musicAudioContext && useProgrammaticMusicFlag) {
+          currentTime = musicAudioContext.currentTime;
+          playSequence();
+        }
+      }, totalDuration * 1000);
+    }
+    
+    playSequence();
+    musicIsPlaying = true;
+    console.log('Programmatic medieval music started');
+  } catch (e) {
+    console.warn('Programmatic music generation failed:', e);
+    useProgrammaticMusicFlag = false;
+  }
+}
+
+function setMusicVolume(volume) {
+  musicVolume = Math.max(0, Math.min(100, volume));
+  saveMusicVolume();
+  
+  if (useProgrammaticMusicFlag) {
+    // Если используем программную генерацию, перезапускаем с новой громкостью
+    // Музыка продолжает играть даже при громкости 0%
+    useProgrammaticMedievalMusic();
+  } else {
+    // Обновляем громкость аудио элемента (даже если она 0%)
+    updateMusicVolume();
+    
+    // Запускаем музыку, если она еще не играет (независимо от громкости)
+    if (!musicIsPlaying && musicAudioElement) {
+      startBackgroundMusic();
+    }
+  }
+}
+
 // ======= Utilities =======
 // Форматирование: сокращения k, M, B, T и дальше; 4 знака после запятой для малых чисел
 const fmt = (n) => {
@@ -245,7 +630,8 @@ function newSave(username) {
         firstBuildingBought: false,
       }
     },
-    lastTick: now()
+    lastTick: now(),
+    lastActivityTime: now() // Track last activity (click or page load)
   };
 }
 
@@ -439,7 +825,12 @@ window.addEventListener('beforeunload', () => {
 
 // Сохраняем при уходе вкладки в фон
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saveNow();
+  if (document.visibilityState === 'hidden') {
+    saveNow();
+  } else if (document.visibilityState === 'visible' && save) {
+    // Check for offline earnings when page becomes visible again
+    checkOfflineEarnings();
+  }
 });
 
 let _countdownInterval = null;
@@ -517,6 +908,11 @@ const casinoFaceSelectedEl = document.getElementById('casino-face-selected');
 const bulkButtons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'));
 
 const buildingsList = document.getElementById('buildings-list');
+
+// Sort elements
+const sortBuildingsBtn = document.getElementById('sort-buildings-btn');
+const soundToggleBtn = document.getElementById('sound-toggle-btn');
+const hintsToggleBtn = document.getElementById('hints-toggle-btn');
 
 const endgameBtn = document.getElementById('endgame-btn');
 const uberModeBtn = document.getElementById('uber-mode-btn');
@@ -909,12 +1305,114 @@ function totalPPS() {
   const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   // Angry Barmatun: Income reduction (50% less)
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
-  // Buff 5: Spider Buff - income becomes 0
-  const spiderBuffActive = act && act.spiderBuffUntil > now();
-  if (spiderBuffActive) {
-    return 0;
-  }
+  // Buff 5: Spider Buff - не обнуляет доход, только изменяет поведение клика (клик дает казну вместо поинтов)
+  // Доход от зданий продолжает работать нормально
   return pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+}
+
+// Calculate offline earnings for buildings (excluding uber)
+function calculateBuildingOfflineEarnings(timeAwaySeconds) {
+  if (!save || timeAwaySeconds <= 0) return 0;
+  
+  let buildingPPS = 0;
+  for (const b of save.buildings) {
+    // For offline calculation, we assume buildings weren't blocked
+    // (blockedUntil is a real-time mechanic)
+    if (b.level < 1) continue;
+    buildingPPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+  }
+  
+  // Apply modifiers that would have been active (simplified - use current state)
+  const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
+  const achievementMult = getAchievementBonus();
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0;
+  const act = save.treasury?.actions;
+  const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  // Spider Buff не обнуляет доход от зданий
+  const totalPPS = buildingPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  return totalPPS * timeAwaySeconds;
+}
+
+// Calculate offline earnings for uber building
+function calculateUberOfflineEarnings(timeAwaySeconds) {
+  if (!save || timeAwaySeconds <= 0 || !save.uber.unlocked) return 0;
+  
+  const uberPPS = uberIncomeAt(save.uber.level);
+  
+  // Apply modifiers
+  const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
+  const achievementMult = getAchievementBonus();
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0;
+  const act = save.treasury?.actions;
+  const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  // Spider Buff не обнуляет доход от uber здания
+  const totalPPS = uberPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  return totalPPS * timeAwaySeconds;
+}
+
+// Format time away as "X hours Y minutes Z seconds"
+function formatTimeAway(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  const parts = [];
+  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs} second${secs !== 1 ? 's' : ''}`);
+  
+  return parts.join(' ');
+}
+
+// Show away message with earnings
+function showAwayMessage(timeAwaySeconds, buildingEarnings, uberEarnings) {
+  const timeStr = formatTimeAway(timeAwaySeconds);
+  const buildingEarningsStr = fmt(buildingEarnings);
+  const uberEarningsStr = fmt(uberEarnings);
+  
+  let message = `You were away: ${timeStr}\n`;
+  message += `During this time your buildings earned: ${buildingEarningsStr}`;
+  if (uberEarnings > 0) {
+    message += `\nUber building earned: ${uberEarningsStr}`;
+  }
+  
+  toast(message, 'good');
+}
+
+// Check and process offline earnings
+// forceShow: if true, show message regardless of time away (used on authorization)
+function checkOfflineEarnings(forceShow = false) {
+  if (!save) return;
+  
+  const TEN_MINUTES_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+  const currentTime = now();
+  const lastActivity = save.lastActivityTime || currentTime;
+  const timeAwayMs = currentTime - lastActivity;
+  
+  // Show message if away for more than 10 minutes, OR if forceShow is true (and time away > 0)
+  const shouldShow = forceShow ? (timeAwayMs > 0) : (timeAwayMs >= TEN_MINUTES_MS);
+  
+  if (shouldShow) {
+    const timeAwaySeconds = timeAwayMs / 1000;
+    
+    // Calculate offline earnings
+    const buildingEarnings = calculateBuildingOfflineEarnings(timeAwaySeconds);
+    const uberEarnings = calculateUberOfflineEarnings(timeAwaySeconds);
+    const totalEarnings = buildingEarnings + uberEarnings;
+    
+    // Add earnings to points
+    if (totalEarnings > 0) {
+      addPoints(totalEarnings);
+    }
+    
+    // Show message
+    showAwayMessage(timeAwaySeconds, buildingEarnings, uberEarnings);
+  }
+  
+  // Update last activity time
+  save.lastActivityTime = currentTime;
 }
 
 function canBuyNextBuilding(i) {
@@ -1071,6 +1569,9 @@ function reduceAllRepairs(percent) {
     }
   });
   // Обновляем визуальное отображение зданий
+  // Сбрасываем кэш состояния зданий для принудительного обновления
+  _lastBuildingsState = null;
+  _lastSortMode = -1;
   renderBuildings();
   // Немедленно обновляем таймеры
   _updateBuildingCountdowns();
@@ -1988,6 +2489,9 @@ function renderTreasuryActions() {
           act.alwaysGoldenUntil = now() + hourMs;
           save.click.goldenUntil = now() + hourMs; // Set golden immediately
           toast('Always Golden Click activated for 3 hours.', 'good');
+          
+          // Воспроизводим звук золотой кнопки
+          playSound('clickGold');
           renderTreasuryActions();
         },
         buffUntil: act.alwaysGoldenUntil
@@ -2415,12 +2919,13 @@ function updateTreasuryActions() {
 
 // Обновление уровней зданий в реальном времени (без пересоздания карточек)
 let _lastBuildingLevelsUpdate = 0;
-function updateBuildingLevels() {
+function updateBuildingLevels(forceImmediate = false) {
   if (!buildingsList || !save) return;
   
   const nowTs = now();
   // Обновляем уровни раз в 100мс для максимально быстрого отклика
-  if (nowTs - _lastBuildingLevelsUpdate < 100) return;
+  // Но если forceImmediate = true, обновляем немедленно
+  if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 100)) return;
   _lastBuildingLevelsUpdate = nowTs;
   
   const cards = buildingsList.querySelectorAll('.building-card');
@@ -2619,6 +3124,11 @@ function updateBuildingLevels() {
       }
     }
   });
+  
+  // Если это принудительное обновление, также обновляем состояние всех кнопок
+  if (forceImmediate) {
+    updateButtonStates();
+  }
 }
 
 function renderClick() {
@@ -2784,12 +3294,82 @@ function computeBulkCostForClick(bulk) {
   return { totalCost, totalLevels: allowedLevels };
 }
 
+// Building sort state
+// 0 = default (original order), 1 = level desc, 2 = level asc, 3 = income desc, 4 = income asc
+let buildingSortMode = 0;
+const SORT_MODES = [
+  { name: 'Default', sortFn: null },
+  { name: 'Level ↓', sortFn: (a, b) => b.level - a.level },
+  { name: 'Level ↑', sortFn: (a, b) => a.level - b.level },
+  { name: 'Income ↓', sortFn: (a, b) => {
+    const incomeA = buildingIncomeAt(a, a.level, a.upgradeBonus);
+    const incomeB = buildingIncomeAt(b, b.level, b.upgradeBonus);
+    return incomeB - incomeA;
+  }},
+  { name: 'Income ↑', sortFn: (a, b) => {
+    const incomeA = buildingIncomeAt(a, a.level, a.upgradeBonus);
+    const incomeB = buildingIncomeAt(b, b.level, b.upgradeBonus);
+    return incomeA - incomeB;
+  }}
+];
+
+function getSortedBuildings() {
+  if (!save || !save.buildings) return [];
+  
+  // Create array with original indices
+  const buildingsWithIndex = save.buildings.map((b, i) => ({ building: b, originalIndex: i }));
+  
+  // Apply sorting if needed
+  if (buildingSortMode > 0 && SORT_MODES[buildingSortMode].sortFn) {
+    buildingsWithIndex.sort((a, b) => SORT_MODES[buildingSortMode].sortFn(a.building, b.building));
+  }
+  
+  return buildingsWithIndex;
+}
+
+// Кэш для отслеживания состояния зданий (для оптимизации рендеринга)
+let _lastBuildingsState = null;
+let _lastSortMode = -1;
+
 function renderBuildings() {
+  if (!buildingsList) return;
+  
+  const sortedBuildings = getSortedBuildings();
+  if (!sortedBuildings || sortedBuildings.length === 0) {
+    buildingsList.innerHTML = '';
+    return;
+  }
+  
+  // Проверяем, нужно ли пересоздавать карточки
+  // Пересоздаем если: изменился режим сортировки, изменилось количество зданий, или это первый рендер
+  const currentState = sortedBuildings.map(({ building: b, originalIndex }) => ({
+    index: originalIndex,
+    level: b.level,
+    blockedUntil: b.blockedUntil || 0,
+    sortMode: buildingSortMode
+  })).join('|');
+  
+  const needsFullRender = !_lastBuildingsState || 
+                          _lastBuildingsState !== currentState ||
+                          _lastSortMode !== buildingSortMode;
+  
+  if (!needsFullRender) {
+    // Если структура не изменилась, обновляем только данные через updateBuildingLevels
+    // Это уже делается в tick(), так что просто выходим
+    return;
+  }
+  
+  // Сохраняем новое состояние
+  _lastBuildingsState = currentState;
+  _lastSortMode = buildingSortMode;
+  
+  // Полная перерисовка нужна - очищаем и создаем заново
   buildingsList.innerHTML = '';
-  save.buildings.forEach((b, i) => {
+  
+  sortedBuildings.forEach(({ building: b, originalIndex }) => {
     const card = document.createElement('div');
     card.className = 'building-card';
-    card.dataset.buildingIndex = i;
+    card.dataset.buildingIndex = originalIndex;
 
     // Верх: иконка слева, действие справа
     const header = document.createElement('div');
@@ -2799,7 +3379,7 @@ function renderBuildings() {
     const pixel = document.createElement('canvas');
     pixel.width = 56; pixel.height = 56;
     pixel.className = 'building-pixel';
-    drawHousePixel(pixel, i);
+    drawHousePixel(pixel, originalIndex);
 
     // Контейнер действий (одна зона, кнопки сменяются)
     const actionSlot = document.createElement('div');
@@ -2823,7 +3403,7 @@ function renderBuildings() {
     lvlEl.innerHTML = `<strong>Level:</strong> ${b.level} / ${b.max}`;
     const incEl = document.createElement('div');
     incEl.innerHTML = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(b, b.level, b.upgradeBonus))}`;
-    const nextCost = computeBulkCostForBuilding(i, save.bulk);
+    const nextCost = computeBulkCostForBuilding(originalIndex, save.bulk);
     const seg = segmentIndex(b.level);
     const within = withinSegment(b.level);
     const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
@@ -2871,29 +3451,44 @@ function renderBuildings() {
       }
       segBtn.innerHTML = `Upgrade<br>(${fmt(prevCost)})`;
       segBtn.disabled = save.points < prevCost;
-      segBtn.classList.remove('hidden');
-      segBtn.classList.add('primary'); // Делаем кнопку primary, как у клика
-      const upgradeHandler = () => buyBuildingSegUpgrade(i, seg-1);
+      
+      // Удаляем старый обработчик если есть
+      const oldUpgradeHandler = segBtn._upgradeHandler;
+      if (oldUpgradeHandler) {
+        segBtn.removeEventListener('click', oldUpgradeHandler);
+      }
+      
+      const upgradeHandler = () => buyBuildingSegUpgrade(originalIndex, seg-1);
       segBtn.addEventListener('click', upgradeHandler);
       segBtn._upgradeHandler = upgradeHandler;
 
+      // Скрываем buyBtn, показываем segBtn с классом primary
       buyBtn.classList.add('hidden');
       buyBtn.setAttribute('aria-hidden', 'true');
       segBtn.classList.remove('hidden');
+      segBtn.classList.add('primary'); // Делаем кнопку primary, как у клика
       segBtn.setAttribute('aria-hidden', 'false');
       
       // Подсвечиваем карточку здания при наличии апгрейда
       card.classList.add('has-upgrade');
     } else {
       // Обычное состояние — показываем покупку, скрываем segBtn
-      buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
-      const buyHandler = () => buyBuildingLevels(i);
+      buyBtn.disabled = now() < b.blockedUntil || !canBuyNextBuilding(originalIndex) || (save.points < nextCost.totalCost);
+      
+      // Удаляем старый обработчик если есть
+      const oldBuyHandler = buyBtn._buyHandler;
+      if (oldBuyHandler) {
+        buyBtn.removeEventListener('click', oldBuyHandler);
+      }
+      
+      const buyHandler = () => buyBuildingLevels(originalIndex);
       buyBtn.addEventListener('click', buyHandler);
       buyBtn._buyHandler = buyHandler;
 
+      // Скрываем segBtn, показываем buyBtn
       segBtn.classList.add('hidden');
-      segBtn.setAttribute('aria-hidden', 'true');
       segBtn.classList.remove('primary'); // Убираем primary, когда апгрейд не нужен
+      segBtn.setAttribute('aria-hidden', 'true');
       buyBtn.classList.remove('hidden');
       buyBtn.setAttribute('aria-hidden', 'false');
       
@@ -2920,7 +3515,7 @@ function renderBuildings() {
     note.className = 'building-note';
     if (shouldHideButtons) {
       note.textContent = 'Reach Uber Mode to continue';
-    } else if (!canBuyNextBuilding(i)) {
+    } else if (!canBuyNextBuilding(originalIndex)) {
       note.textContent = 'Locked: previous building must reach level 67.';
     } else if (now() < b.blockedUntil) {
       // Учитываем модификатор Fast Repair при отображении оставшегося времени
@@ -3382,6 +3977,48 @@ function cycleSeason() {
   toast(`Season changed to: ${nextSeason.charAt(0).toUpperCase() + nextSeason.slice(1)}`, 'info');
 }
 
+// ======= Performance Optimizations =======
+
+// Дебаунсинг для частых обновлений UI
+let _debounceStatsTimeout = null;
+let _debounceClickTimeout = null;
+let _lastStatsUpdate = 0;
+let _lastClickUpdate = 0;
+
+function debouncedRenderTopStats() {
+  const nowTs = now();
+  // Обновляем не чаще чем раз в 200мс
+  if (nowTs - _lastStatsUpdate < 200) {
+    if (!_debounceStatsTimeout) {
+      _debounceStatsTimeout = requestAnimationFrame(() => {
+        renderTopStats();
+        _lastStatsUpdate = now();
+        _debounceStatsTimeout = null;
+      });
+    }
+    return;
+  }
+  renderTopStats();
+  _lastStatsUpdate = nowTs;
+}
+
+function debouncedRenderClick() {
+  const nowTs = now();
+  // Обновляем не чаще чем раз в 200мс
+  if (nowTs - _lastClickUpdate < 200) {
+    if (!_debounceClickTimeout) {
+      _debounceClickTimeout = requestAnimationFrame(() => {
+        renderClick();
+        _lastClickUpdate = now();
+        _debounceClickTimeout = null;
+      });
+    }
+    return;
+  }
+  renderClick();
+  _lastClickUpdate = nowTs;
+}
+
 // Оптимизация рендеринга - отложенный вызов для производительности
 let _renderTimeout = null;
 function scheduleRender() {
@@ -3428,9 +4065,33 @@ function addPoints(n) {
   updateButtonStates();
 }
 
+// Дебаунсинг для updateButtonStates
+let _debounceButtonStatesTimeout = null;
+let _lastButtonStatesUpdate = 0;
+
 // Обновляет состояние disabled для всех кнопок покупки/апгрейда
 // Вызывается автоматически при изменении поинтов и в игровом цикле
 function updateButtonStates() {
+  if (!save) return;
+  
+  const nowTs = now();
+  // Обновляем не чаще чем раз в 100мс для плавности
+  if (nowTs - _lastButtonStatesUpdate < 100) {
+    if (!_debounceButtonStatesTimeout) {
+      _debounceButtonStatesTimeout = requestAnimationFrame(() => {
+        _updateButtonStatesInternal();
+        _lastButtonStatesUpdate = now();
+        _debounceButtonStatesTimeout = null;
+      });
+    }
+    return;
+  }
+  
+  _updateButtonStatesInternal();
+  _lastButtonStatesUpdate = nowTs;
+}
+
+function _updateButtonStatesInternal() {
   if (!save) return;
 
   // Check if buttons should be hidden (level >= 1000 and not in Uber Mode)
@@ -3458,9 +4119,17 @@ function updateButtonStates() {
   }
 
   // Обновляем кнопки зданий
-  save.buildings.forEach((b, i) => {
-    const card = buildingsList?.children[i];
-    if (!card) return;
+  // Используем data-buildingIndex вместо индекса массива, так как здания могут быть отсортированы
+  // Оптимизация: обновляем только видимые карточки
+  const visibleCards = buildingsList?.querySelectorAll('.building-card');
+  if (!visibleCards || visibleCards.length === 0) return;
+  
+  visibleCards.forEach((card) => {
+    const buildingIndex = parseInt(card.dataset.buildingIndex);
+    if (isNaN(buildingIndex) || buildingIndex >= save.buildings.length) return;
+    
+    const b = save.buildings[buildingIndex];
+    const i = buildingIndex;
 
     // Ищем кнопки: buyBtn - всегда primary, segBtn - может быть primary или нет
     const actionSlot = card.querySelector('.building-action-slot');
@@ -3583,10 +4252,14 @@ function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
   }
 
   // After buy, re-render immediately for critical operations
+  // Сбрасываем кэш состояния зданий для принудительного обновления
+  _lastBuildingsState = null;
+  _lastSortMode = -1;
   renderAll();
-  // Принудительно обновляем уровни зданий сразу после покупки
-  _lastBuildingLevelsUpdate = 0; // Сбрасываем таймер для немедленного обновления
-  updateBuildingLevels();
+  // Принудительно обновляем уровни зданий сразу после покупки (немедленно, без дебаунсинга)
+  updateBuildingLevels(true);
+  // Обновляем состояние кнопок
+  updateButtonStates();
   // Проверяем разблокировку Uber здания после покупки уровней
   checkUberUnlock();
   return true;
@@ -3744,8 +4417,15 @@ function buyBuildingSegUpgrade(i, segIndex) {
   b.segUpgrades[segIndex] = true;
   b.upgradeBonus += 1;
   toast(`${b.name} segment upgraded: +13% income.`, 'good');
-   triggerBuildingUpgradeEffect(i, 'Upgrade!');
+  triggerBuildingUpgradeEffect(i, 'Upgrade!');
+  // Сбрасываем кэш состояния зданий для принудительного обновления
+  _lastBuildingsState = null;
+  _lastSortMode = -1;
   renderAll();
+  // Принудительно обновляем уровни зданий сразу после апгрейда (немедленно)
+  updateBuildingLevels(true);
+  // Обновляем состояние кнопок
+  updateButtonStates();
 }
 
 // ======= Clicking mechanics =======
@@ -4054,6 +4734,10 @@ clickBtn.addEventListener('click', (event) => {
   }
 
   const ts = now();
+  
+  // Check for offline earnings on first click after inactivity
+  checkOfflineEarnings();
+  
   // Streak logic - разрыв стрика при паузе более 1 секунды
   if (ts - save.streak.lastClickTs <= 1000) {
     save.streak.count += 1;
@@ -4122,6 +4806,9 @@ clickBtn.addEventListener('click', (event) => {
   if (madnessActive && randChance(0.005)) {
     save.click.level = Math.max(0, save.click.level - 3);
     toast('Click Madness backlash: -3 Click levels!', 'warn');
+    // Обновляем UI после изменения уровня клика
+    renderClick();
+    updateButtonStates();
   }
 
   // Buff 4: Reset passive boost on click
@@ -4186,6 +4873,10 @@ clickBtn.addEventListener('click', (event) => {
             save.streak.count = 0;
             save.streak.multiplier = 1.0;
             toast('Always Golden backlash: Click button broke for 26s!', 'bad');
+            
+            // Воспроизводим звук сломанной кнопки
+            playSound('clickBroken');
+            
             renderClick();
           }
         } else if (!normalGoldenActive) {
@@ -4200,10 +4891,18 @@ clickBtn.addEventListener('click', (event) => {
               save.streak.count = 0;
               save.streak.multiplier = 1.0;
               toast('Click button broke for 26s.', 'bad');
+              
+              // Воспроизводим звук сломанной кнопки
+              playSound('clickBroken');
+              
               renderClick();
             } else {
               // 34% из шанса = золотая кнопка
               save.click.goldenUntil = now() + 8000;
+              
+              // Воспроизводим звук золотой кнопки
+              playSound('clickGold');
+              
               save.streak.count = 0;
               save.streak.multiplier = 1.0;
               toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
@@ -4528,6 +5227,9 @@ function spawnKing() {
   kingEl.classList.add('show');
   kingEl.title = 'King — click to start the mini-game';
   _kingState.visibleUntil = now() + 23000;
+  
+  // Воспроизводим звук появления короля
+  playSound('king');
   // auto-escape after 23s
   if (_kingState.escapeTimer) clearTimeout(_kingState.escapeTimer);
   _kingState.escapeTimer = setTimeout(() => {
@@ -4711,9 +5413,14 @@ function endKingMiniGame(outcome, info = {}) {
     // +5% points
     save.points = save.points * 1.05;
     toast(`Success! The King rewarded you: +${totalLevelsAdded} levels to buildings (${openedCount} buildings), +${clickMaxAddable} to Click, +5% points.`, 'good');
-    // Принудительно обновляем уровни зданий после награды короля
-    _lastBuildingLevelsUpdate = 0;
-    updateBuildingLevels();
+    
+    // Воспроизводим звук выигрыша в мини-игру короля
+    playSound('kingBuff');
+    
+    // Принудительно обновляем уровни зданий после награды короля (немедленно)
+    updateBuildingLevels(true);
+    // Обновляем состояние кнопок
+    updateButtonStates();
   } else if (outcome === 'timeout') {
     // not enough crowns in time -> penalty: -1 level each opened building, -2 click
     save.buildings.forEach(b => {
@@ -4721,9 +5428,14 @@ function endKingMiniGame(outcome, info = {}) {
     });
     save.click.level = Math.max(0, save.click.level - 2);
     toast(`Time's up. The King punished you: -1 level Building, -2 Click.`, 'bad');
-    // Принудительно обновляем уровни зданий после наказания
-    _lastBuildingLevelsUpdate = 0;
-    updateBuildingLevels();
+    
+    // Воспроизводим звук дебафа от короля
+    playSound('debuff');
+    
+    // Принудительно обновляем уровни зданий после наказания (немедленно)
+    updateBuildingLevels(true);
+    // Обновляем состояние кнопок
+    updateButtonStates();
   } else if (outcome === 'miss') {
     // immediate heavy penalty: -3 each building, -7 click, -30% points
     save.buildings.forEach(b => {
@@ -4732,9 +5444,14 @@ function endKingMiniGame(outcome, info = {}) {
     save.click.level = Math.max(0, save.click.level - 7);
     save.points = Math.max(0, save.points * 0.7);
     toast(`Miss! The King is furious: -3 levels Buildings, -7 Click, -30% points.`, 'bad');
-    // Принудительно обновляем уровни зданий после наказания
-    _lastBuildingLevelsUpdate = 0;
-    updateBuildingLevels();
+    
+    // Воспроизводим звук дебафа от короля
+    playSound('debuff');
+    
+    // Принудительно обновляем уровни зданий после наказания (немедленно)
+    updateBuildingLevels(true);
+    // Обновляем состояние кнопок
+    updateButtonStates();
   }
 
   // render and schedule next king
@@ -4894,6 +5611,9 @@ function spawnSpider() {
   _spiderState.aliveUntil = now() + 30000; // 30s
   _startSpiderMovement();
   toast('A spider appears...', 'warn');
+  
+  // Воспроизводим звук появления паука
+  playSound('spider');
 
   // очистим старый таймер, если он есть
   if (_spiderState.escapeTimer) {
@@ -4953,13 +5673,20 @@ if (spiderEl) {
         save.modifiers.spiderMult = 100.0;
         save.modifiers.spiderUntil = now() + 4000;
         toast('Spider blessing! All income x100 for 4s.', 'good');
-              } else if (roll < 0.80) {
+        
+        // Воспроизводим звук баффа от паука
+        playSound('spiderBuff');
+      } else if (roll < 0.80) {
                 // Negative effect - shorter duration (12s instead of 36s)
                 save.modifiers.spiderMult = 0.0001;
                 save.modifiers.spiderUntil = now() + 12000;
                 toast('Spider curse! All income x0.0001 for 12s.', 'bad');
+                // Воспроизводим звук дебафа от паука
+                playSound('debuff');
       } else {
         toast('Squished! No effect.', 'info');
+        // Воспроизводим звук раздавленного паука
+        playSound('spiderSquish');
       }
     } else {
       // Normal spider behavior
@@ -4967,12 +5694,19 @@ if (spiderEl) {
         save.modifiers.spiderMult = 0.0001;
         save.modifiers.spiderUntil = now() + 36000;
         toast('Spider curse! All income x0.0001 for 36s.', 'bad');
+        // Воспроизводим звук дебафа от паука
+        playSound('debuff');
       } else if (roll < 0.50) {
         save.modifiers.spiderMult = 100.0;
         save.modifiers.spiderUntil = now() + 7000;
         toast('Spider blessing! All income x100 for 7s.', 'good');
+        
+        // Воспроизводим звук баффа от паука
+        playSound('spiderBuff');
       } else {
         toast('Squished! No effect.', 'info');
+        // Воспроизводим звук раздавленного паука
+        playSound('spiderSquish');
       }
     }
 
@@ -5208,6 +5942,9 @@ function spawnAngryBarmatun() {
   _angryBarmatunState.aliveUntil = now() + 30000; // 30s
   _startAngryBarmatunMovement();
   toast('Angry Barmatun appears...', 'warn');
+  
+  // Воспроизводим звук появления барматуна
+  playSound('barmatun');
 
   // clear old timer if exists
   if (_angryBarmatunState.escapeTimer) {
@@ -5262,12 +5999,18 @@ if (angryBarmatunEl) {
       // 50% chance: Angry - reduce all income by 50% for 12 seconds
       save.modifiers.angryBarmatunIncomeReduction = now() + 12000;
       toast('Angry Barmatun is furious! All income reduced by 50% for 12s.', 'bad');
+      
+      // Воспроизводим звук дебафа от барматуна
+      playSound('debuff');
     } else {
       // 50% chance: Power of anger - activates random click multiplier effect
       // Each click will get a random multiplier (x0.1 to x100) for 12 seconds
       save.modifiers.angryBarmatunUntil = now() + 12000; // 12 seconds
       save.modifiers.angryBarmatunMult = 1.0; // Reset, will be generated per click
       toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.1 to x100) for 12s.', 'good');
+      
+      // Воспроизводим звук положительного баффа от барматуна
+      playSound('barmatunBuff');
     }
 
     // Hide angry barmatun and stop movement
@@ -5618,6 +6361,9 @@ function spawnElfArcher() {
   elfArcherEl.style.top = (window.innerHeight - 64) + 'px';
   elfArcherEl.classList.remove('hidden');
   
+  // Воспроизводим звук появления эльфа лучника
+  playSound('archer');
+  
   // Set transition for smooth movement
   elfArcherEl.style.transition = 'left 2s ease-out, top 2s ease-out, transform 0.3s ease';
   
@@ -5938,9 +6684,9 @@ function tick() {
   // Elf Archer spawn check
   maybeSpawnElfArcher();
 
-  // Update UI
-  renderTopStats();
-  renderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
+  // Update UI (с дебаунсингом для производительности)
+  debouncedRenderTopStats();
+  debouncedRenderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
   renderEffects();
   updateTreasuryActions(); // Оптимизированное обновление - только данные, без пересоздания DOM
   updateBuildingLevels(); // Обновляем уровни зданий в реальном времени
@@ -6339,6 +7085,20 @@ function showGame() {
   }
   renderAll();
   
+  // Initialize sort button
+  initSortButton();
+  
+  // Initialize and start background music if volume > 0
+  initBackgroundMusic();
+  if (musicVolume > 0) {
+    startBackgroundMusic();
+  }
+  
+  // Initialize hints system
+  setTimeout(() => {
+    initHints();
+  }, 1000);
+  
   // Блокируем контекстное меню (ПКМ) на игровом экране
   if (gameScreen) {
     gameScreen.addEventListener('contextmenu', (e) => {
@@ -6400,6 +7160,12 @@ loginBtn.addEventListener('click', () => {
   if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
     save.uber.max = 19;
   }
+  // Initialize lastActivityTime if missing
+  if (!save.lastActivityTime) {
+    save.lastActivityTime = now();
+  }
+  // Check for offline earnings on login - always show message if time away > 0
+  checkOfflineEarnings(true);
   showGame();
 });
 }
@@ -6548,6 +7314,11 @@ debugTools.addEventListener('click', (e) => {
         }
       });
       toast('Added 100 levels to all buildings.', 'good');
+      // Принудительно обновляем уровни зданий сразу (немедленно)
+      _lastBuildingsState = null;
+      _lastSortMode = -1;
+      updateBuildingLevels(true);
+      updateButtonStates();
       break;
     case 'addClickLevels':
       for (let k=0;k<100;k++){
@@ -7106,6 +7877,12 @@ if (save) {
     updateSeason();
   }
   if (save) {
+    // Initialize lastActivityTime if missing
+    if (!save.lastActivityTime) {
+      save.lastActivityTime = now();
+    }
+    // Check for offline earnings on page load
+    checkOfflineEarnings();
     renderAll();
     // Блокируем контекстное меню (ПКМ) на игровом экране при автозагрузке
     if (gameScreen) {
@@ -7556,6 +8333,356 @@ document.addEventListener('keydown', (e) => {
     closeCasinoModal();
   }
 });
+
+// ======= Sort Event Handlers =======
+let sortButtonInitialized = false;
+
+function initSortButton() {
+  const btn = document.getElementById('sort-buildings-btn');
+  if (!btn || sortButtonInitialized) return;
+  
+  function updateSortButton() {
+    const currentBtn = document.getElementById('sort-buildings-btn');
+    if (currentBtn) {
+      currentBtn.textContent = `Sort: ${SORT_MODES[buildingSortMode].name}`;
+      currentBtn.title = `Current: ${SORT_MODES[buildingSortMode].name}. Click to cycle.`;
+    }
+  }
+  
+  updateSortButton();
+  
+  btn.addEventListener('click', () => {
+    buildingSortMode = (buildingSortMode + 1) % SORT_MODES.length;
+    updateSortButton();
+    renderBuildings();
+  });
+  
+  sortButtonInitialized = true;
+}
+
+// Music control menu
+const musicMenu = document.getElementById('music-menu');
+const musicVolumeSlider = document.getElementById('music-volume-slider');
+const musicVolumeDisplay = document.getElementById('music-volume-display');
+const soundEffectsVolumeSlider = document.getElementById('sound-effects-volume-slider');
+const soundEffectsVolumeDisplay = document.getElementById('sound-effects-volume-display');
+
+if (soundToggleBtn) {
+  function updateMusicButtonIcon() {
+    soundToggleBtn.textContent = musicVolume > 0 ? '🔊' : '🔇';
+    soundToggleBtn.title = 'Audio settings';
+  }
+  
+  function updateMusicVolumeDisplay() {
+    if (musicVolumeDisplay) {
+      musicVolumeDisplay.textContent = musicVolume;
+    }
+    if (musicVolumeSlider) {
+      musicVolumeSlider.value = musicVolume;
+    }
+  }
+  
+  function updateSoundEffectsVolumeDisplay() {
+    if (soundEffectsVolumeDisplay) {
+      soundEffectsVolumeDisplay.textContent = soundEffectsVolume;
+    }
+    if (soundEffectsVolumeSlider) {
+      soundEffectsVolumeSlider.value = soundEffectsVolume;
+    }
+  }
+  
+  function setSoundEffectsVolume(volume) {
+    soundEffectsVolume = Math.max(0, Math.min(100, volume));
+    saveSoundEffectsVolume();
+    updateSoundEffectsVolume();
+    updateSoundEffectsVolumeDisplay();
+  }
+  
+  updateMusicButtonIcon();
+  updateMusicVolumeDisplay();
+  updateSoundEffectsVolumeDisplay();
+  
+  // Toggle menu on button click
+  soundToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (musicMenu) {
+      musicMenu.classList.toggle('hidden');
+    }
+  });
+  
+  // Close menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (musicMenu && !musicMenu.contains(e.target) && !soundToggleBtn.contains(e.target)) {
+      musicMenu.classList.add('hidden');
+    }
+  });
+  
+  // Music volume slider handler
+  if (musicVolumeSlider) {
+    musicVolumeSlider.addEventListener('input', (e) => {
+      const newVolume = parseInt(e.target.value, 10);
+      setMusicVolume(newVolume);
+      updateMusicButtonIcon();
+      updateMusicVolumeDisplay();
+    });
+  }
+  
+  // Sound effects volume slider handler
+  if (soundEffectsVolumeSlider) {
+    soundEffectsVolumeSlider.addEventListener('input', (e) => {
+      const newVolume = parseInt(e.target.value, 10);
+      setSoundEffectsVolume(newVolume);
+    });
+  }
+}
+
+// ======= Hints System =======
+const HINTS_ENABLED_KEY = 'mpi_hints_enabled';
+let hintsEnabled = true;
+
+// Загружаем настройку подсказок из localStorage
+function loadHintsSetting() {
+  const stored = localStorage.getItem(HINTS_ENABLED_KEY);
+  if (stored !== null) {
+    hintsEnabled = stored === 'true';
+  }
+}
+
+// Сохраняем настройку подсказок
+function saveHintsSetting() {
+  localStorage.setItem(HINTS_ENABLED_KEY, String(hintsEnabled));
+}
+
+// Инициализация подсказок при загрузке
+loadHintsSetting();
+
+// Система подсказок
+const hints = {
+  'click-btn': {
+    title: 'Click Button',
+    text: 'Click this button to earn points! Each click gives you points based on your Click level and upgrades. Try to maintain a streak for bonus multipliers!'
+  },
+  'click-buy': {
+    title: 'Buy Click Levels',
+    text: 'Purchase levels for your Click button to increase points per click. Higher levels cost more but provide better income. Use bulk buttons (x1, x10) to buy multiple levels at once.'
+  },
+  'click-seg-upgrade': {
+    title: 'Click Upgrade',
+    text: 'Upgrade your Click button to gain +13% income bonus! Upgrades are available every 10 levels. Each upgrade permanently increases your click income.'
+  },
+  'sort-buildings-btn': {
+    title: 'Sort Buildings',
+    text: 'Sort your buildings by level or income. Click to cycle through: Default → Level ↓ → Level ↑ → Income ↓ → Income ↑. This helps you find the most important buildings quickly.'
+  },
+  'treasury-actions': {
+    title: 'Treasury Actions',
+    text: 'Use treasury coins to activate powerful buffs and abilities! Treasury regenerates over time. Each action has a cooldown and unique effects. Hover over buttons to see details.'
+  },
+  'buildings-list': {
+    title: 'Buildings',
+    text: 'Buildings generate passive income every second! Buy levels to increase income. Buildings can break during construction - use repair actions to fix them faster. Each building has segment upgrades every 10 levels.'
+  },
+  'uber-card': {
+    title: 'Citadel (Uber Building)',
+    text: 'The Citadel is unlocked when all buildings reach level 800. It provides massive income but is very expensive. Level it up to unlock Uber Mode with new challenges and rewards!'
+  },
+  'stats-btn': {
+    title: 'Statistics',
+    text: 'View detailed statistics about your game progress: total points earned/spent, highest PPS/PPC, play time, clicks, and more. Track your progress and optimize your strategy!'
+  },
+  'bulk-buttons': {
+    title: 'Bulk Purchase',
+    text: 'Use bulk buttons (x1, x10, x50, x100, max) to buy multiple levels at once. This saves time and can be more efficient. Higher bulk options unlock as you progress.'
+  }
+};
+
+// Показываем подсказку для элемента
+function showHint(elementId, hintData) {
+  if (!hintsEnabled || !hintData) return;
+  
+  const element = document.getElementById(elementId) || document.querySelector(`[data-hint="${elementId}"]`);
+  if (!element) return;
+  
+  // Проверяем, не показывали ли уже подсказку для этого элемента
+  if (element.dataset.hintShown === 'true') return;
+  
+  // Проверяем, виден ли элемент на экране
+  const rect = element.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0 || rect.top < 0 || rect.left < 0) {
+    return; // Элемент не виден
+  }
+  
+  // Создаем элемент подсказки
+  const hintEl = document.createElement('div');
+  hintEl.className = 'game-hint';
+  hintEl.innerHTML = `
+    <div class="hint-header">
+      <span class="hint-icon">💡</span>
+      <span class="hint-title">${hintData.title}</span>
+      <button class="hint-close" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+    <div class="hint-body">${hintData.text}</div>
+  `;
+  
+  // Позиционируем подсказку рядом с элементом
+  hintEl.style.position = 'fixed';
+  
+  // Пытаемся разместить подсказку снизу от элемента
+  let top = rect.bottom + 10;
+  let left = rect.left;
+  
+  // Если подсказка не помещается снизу, размещаем сверху
+  if (top + 150 > window.innerHeight) {
+    top = rect.top - 150;
+  }
+  
+  // Если подсказка не помещается справа, сдвигаем влево
+  if (left + 400 > window.innerWidth) {
+    left = window.innerWidth - 420;
+  }
+  
+  // Если подсказка не помещается слева, сдвигаем вправо
+  if (left < 10) {
+    left = 10;
+  }
+  
+  hintEl.style.top = `${Math.max(10, top)}px`;
+  hintEl.style.left = `${left}px`;
+  hintEl.style.zIndex = '10000';
+  
+  document.body.appendChild(hintEl);
+  
+  // Помечаем, что подсказка была показана
+  element.dataset.hintShown = 'true';
+  
+  // Автоматически скрываем через 12 секунд
+  const autoHideTimeout = setTimeout(() => {
+    if (hintEl.parentNode) {
+      hintEl.style.animation = 'hintFadeOut 0.3s ease-out';
+      setTimeout(() => {
+        if (hintEl.parentNode) {
+          hintEl.remove();
+        }
+      }, 300);
+    }
+  }, 12000);
+  
+  // Закрываем при клике на кнопку закрытия
+  const closeBtn = hintEl.querySelector('.hint-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      clearTimeout(autoHideTimeout);
+      hintEl.style.animation = 'hintFadeOut 0.3s ease-out';
+      setTimeout(() => {
+        if (hintEl.parentNode) {
+          hintEl.remove();
+        }
+      }, 300);
+    });
+  }
+  
+  // Закрываем при клике вне подсказки (с небольшой задержкой, чтобы не закрывать сразу)
+  setTimeout(() => {
+    const closeOnClickOutside = (e) => {
+      if (!hintEl.contains(e.target) && !element.contains(e.target)) {
+        clearTimeout(autoHideTimeout);
+        hintEl.style.animation = 'hintFadeOut 0.3s ease-out';
+        setTimeout(() => {
+          if (hintEl.parentNode) {
+            hintEl.remove();
+          }
+        }, 300);
+        document.removeEventListener('click', closeOnClickOutside);
+      }
+    };
+    document.addEventListener('click', closeOnClickOutside, { once: true });
+  }, 500);
+}
+
+// Инициализация подсказок для элементов при первом показе
+function initHints() {
+  if (!hintsEnabled) return;
+  
+  // Подсказка для кнопки клика (показываем сразу при входе в игру, только для новых игроков)
+  if (clickBtn && !clickBtn.dataset.hintShown && save && save.achievements && save.achievements.stats.totalClicks < 10) {
+    setTimeout(() => {
+      showHint('click-btn', hints['click-btn']);
+    }, 2000);
+  }
+  
+  // Подсказка для зданий (показываем когда появляется первое здание)
+  if (buildingsList && buildingsList.children.length > 0 && !buildingsList.dataset.hintShown) {
+    const hasBuildings = save && save.buildings && save.buildings.some(b => b.level > 0);
+    if (hasBuildings) {
+      setTimeout(() => {
+        showHint('buildings-list', hints['buildings-list']);
+      }, 5000);
+    }
+  }
+  
+  // Подсказка для казны (показываем при первом взаимодействии)
+  if (treasuryActionsEl && !treasuryActionsEl.dataset.hintShown) {
+    const observer = new MutationObserver(() => {
+      if (treasuryActionsEl.children.length > 0 && !treasuryActionsEl.dataset.hintShown) {
+        setTimeout(() => {
+          showHint('treasury-actions', hints['treasury-actions']);
+        }, 3000);
+        observer.disconnect();
+      }
+    });
+    observer.observe(treasuryActionsEl, { childList: true });
+  }
+  
+  // Подсказка для сортировки (показываем когда есть несколько зданий)
+  if (sortBuildingsBtn && !sortBuildingsBtn.dataset.hintShown && save && save.buildings) {
+    const buildingCount = save.buildings.filter(b => b.level > 0).length;
+    if (buildingCount >= 3) {
+      setTimeout(() => {
+        showHint('sort-buildings-btn', hints['sort-buildings-btn']);
+      }, 8000);
+    }
+  }
+  
+  // Подсказка для Citadel (когда разблокирован)
+  if (save && save.uber && save.uber.unlocked && !document.getElementById('uber-card')?.dataset.hintShown) {
+    setTimeout(() => {
+      const uberCard = document.getElementById('uber-card');
+      if (uberCard) {
+        showHint('uber-card', hints['uber-card']);
+      }
+    }, 10000);
+  }
+}
+
+// Обновление иконки кнопки подсказок
+function updateHintsButtonIcon() {
+  if (hintsToggleBtn) {
+    hintsToggleBtn.textContent = hintsEnabled ? '💡' : '💡';
+    hintsToggleBtn.title = hintsEnabled ? 'Hints enabled (click to disable)' : 'Hints disabled (click to enable)';
+    hintsToggleBtn.style.opacity = hintsEnabled ? '1' : '0.5';
+  }
+}
+
+// Инициализация кнопки подсказок
+if (hintsToggleBtn) {
+  updateHintsButtonIcon();
+  
+  hintsToggleBtn.addEventListener('click', () => {
+    hintsEnabled = !hintsEnabled;
+    saveHintsSetting();
+    updateHintsButtonIcon();
+    
+    if (hintsEnabled) {
+      toast('Hints enabled', 'good');
+      // Показываем подсказки для видимых элементов
+      initHints();
+    } else {
+      toast('Hints disabled', 'info');
+      // Удаляем все активные подсказки
+      document.querySelectorAll('.game-hint').forEach(hint => hint.remove());
+    }
+  });
+}
 
 // ======= Periodic checks ===++___-----++====
 setInterval(() => {

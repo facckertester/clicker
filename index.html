@@ -216,6 +216,23 @@
 
         <div class="userbox">
           <span id="username-display"></span>
+          <div class="music-control-container">
+            <button id="sound-toggle-btn" class="btn tiny" title="Music settings">🔊</button>
+            <div id="music-menu" class="music-menu hidden">
+              <div class="music-menu-header">Audio Settings</div>
+              <div class="volume-control-group">
+                <div class="volume-control-label">Music Volume</div>
+                <input type="range" id="music-volume-slider" min="0" max="100" value="50" class="volume-slider">
+                <div class="music-volume-value"><span id="music-volume-display">50</span>%</div>
+              </div>
+              <div class="volume-control-group" style="margin-top: 16px;">
+                <div class="volume-control-label">Sound Effects Volume</div>
+                <input type="range" id="sound-effects-volume-slider" min="0" max="100" value="50" class="volume-slider">
+                <div class="music-volume-value"><span id="sound-effects-volume-display">50</span>%</div>
+              </div>
+            </div>
+          </div>
+          <button id="hints-toggle-btn" class="btn tiny" title="Toggle hints">💡</button>
           <button id="stats-btn" class="btn tiny">Stats</button>
           <button id="logout-btn" class="btn tiny">Logout</button>
           <button id="debug-open" class="btn tiny secondary">debug</button>
@@ -287,6 +304,10 @@
 
       <!-- CENTER COLUMN (2/3) – buildings list (scrollable) -->
       <section class="col-center">
+        <!-- Sort button between treasury and buildings -->
+        <div class="sort-button-container">
+          <button id="sort-buildings-btn" class="btn small" title="Sort buildings">Sort: Default</button>
+        </div>
         <div id="buildings-list" class="buildings-list"></div>
       </section>
 
@@ -460,6 +481,11 @@
 
 
   <canvas id="sprite-canvas" class="hidden"></canvas>
+  <!-- Background music -->
+  <!-- Используем локальные файлы музыки из папки music -->
+  <audio id="background-music" preload="auto">
+    <!-- Файлы будут загружаться динамически через JavaScript -->
+  </audio>
   <script src="script.js"></script>
 </body>
 </html>
