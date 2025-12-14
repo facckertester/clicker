@@ -390,6 +390,7 @@ a:hover { color: var(--poe-orange-bright); }
   transform:translateY(1px);
   box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
   animation: borderWave 0.6s ease-out;
+  transition: none !important;
 }
 
 .treasury-actions .btn::after{
@@ -424,61 +425,132 @@ a:hover { color: var(--poe-orange-bright); }
 }
 @keyframes borderWave{
   0%{
-    border-color: var(--border-orange);
-    box-shadow: 0 0 0 0 rgba(200, 170, 110, 0);
-  }
-  12.5%{
-    border-top-color: rgba(200, 170, 110, 0.3);
+    border-top-color: var(--border-orange);
     border-right-color: var(--border-orange);
     border-bottom-color: var(--border-orange);
     border-left-color: var(--border-orange);
-    box-shadow: 0 -2px 4px 0 rgba(200, 170, 110, 0.4);
+    box-shadow: 0 0 0 0 rgba(200, 170, 110, 0);
+  }
+  12.5%{
+    border-top-color: rgba(200, 170, 110, 0.8);
+    border-right-color: var(--border-orange);
+    border-bottom-color: var(--border-orange);
+    border-left-color: var(--border-orange);
+    box-shadow: 0 -2px 8px 0 rgba(200, 170, 110, 0.6);
   }
   25%{
     border-top-color: var(--border-orange);
-    border-right-color: rgba(200, 170, 110, 0.3);
+    border-right-color: rgba(200, 170, 110, 0.8);
     border-bottom-color: var(--border-orange);
     border-left-color: var(--border-orange);
-    box-shadow: 2px 0 4px 0 rgba(200, 170, 110, 0.4);
+    box-shadow: 2px 0 8px 0 rgba(200, 170, 110, 0.6);
   }
   37.5%{
     border-top-color: var(--border-orange);
     border-right-color: var(--border-orange);
-    border-bottom-color: rgba(200, 170, 110, 0.3);
+    border-bottom-color: rgba(200, 170, 110, 0.8);
     border-left-color: var(--border-orange);
-    box-shadow: 0 2px 4px 0 rgba(200, 170, 110, 0.4);
+    box-shadow: 0 2px 8px 0 rgba(200, 170, 110, 0.6);
   }
   50%{
     border-top-color: var(--border-orange);
     border-right-color: var(--border-orange);
     border-bottom-color: var(--border-orange);
-    border-left-color: rgba(200, 170, 110, 0.3);
-    box-shadow: -2px 0 4px 0 rgba(200, 170, 110, 0.4);
+    border-left-color: rgba(200, 170, 110, 0.8);
+    box-shadow: -2px 0 8px 0 rgba(200, 170, 110, 0.6);
   }
   62.5%{
-    border-top-color: rgba(200, 170, 110, 0.3);
+    border-top-color: rgba(200, 170, 110, 0.6);
     border-right-color: var(--border-orange);
     border-bottom-color: var(--border-orange);
     border-left-color: var(--border-orange);
-    box-shadow: 0 -2px 4px 0 rgba(200, 170, 110, 0.3);
+    box-shadow: 0 -2px 6px 0 rgba(200, 170, 110, 0.4);
   }
   75%{
     border-top-color: var(--border-orange);
-    border-right-color: rgba(200, 170, 110, 0.3);
+    border-right-color: rgba(200, 170, 110, 0.6);
     border-bottom-color: var(--border-orange);
     border-left-color: var(--border-orange);
-    box-shadow: 2px 0 4px 0 rgba(200, 170, 110, 0.3);
+    box-shadow: 2px 0 6px 0 rgba(200, 170, 110, 0.4);
   }
   87.5%{
     border-top-color: var(--border-orange);
     border-right-color: var(--border-orange);
-    border-bottom-color: rgba(200, 170, 110, 0.3);
+    border-bottom-color: rgba(200, 170, 110, 0.6);
     border-left-color: var(--border-orange);
-    box-shadow: 0 2px 4px 0 rgba(200, 170, 110, 0.3);
+    box-shadow: 0 2px 6px 0 rgba(200, 170, 110, 0.4);
   }
   100%{
-    border-color: var(--border-orange);
+    border-top-color: var(--border-orange);
+    border-right-color: var(--border-orange);
+    border-bottom-color: var(--border-orange);
+    border-left-color: var(--border-orange);
     box-shadow: 0 0 0 0 rgba(200, 170, 110, 0);
+  }
+}
+@keyframes borderWaveUber{
+  0%{
+    border-top-color: #6b4c9b;
+    border-right-color: #6b4c9b;
+    border-bottom-color: #6b4c9b;
+    border-left-color: #6b4c9b;
+    box-shadow: 0 0 0 0 rgba(107, 76, 155, 0);
+  }
+  12.5%{
+    border-top-color: rgba(139, 108, 187, 0.8);
+    border-right-color: #6b4c9b;
+    border-bottom-color: #6b4c9b;
+    border-left-color: #6b4c9b;
+    box-shadow: 0 -2px 8px 0 rgba(139, 108, 187, 0.6);
+  }
+  25%{
+    border-top-color: #6b4c9b;
+    border-right-color: rgba(139, 108, 187, 0.8);
+    border-bottom-color: #6b4c9b;
+    border-left-color: #6b4c9b;
+    box-shadow: 2px 0 8px 0 rgba(139, 108, 187, 0.6);
+  }
+  37.5%{
+    border-top-color: #6b4c9b;
+    border-right-color: #6b4c9b;
+    border-bottom-color: rgba(139, 108, 187, 0.8);
+    border-left-color: #6b4c9b;
+    box-shadow: 0 2px 8px 0 rgba(139, 108, 187, 0.6);
+  }
+  50%{
+    border-top-color: #6b4c9b;
+    border-right-color: #6b4c9b;
+    border-bottom-color: #6b4c9b;
+    border-left-color: rgba(139, 108, 187, 0.8);
+    box-shadow: -2px 0 8px 0 rgba(139, 108, 187, 0.6);
+  }
+  62.5%{
+    border-top-color: rgba(139, 108, 187, 0.6);
+    border-right-color: #6b4c9b;
+    border-bottom-color: #6b4c9b;
+    border-left-color: #6b4c9b;
+    box-shadow: 0 -2px 6px 0 rgba(139, 108, 187, 0.4);
+  }
+  75%{
+    border-top-color: #6b4c9b;
+    border-right-color: rgba(139, 108, 187, 0.6);
+    border-bottom-color: #6b4c9b;
+    border-left-color: #6b4c9b;
+    box-shadow: 2px 0 6px 0 rgba(139, 108, 187, 0.4);
+  }
+  87.5%{
+    border-top-color: #6b4c9b;
+    border-right-color: #6b4c9b;
+    border-bottom-color: rgba(139, 108, 187, 0.6);
+    border-left-color: #6b4c9b;
+    box-shadow: 0 2px 6px 0 rgba(139, 108, 187, 0.4);
+  }
+  100%{
+    border-top-color: #6b4c9b;
+    border-right-color: #6b4c9b;
+    border-bottom-color: #6b4c9b;
+    border-left-color: #6b4c9b;
+    box-shadow: 0 0 0 0 rgba(139, 108, 187, 0);
   }
 }
 @keyframes borderWavePulse{
@@ -639,6 +711,11 @@ a:hover { color: var(--poe-orange-bright); }
   transform:translateY(1px);
   box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
   animation: borderWave 0.6s ease-out;
+  transition: none !important;
+}
+.treasury-actions-row .btn.uber-mode-btn:active,
+.treasury-actions .btn.uber-mode-btn:active{
+  animation: borderWaveUber 0.6s ease-out;
 }
 .treasury-actions-row .btn:disabled{
   opacity:0.5;
@@ -1573,6 +1650,32 @@ body.modal-open .game-columns {
 }
 
 .spider canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+.elf-archer {
+  position: fixed;
+  top: 40px;
+  left: 40px;
+  width: 64px;
+  height: 64px;
+  z-index: 9999;
+  cursor: var(--pointer-cursor);
+  transform-origin: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  display: block;
+  will-change: transform, left, top;
+  pointer-events: auto;
+}
+
+.elf-archer canvas {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;

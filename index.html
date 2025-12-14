@@ -172,6 +172,7 @@
           <button class="btn secondary" data-debug="clickIncomeBoost">Click income x1000</button>
           <button class="btn secondary" data-debug="spawnSpider">Spawn spider</button>
           <button class="btn secondary" data-debug="spawnAngryBarmatun">Spawn Angry Barmatun</button>
+          <button class="btn secondary" data-debug="spawnElfArcher">Spawn Elf Archer</button>
           <button class="btn secondary" data-debug="spawnKing">Spawn king</button>
           <button class="btn secondary" data-debug="addUberLevels">+10 levels to Citadel</button>
           <button class="btn secondary" data-debug="addMillionPoints">+1M points</button>
@@ -265,26 +266,11 @@
             </div>
           </div>
 
-          <div class="click-info">
-            <div class="info-item">
-              <div class="info-left"><strong>Level:</strong></div>
-              <div class="info-right"><span id="click-level">0</span> / <span id="click-max">1000</span></div>
-            </div>
-
-            <div class="info-item">
-              <div class="info-left"><strong>Current Income / click:</strong></div>
-              <div class="info-right"><span id="click-income">0.1111</span></div>
-            </div>
-
-            <div class="info-item">
-              <div class="info-left"><strong>Next Upgrade Cost:</strong></div>
-              <div class="info-right"><span id="click-cost">7.7720</span></div>
-            </div>
-
-            <div class="info-item">
-              <div class="info-left"><strong>Segment Upgrade:</strong></div>
-              <div class="info-right"><span id="click-seg-info">Buy 10 levels to unlock</span></div>
-            </div>
+          <div class="building-info">
+            <div class="building-name">Click</div>
+            <div class="building-meta"><strong>Level:</strong> <span id="click-level">0</span> / <span id="click-max">1000</span></div>
+            <div class="building-meta"><strong>Income/click:</strong> <span id="click-income">0.1111</span></div>
+            <div class="building-meta"><strong>Next Cost:</strong> <span id="click-cost">7.7720</span></div>
           </div>
         </div>
 
@@ -338,6 +324,9 @@
     
     <!-- ANGRY BARMATUN -->
     <div id="angry-barmatun" class="spider hidden" title="Angry Barmatun - click to interact!"></div>
+    
+    <!-- ELF ARCHER -->
+    <div id="elf-archer" class="elf-archer hidden" title="Elf Archer - click to scare away!"></div>
 
   </div>
 

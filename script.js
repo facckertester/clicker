@@ -232,6 +232,8 @@ function newSave(username) {
       activeEffects: [],
       lazyClickUntil: 0,
       lazyClickCount: 0,
+      elfArcherMult: 1.0,
+      elfArcherUntil: 0,
       goodLuckMode: false, // Debug mode: buildings can't break
     },
     achievements: {
@@ -528,6 +530,7 @@ const uberCostEl = document.getElementById('uber-cost');
 
 const spiderEl = document.getElementById('spider');
 const angryBarmatunEl = document.getElementById('angry-barmatun');
+const elfArcherEl = document.getElementById('elf-archer');
 
 const logoutBtn = document.getElementById('logout-btn');
 const statsBtn = document.getElementById('stats-btn');
@@ -878,8 +881,10 @@ function totalPPC() {
   const noGoldenMult = (act && act.noGoldenUntil > now()) ? 0.5 : 1.0;
   // Angry Barmatun: Income reduction (50% less) - applied to all income
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  // Elf Archer: x33 multiplier for 11 seconds on hit
+  const elfArcherMult = save.modifiers.elfArcherUntil > now() ? save.modifiers.elfArcherMult : 1.0;
   // Note: Random click multiplier is applied per-click in clickBtn event handler, not here
-  return ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction;
+  return ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult;
 }
 
 function totalPPS() {
@@ -2667,11 +2672,29 @@ function renderClick() {
     timerEl.style.display = 'none';
   }
 
-  clickLevelEl.textContent = save.click.level;
-  clickMaxEl.textContent = save.click.max;
-  clickIncomeEl.textContent = fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus));
+  // Обновляем информацию в формате building-info (как у зданий)
+  const clickInfoContainer = document.querySelector('.click-area .building-info');
+  if (clickInfoContainer) {
+    const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
+    
+    // Элемент 0: Level
+    if (metaElements[0]) {
+      const newLevelText = `<strong>Level:</strong> ${save.click.level} / ${save.click.max}`;
+      if (metaElements[0].innerHTML !== newLevelText) {
+        metaElements[0].innerHTML = newLevelText;
+      }
+    }
+    
+    // Элемент 1: Income/click
+    if (metaElements[1]) {
+      const newIncomeText = `<strong>Income/click:</strong> ${fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus))}`;
+      if (metaElements[1].innerHTML !== newIncomeText) {
+        metaElements[1].innerHTML = newIncomeText;
+      }
+    }
+  }
+  
   const bulk = save.bulk;
-
   const { totalCost, totalLevels } = computeBulkCostForClick(bulk);
 
   // Hide buttons if level >= 1000 and not in Uber Mode yet
@@ -2684,7 +2707,7 @@ function renderClick() {
     clickBuyBtn.setAttribute('aria-hidden', 'true');
     clickSegBtn.classList.add('hidden');
     clickSegBtn.setAttribute('aria-hidden', 'true');
-    clickSegInfo.textContent = 'Reach Uber Mode to continue';
+    if (clickSegInfo) clickSegInfo.textContent = 'Reach Uber Mode to continue';
   } else {
     // Segment upgrade visibility for Click
     const seg = segmentIndex(save.click.level);
@@ -2696,8 +2719,15 @@ function renderClick() {
       // Показываем апгрейд вместо покупки
       const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
       const upgradeCost = prevCostSum / 2;
-      clickCostEl.textContent = fmt(upgradeCost); // Показываем цену апгрейда в строке стоимости
-      clickSegInfo.textContent = 'Segment upgrade required to progress';
+      // Обновляем Next Cost в формате building-meta
+      const clickInfoContainer = document.querySelector('.click-area .building-info');
+      if (clickInfoContainer) {
+        const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
+        if (metaElements[2]) {
+          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
+        }
+      }
+      if (clickSegInfo) clickSegInfo.textContent = 'Segment upgrade required to progress';
       clickBuyBtn.classList.add('hidden');
       clickBuyBtn.setAttribute('aria-hidden', 'true');
 
@@ -2709,7 +2739,14 @@ function renderClick() {
       clickSegBtn.disabled = save.points < upgradeCost;
     } else {
       // Показываем покупку, скрываем апгрейд
-      clickCostEl.textContent = fmt(totalCost); // Показываем обычную стоимость покупки
+      // Обновляем Next Cost в формате building-meta
+      const clickInfoContainer = document.querySelector('.click-area .building-info');
+      if (clickInfoContainer) {
+        const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
+        if (metaElements[2]) {
+          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(totalCost)}`;
+        }
+      }
       clickSegBtn.classList.add('hidden');
       clickSegBtn.setAttribute('aria-hidden', 'true');
       clickSegBtn.classList.remove('primary');
@@ -2717,7 +2754,7 @@ function renderClick() {
       clickBuyBtn.classList.remove('hidden');
       clickBuyBtn.removeAttribute('aria-hidden');
       clickBuyBtn.disabled = (totalLevels === 0) || (save.points < totalCost);
-      clickSegInfo.textContent = 'Buy 10 levels to unlock';
+      if (clickSegInfo) clickSegInfo.textContent = 'Buy 10 levels to unlock';
     }
   }
 }
@@ -5251,6 +5288,526 @@ window.addEventListener('resize', () => {
   if (top > maxTop) angryBarmatunEl.style.top = maxTop + 'px';
 });
 
+// ======= Elf Archer =======
+const _elfArcherState = {
+  moving: false,
+  aliveUntil: 0,
+  shooting: false,
+  position: 'entering', // 'entering', 'positioned', 'shooting', 'leaving'
+  shootTimer: null,
+  escapeTimer: null
+};
+
+// Draw elf archer (pixel art)
+// pose: 'standing', 'walking1', 'walking2', 'kneeling'
+function drawElfArcher(canvas, pose = 'standing') {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 64, 64);
+  ctx.imageSmoothingEnabled = false;
+  
+  const skinColor = '#f5d5a3';
+  const hairColor = '#8b7355';
+  const tunicColor = '#4a8a4a';
+  const tunicDark = '#2a5a2a';
+  const bowColor = '#8b4513';
+  const arrowColor = '#d4a574';
+  
+  if (pose === 'kneeling') {
+    // Kneeling position (on one knee)
+    // Body (tunic)
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(20, 30, 24, 28);
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(22, 32, 20, 24);
+    
+    // Head
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(32, 20, 10, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.beginPath();
+    ctx.arc(32, 18, 11, 0, Math.PI);
+    ctx.fill();
+    ctx.fillRect(24, 18, 16, 4);
+    
+    // Pointed ears
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.moveTo(24, 18);
+    ctx.lineTo(22, 14);
+    ctx.lineTo(24, 16);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(40, 18);
+    ctx.lineTo(42, 14);
+    ctx.lineTo(40, 16);
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(28, 20, 2, 2);
+    ctx.fillRect(34, 20, 2, 2);
+    
+    // Bow (held) - draw as curved arc, not circle
+    ctx.strokeStyle = bowColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Draw bow arc (curved shape)
+    ctx.arc(48, 25, 12, Math.PI * 0.3, Math.PI * 0.7, false);
+    ctx.stroke();
+    // Bow grip in center
+    ctx.fillStyle = bowColor;
+    ctx.fillRect(46, 23, 4, 4);
+    // Bowstring (line from top to bottom of bow)
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(48 + 12 * Math.cos(Math.PI * 0.3), 25 - 12 * Math.sin(Math.PI * 0.3));
+    ctx.lineTo(48 + 12 * Math.cos(Math.PI * 0.7), 25 - 12 * Math.sin(Math.PI * 0.7));
+    ctx.stroke();
+    
+    // Arrow
+    ctx.fillStyle = arrowColor;
+    ctx.fillRect(36, 22, 12, 2);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(36, 22, 2, 2);
+    
+    // Legs (kneeling)
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(22, 50, 8, 12);
+    ctx.fillRect(34, 50, 8, 12);
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(24, 52, 4, 8);
+    ctx.fillRect(36, 52, 4, 8);
+  } else if (pose === 'walking1') {
+    // Walking pose 1 - left leg forward
+    // Body (tunic)
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(20, 25, 24, 30);
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(22, 27, 20, 26);
+    
+    // Head
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(32, 15, 10, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.beginPath();
+    ctx.arc(32, 13, 11, 0, Math.PI);
+    ctx.fill();
+    ctx.fillRect(24, 13, 16, 4);
+    
+    // Pointed ears
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.moveTo(24, 13);
+    ctx.lineTo(22, 9);
+    ctx.lineTo(24, 11);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(40, 13);
+    ctx.lineTo(42, 9);
+    ctx.lineTo(40, 11);
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(28, 15, 2, 2);
+    ctx.fillRect(34, 15, 2, 2);
+    
+    // Bow (held) - draw as curved arc, not circle
+    ctx.strokeStyle = bowColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Draw bow arc (curved shape)
+    ctx.arc(48, 20, 12, Math.PI * 0.3, Math.PI * 0.7, false);
+    ctx.stroke();
+    // Bow grip in center
+    ctx.fillStyle = bowColor;
+    ctx.fillRect(46, 18, 4, 4);
+    // Bowstring (line from top to bottom of bow)
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(48 + 12 * Math.cos(Math.PI * 0.3), 20 - 12 * Math.sin(Math.PI * 0.3));
+    ctx.lineTo(48 + 12 * Math.cos(Math.PI * 0.7), 20 - 12 * Math.sin(Math.PI * 0.7));
+    ctx.stroke();
+    
+    // Arrow
+    ctx.fillStyle = arrowColor;
+    ctx.fillRect(36, 17, 12, 2);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(36, 17, 2, 2);
+    
+    // Legs - left forward, right back
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(20, 48, 8, 14); // Left leg forward
+    ctx.fillRect(36, 50, 8, 12); // Right leg back
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(22, 50, 4, 10);
+    ctx.fillRect(38, 52, 4, 8);
+  } else if (pose === 'walking2') {
+    // Walking pose 2 - right leg forward
+    // Body (tunic)
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(20, 25, 24, 30);
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(22, 27, 20, 26);
+    
+    // Head
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(32, 15, 10, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.beginPath();
+    ctx.arc(32, 13, 11, 0, Math.PI);
+    ctx.fill();
+    ctx.fillRect(24, 13, 16, 4);
+    
+    // Pointed ears
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.moveTo(24, 13);
+    ctx.lineTo(22, 9);
+    ctx.lineTo(24, 11);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(40, 13);
+    ctx.lineTo(42, 9);
+    ctx.lineTo(40, 11);
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(28, 15, 2, 2);
+    ctx.fillRect(34, 15, 2, 2);
+    
+    // Bow (held) - draw as curved arc, not circle
+    ctx.strokeStyle = bowColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Draw bow arc (curved shape)
+    ctx.arc(48, 20, 12, Math.PI * 0.3, Math.PI * 0.7, false);
+    ctx.stroke();
+    // Bow grip in center
+    ctx.fillStyle = bowColor;
+    ctx.fillRect(46, 18, 4, 4);
+    // Bowstring (line from top to bottom of bow)
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(48 + 12 * Math.cos(Math.PI * 0.3), 20 - 12 * Math.sin(Math.PI * 0.3));
+    ctx.lineTo(48 + 12 * Math.cos(Math.PI * 0.7), 20 - 12 * Math.sin(Math.PI * 0.7));
+    ctx.stroke();
+    
+    // Arrow
+    ctx.fillStyle = arrowColor;
+    ctx.fillRect(36, 17, 12, 2);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(36, 17, 2, 2);
+    
+    // Legs - right forward, left back
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(36, 48, 8, 14); // Right leg forward
+    ctx.fillRect(20, 50, 8, 12); // Left leg back
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(38, 50, 4, 10);
+    ctx.fillRect(22, 52, 4, 8);
+  } else {
+    // Standing position
+    // Body (tunic)
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(20, 25, 24, 30);
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(22, 27, 20, 26);
+    
+    // Head
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(32, 15, 10, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.beginPath();
+    ctx.arc(32, 13, 11, 0, Math.PI);
+    ctx.fill();
+    ctx.fillRect(24, 13, 16, 4);
+    
+    // Pointed ears
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.moveTo(24, 13);
+    ctx.lineTo(22, 9);
+    ctx.lineTo(24, 11);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(40, 13);
+    ctx.lineTo(42, 9);
+    ctx.lineTo(40, 11);
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(28, 15, 2, 2);
+    ctx.fillRect(34, 15, 2, 2);
+    
+    // Bow (held) - draw as curved arc, not circle
+    ctx.strokeStyle = bowColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Draw bow arc (curved shape)
+    ctx.arc(48, 20, 12, Math.PI * 0.3, Math.PI * 0.7, false);
+    ctx.stroke();
+    // Bow grip in center
+    ctx.fillStyle = bowColor;
+    ctx.fillRect(46, 18, 4, 4);
+    // Bowstring (line from top to bottom of bow)
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(48 + 12 * Math.cos(Math.PI * 0.3), 20 - 12 * Math.sin(Math.PI * 0.3));
+    ctx.lineTo(48 + 12 * Math.cos(Math.PI * 0.7), 20 - 12 * Math.sin(Math.PI * 0.7));
+    ctx.stroke();
+    
+    // Arrow
+    ctx.fillStyle = arrowColor;
+    ctx.fillRect(36, 17, 12, 2);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(36, 17, 2, 2);
+    
+    // Legs
+    ctx.fillStyle = tunicColor;
+    ctx.fillRect(22, 48, 8, 14);
+    ctx.fillRect(34, 48, 8, 14);
+    ctx.fillStyle = tunicDark;
+    ctx.fillRect(24, 50, 4, 10);
+    ctx.fillRect(36, 50, 4, 10);
+  }
+  
+  ctx.imageSmoothingEnabled = true;
+}
+
+// Spawn elf archer
+function spawnElfArcher() {
+  if (!elfArcherEl || !clickBtn) return;
+  
+  // Create canvas for elf if it doesn't exist
+  if (!elfArcherEl.querySelector('canvas')) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    elfArcherEl.innerHTML = '';
+    elfArcherEl.appendChild(canvas);
+    drawElfArcher(canvas, 'standing');
+  } else {
+    drawElfArcher(elfArcherEl.querySelector('canvas'), 'standing');
+  }
+  
+  // Start from right side of screen
+  elfArcherEl.style.left = window.innerWidth + 'px';
+  elfArcherEl.style.top = (window.innerHeight - 64) + 'px';
+  elfArcherEl.classList.remove('hidden');
+  
+  // Set transition for smooth movement
+  elfArcherEl.style.transition = 'left 2s ease-out, top 2s ease-out, transform 0.3s ease';
+  
+  // Move to position with walking animation
+  _elfArcherState.position = 'entering';
+  _elfArcherState.moving = true;
+  _elfArcherState.aliveUntil = now() + 20000; // 20s total
+  
+  // Walking animation during movement
+  let walkFrame = 0;
+  const walkInterval = setInterval(() => {
+    if (!elfArcherEl || elfArcherEl.classList.contains('hidden') || _elfArcherState.position !== 'entering') {
+      clearInterval(walkInterval);
+      return;
+    }
+    const canvas = elfArcherEl.querySelector('canvas');
+    if (canvas) {
+      walkFrame = (walkFrame + 1) % 2;
+      drawElfArcher(canvas, walkFrame === 0 ? 'walking1' : 'walking2');
+    }
+  }, 200); // Switch pose every 200ms
+  
+  // Get uber card position after rendering - use requestAnimationFrame to ensure DOM is ready
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+    let targetX, targetY;
+    const card = document.getElementById('uber-card');
+    if (card) {
+      const cardRect = card.getBoundingClientRect();
+      // Check if card is visible (has dimensions and is in viewport)
+      if (cardRect.width > 0 && cardRect.height > 0 && 
+          cardRect.top < window.innerHeight && cardRect.bottom > 0) {
+        // Position elf at the bottom edge of the uber card, centered horizontally
+        // getBoundingClientRect() returns coordinates relative to viewport, which is correct for fixed positioning
+        targetX = cardRect.left + (cardRect.width / 2) - 32; // Center of card minus half elf width
+        targetY = cardRect.bottom - 32; // Bottom edge of card, kneeling position (elf height is 64, so bottom - 32 centers it)
+      } else {
+        // Card exists but not visible, use default position (center bottom)
+        targetX = window.innerWidth / 2 - 32; // Center horizontally
+        targetY = window.innerHeight - 100; // Near bottom
+      }
+    } else {
+      // Default position if uber card doesn't exist (center bottom)
+      targetX = window.innerWidth / 2 - 32; // Center horizontally
+      targetY = window.innerHeight - 100; // Near bottom
+    }
+    
+    clearInterval(walkInterval);
+    elfArcherEl.style.left = targetX + 'px';
+    elfArcherEl.style.top = targetY + 'px';
+    
+    // After reaching position, kneel and shoot
+    setTimeout(() => {
+      if (!elfArcherEl || elfArcherEl.classList.contains('hidden')) return;
+      _elfArcherState.position = 'positioned';
+      const canvas = elfArcherEl.querySelector('canvas');
+      if (canvas) drawElfArcher(canvas, 'kneeling');
+      
+      // Wait a moment, then shoot
+      setTimeout(() => {
+        if (!elfArcherEl || elfArcherEl.classList.contains('hidden')) return;
+        _elfArcherState.position = 'shooting';
+        _shootArrow();
+      }, 1000);
+    }, 2000);
+    });
+  });
+  
+  toast('An elf archer appears...', 'info');
+}
+
+// Shoot arrow at click button
+function _shootArrow() {
+  if (!elfArcherEl || !clickBtn || elfArcherEl.classList.contains('hidden')) return;
+  
+  _elfArcherState.shooting = true;
+  
+  // Create arrow element
+  const arrow = document.createElement('div');
+  arrow.style.position = 'fixed';
+  arrow.style.width = '20px';
+  arrow.style.height = '2px';
+  arrow.style.backgroundColor = '#d4a574';
+  arrow.style.zIndex = '10000';
+  arrow.style.pointerEvents = 'none';
+  arrow.style.borderLeft = '4px solid #000000';
+  
+  const elfRect = elfArcherEl.getBoundingClientRect();
+  const clickRect = clickBtn.getBoundingClientRect();
+  
+  const startX = elfRect.left + elfRect.width / 2;
+  const startY = elfRect.top + elfRect.height / 2;
+  const endX = clickRect.left + clickRect.width / 2;
+  const endY = clickRect.top + clickRect.height / 2;
+  
+  arrow.style.left = startX + 'px';
+  arrow.style.top = startY + 'px';
+  
+  const angle = Math.atan2(endY - startY, endX - startX);
+  arrow.style.transform = `rotate(${angle}rad)`;
+  arrow.style.transformOrigin = 'left center';
+  
+  document.body.appendChild(arrow);
+  
+  // Animate arrow
+  arrow.style.transition = 'left 0.8s linear, top 0.8s linear';
+  setTimeout(() => {
+    arrow.style.left = endX + 'px';
+    arrow.style.top = endY + 'px';
+  }, 10);
+  
+  // Check hit after animation
+  setTimeout(() => {
+    arrow.remove();
+    _elfArcherState.shooting = false;
+    
+    // 5% chance to hit
+    const hit = Math.random() < 0.05;
+    
+    if (hit) {
+      // Hit! Apply x33 multiplier for 11 seconds
+      save.modifiers.elfArcherMult = 33.0;
+      save.modifiers.elfArcherUntil = now() + 11000;
+      toast('Elf archer hit! Click income x33 for 11 seconds!', 'good');
+      renderTopStats(); // Update income display
+    } else {
+      toast('Elf archer missed!', 'info');
+    }
+    
+    // Elf leaves after shooting
+    setTimeout(() => {
+      if (!elfArcherEl || elfArcherEl.classList.contains('hidden')) return;
+      _elfArcherState.position = 'leaving';
+      elfArcherEl.style.transition = 'left 2s ease-in';
+      elfArcherEl.style.left = window.innerWidth + 'px';
+      
+      setTimeout(() => {
+        if (elfArcherEl) {
+          elfArcherEl.classList.add('hidden');
+          _elfArcherState.moving = false;
+          _elfArcherState.aliveUntil = 0;
+        }
+      }, 2000);
+    }, 500);
+  }, 800);
+}
+
+// Spawn scheduling (every 5-10 minutes)
+let nextElfArcherTs = now() + _randInt(300000, 600000);
+function maybeSpawnElfArcher() {
+  const t = now();
+  if (t >= nextElfArcherTs) {
+    spawnElfArcher();
+    nextElfArcherTs = t + _randInt(300000, 600000);
+  }
+}
+
+// Click handler for elf archer (scare away)
+if (elfArcherEl) {
+  elfArcherEl.addEventListener('click', () => {
+    if (_elfArcherState.shooting) return; // Can't scare while shooting
+    
+    // Cancel any timers
+    if (_elfArcherState.shootTimer) {
+      clearTimeout(_elfArcherState.shootTimer);
+      _elfArcherState.shootTimer = null;
+    }
+    if (_elfArcherState.escapeTimer) {
+      clearTimeout(_elfArcherState.escapeTimer);
+      _elfArcherState.escapeTimer = null;
+    }
+    
+    _elfArcherState.aliveUntil = 0;
+    _elfArcherState.moving = false;
+    
+    // Elf runs away scared
+    toast('Elf archer got scared and ran away!', 'info');
+    elfArcherEl.style.transition = 'left 1.5s ease-in, transform 1.5s ease';
+    elfArcherEl.style.left = window.innerWidth + 'px';
+    elfArcherEl.style.transform = 'rotate(180deg)';
+    
+    setTimeout(() => {
+      if (elfArcherEl) {
+        elfArcherEl.classList.add('hidden');
+        elfArcherEl.style.transform = 'rotate(0deg)';
+      }
+    }, 1500);
+  });
+}
+
 // ======= Ticker =======
 let _lastAchievementCheck = 0;
 function tick() {
@@ -5377,6 +5934,9 @@ function tick() {
   
   // Angry Barmatun spawn check
   maybeSpawnAngryBarmatun();
+  
+  // Elf Archer spawn check
+  maybeSpawnElfArcher();
 
   // Update UI
   renderTopStats();
@@ -5778,6 +6338,14 @@ function showGame() {
     save.bulk = isNaN(parsed) ? 1 : parsed;
   }
   renderAll();
+  
+  // Блокируем контекстное меню (ПКМ) на игровом экране
+  if (gameScreen) {
+    gameScreen.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    });
+  }
 }
 function showAuth() {
   gameScreen.classList.add('hidden');
@@ -5998,6 +6566,8 @@ debugTools.addEventListener('click', (e) => {
       spawnSpider(); break;
     case 'spawnAngryBarmatun':
       spawnAngryBarmatun(); break;
+    case 'spawnElfArcher':
+      spawnElfArcher(); break;
     case 'spawnKing':
       spawnKing(); break;
     case 'addUberLevels':
@@ -6537,6 +7107,13 @@ if (save) {
   }
   if (save) {
     renderAll();
+    // Блокируем контекстное меню (ПКМ) на игровом экране при автозагрузке
+    if (gameScreen) {
+      gameScreen.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        return false;
+      });
+    }
   }
   
   // Дополнительно обновляем кнопки bulk после полной загрузки DOM
