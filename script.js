@@ -827,9 +827,37 @@ window.addEventListener('beforeunload', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     saveNow();
+    // Сохраняем время ухода в сон для проверки при возврате
+    if (save) {
+      save.lastVisibilityChange = now();
+    }
   } else if (document.visibilityState === 'visible' && save) {
     // Check for offline earnings when page becomes visible again
     checkOfflineEarnings();
+    
+    // Проверяем, не прошло ли слишком много времени
+    const timeAway = save.lastVisibilityChange ? (now() - save.lastVisibilityChange) / 1000 : 0;
+    const MAX_AWAY_TIME = 300; // 5 минут в секундах
+    
+    if (timeAway > MAX_AWAY_TIME) {
+      // Сбрасываем таймеры спавна, чтобы не спавнить все события сразу
+      const t = now();
+      const resetDelay = _randInt(60000, 180000); // 1-3 минуты задержка
+      nextSpiderTs = t + resetDelay;
+      nextAngryBarmatunTs = t + resetDelay + _randInt(60000, 120000); // Разносим по времени
+      nextElfArcherTs = t + resetDelay + _randInt(120000, 180000);
+      
+      // Сбрасываем таймер короля
+      if (_kingState.spawnTimer) {
+        clearTimeout(_kingState.spawnTimer);
+        scheduleNextKing();
+      }
+      
+      // Обновляем lastTick, чтобы избежать большого dt в следующем тике
+      save.lastTick = t;
+      
+      console.log('Page became visible after long absence, reset spawn timers');
+    }
   }
 });
 
@@ -1258,56 +1286,82 @@ function migrateAchievements() {
 // ======= Game state helpers =======
 
 function totalPPC() {
+  // Используем кэш если значение еще актуально
+  const t = now();
+  if (_cachedPPC !== null && (t - _cachedPPCTime) < CACHE_TTL) {
+    return _cachedPPC;
+  }
+  
   let ppc = clickIncomeAt(save.click.level, save.click.upgradeBonus);
+  const tNow = t; // Кэшируем now() для всех проверок
   // Madness modifier
-  if (save.treasury?.actions?.clickMadnessUntil > now()) {
+  if (save.treasury?.actions?.clickMadnessUntil > tNow) {
     ppc *= 1001;
   }
   // Golden modifier
-  const goldenActive = save.click.goldenUntil > now();
+  const goldenActive = save.click.goldenUntil > tNow;
   const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
   // Spider modifier
-  const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
+  const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
   // Achievement bonus
   const achievementMult = getAchievementBonus();
   // Streak multiplier
   const streakMult = save.streak ? save.streak.multiplier : 1.0;
   // Buff 1: No Golden Click - 50% less income
   const act = save.treasury?.actions;
-  const noGoldenMult = (act && act.noGoldenUntil > now()) ? 0.5 : 1.0;
+  const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.5 : 1.0;
   // Angry Barmatun: Income reduction (50% less) - applied to all income
-  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
   // Elf Archer: x33 multiplier for 11 seconds on hit
-  const elfArcherMult = save.modifiers.elfArcherUntil > now() ? save.modifiers.elfArcherMult : 1.0;
+  const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
   // Note: Random click multiplier is applied per-click in clickBtn event handler, not here
-  return ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult;
+  const result = ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult;
+  
+  // Сохраняем в кэш
+  _cachedPPC = result;
+  _cachedPPCTime = t;
+  
+  return result;
 }
 
 function totalPPS() {
+  // Используем кэш если значение еще актуально
+  const t = now();
+  if (_cachedPPS !== null && (t - _cachedPPSTime) < CACHE_TTL) {
+    return _cachedPPS;
+  }
+  
   let pps = 0;
+  const tNow = t; // Кэшируем now() для всех проверок
   for (const b of save.buildings) {
-  if (now() < b.blockedUntil) continue; // downtime disabled
-  if (b.level < 1) continue;            // no income if level < 1
-  pps += buildingIncomeAt(b, b.level, b.upgradeBonus);
-}
+    if (tNow < b.blockedUntil) continue; // downtime disabled
+    if (b.level < 1) continue;            // no income if level < 1
+    pps += buildingIncomeAt(b, b.level, b.upgradeBonus);
+  }
 
   // Uber income
   if (save.uber.unlocked) {
     pps += uberIncomeAt(save.uber.level);
   }
   // Spider modifier
-  const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
+  const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
   // Achievement bonus
   const achievementMult = getAchievementBonus();
-  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0; // x101
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 101 : 1.0; // x101
   // Buff 4: Passive income boost
   const act = save.treasury?.actions;
-  const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+  const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   // Angry Barmatun: Income reduction (50% less)
-  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
   // Buff 5: Spider Buff - не обнуляет доход, только изменяет поведение клика (клик дает казну вместо поинтов)
   // Доход от зданий продолжает работать нормально
-  return pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  
+  // Сохраняем в кэш
+  _cachedPPS = result;
+  _cachedPPSTime = t;
+  
+  return result;
 }
 
 // Calculate offline earnings for buildings (excluding uber)
@@ -1504,12 +1558,51 @@ function maxLevelsBeforeUpgrade(currentLevel, levelsToAdd, segUpgrades, maxLevel
 }
 
 // ======= Rendering =======
+// Кэш для отформатированных значений (избегаем повторного форматирования)
+let _cachedPointsText = null;
+let _cachedPPSText = null;
+let _cachedPPCText = null;
+let _cachedPoints = null;
+let _cachedPPSValue = null;
+let _cachedPPCValue = null;
+
 function renderTopStats() {
   if (!save) return;
-  if (pointsEl) pointsEl.textContent = fmt(save.points);
-  if (ppsEl) ppsEl.textContent = fmt(totalPPS());
+  
+  // Оптимизация: обновляем только если значение изменилось
+  if (pointsEl) {
+    if (_cachedPoints !== save.points) {
+      const newText = fmt(save.points);
+      if (_cachedPointsText !== newText) {
+        pointsEl.textContent = newText;
+        _cachedPointsText = newText;
+      }
+      _cachedPoints = save.points;
+    }
+  }
+  
+  if (ppsEl) {
+    const pps = totalPPS();
+    if (_cachedPPSValue !== pps) {
+      const newText = fmt(pps);
+      if (_cachedPPSText !== newText) {
+        ppsEl.textContent = newText;
+        _cachedPPSText = newText;
+      }
+      _cachedPPSValue = pps;
+    }
+  }
+  
   if (ppcEl) {
-    ppcEl.textContent = fmt(totalPPC());
+    const ppc = totalPPC();
+    if (_cachedPPCValue !== ppc) {
+      const newText = fmt(ppc);
+      if (_cachedPPCText !== newText) {
+        ppcEl.textContent = newText;
+        _cachedPPCText = newText;
+      }
+      _cachedPPCValue = ppc;
+    }
   }
 
   // Treasury UI
@@ -1517,40 +1610,62 @@ function renderTopStats() {
     const { value } = save.treasury;
     const baseMax = save.treasury.max || 1000;
     const baseRegen = save.treasury.regenPerSec || 1;
-    treasuryValueEl.textContent = `${fmt(value)} / ${fmt(baseMax)}`;
-    treasuryRegenEl.textContent = `+${baseRegen.toFixed(0)} /s`;
+    
+    // Оптимизация: обновляем только если значение изменилось
+    const newTreasuryText = `${fmt(value)} / ${fmt(baseMax)}`;
+    if (treasuryValueEl.textContent !== newTreasuryText) {
+      treasuryValueEl.textContent = newTreasuryText;
+    }
+    
+    const newRegenText = `+${baseRegen.toFixed(0)} /s`;
+    if (treasuryRegenEl.textContent !== newRegenText) {
+      treasuryRegenEl.textContent = newRegenText;
+    }
+    
     const pct = Math.max(0, Math.min(100, (value / baseMax) * 100));
-    treasuryFillEl.style.width = `${pct}%`;
+    const newWidth = `${pct}%`;
+    if (treasuryFillEl.style.width !== newWidth) {
+      treasuryFillEl.style.width = newWidth;
+    }
     
     // Изменяем цвет текста в зависимости от того, находится ли за ним заполненная часть шкалы
+    // Оптимизация: кэшируем элементы и обновляем только при изменении процента
     const overlayEl = treasuryValueEl.closest('.treasury-overlay');
     const progressEl = treasuryFillEl.closest('.treasury-progress');
     if (overlayEl && progressEl) {
-      const labelEl = overlayEl.querySelector('.treasury-label');
-      const amountEl = overlayEl.querySelector('.treasury-amount');
-      const regenEl = overlayEl.querySelector('.treasury-regen');
-      
-      // Получаем позиции элементов относительно шкалы
+      // Кэшируем getBoundingClientRect - вызываем только раз в кадре
       const progressRect = progressEl.getBoundingClientRect();
       const progressWidth = progressRect.width;
       const fillWidth = (progressWidth * pct) / 100;
       
-      // Проверяем каждый элемент
+      const labelEl = overlayEl.querySelector('.treasury-label');
+      const amountEl = overlayEl.querySelector('.treasury-amount');
+      const regenEl = overlayEl.querySelector('.treasury-regen');
+      
+      // Проверяем каждый элемент (оптимизация: кэшируем вычисления)
       if (labelEl) {
         const labelRect = labelEl.getBoundingClientRect();
         const labelCenterX = labelRect.left + labelRect.width / 2 - progressRect.left;
-        // Если центр текста находится в пределах заполненной части - темный, иначе светлый
-        labelEl.style.color = labelCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+        const newColor = labelCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+        if (labelEl.style.color !== newColor) {
+          labelEl.style.color = newColor;
+        }
       }
       if (amountEl) {
         const amountRect = amountEl.getBoundingClientRect();
         const amountCenterX = amountRect.left + amountRect.width / 2 - progressRect.left;
-        amountEl.style.color = amountCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+        const newColor = amountCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+        if (amountEl.style.color !== newColor) {
+          amountEl.style.color = newColor;
+        }
       }
       if (regenEl) {
         const regenRect = regenEl.getBoundingClientRect();
         const regenCenterX = regenRect.left + regenRect.width / 2 - progressRect.left;
-        regenEl.style.color = regenCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+        const newColor = regenCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+        if (regenEl.style.color !== newColor) {
+          regenEl.style.color = newColor;
+        }
       }
     }
   }
@@ -1572,6 +1687,9 @@ function reduceAllRepairs(percent) {
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
   _lastSortMode = -1;
+  // Инвалидируем кэш PPS/PPC при изменении уровней зданий
+  _cachedPPS = null;
+  _cachedPPC = null;
   renderBuildings();
   // Немедленно обновляем таймеры
   _updateBuildingCountdowns();
@@ -3363,8 +3481,8 @@ function renderBuildings() {
   _lastBuildingsState = currentState;
   _lastSortMode = buildingSortMode;
   
-  // Полная перерисовка нужна - очищаем и создаем заново
-  buildingsList.innerHTML = '';
+  // Полная перерисовка нужна - используем DocumentFragment для оптимизации
+  const fragment = document.createDocumentFragment();
   
   sortedBuildings.forEach(({ building: b, originalIndex }) => {
     const card = document.createElement('div');
@@ -3530,8 +3648,12 @@ function renderBuildings() {
     }
     card.appendChild(note);
 
-    buildingsList.appendChild(card);
+    fragment.appendChild(card);
   });
+  
+  // Добавляем все карточки одним операцией (оптимизация DOM)
+  buildingsList.innerHTML = '';
+  buildingsList.appendChild(fragment);
 }
 
 function triggerUpgradeEffect(targetEl, text = 'Upgrade!') {
@@ -3979,6 +4101,15 @@ function cycleSeason() {
 
 // ======= Performance Optimizations =======
 
+// Кэширование вычислений для оптимизации производительности
+let _cachedPPS = null;
+let _cachedPPC = null;
+let _cachedPPSTime = 0;
+let _cachedPPCTime = 0;
+const CACHE_TTL = 50; // Кэш на 50мс
+
+// Кэширование вычислений для оптимизации производительности
+
 // Дебаунсинг для частых обновлений UI
 let _debounceStatsTimeout = null;
 let _debounceClickTimeout = null;
@@ -4049,6 +4180,12 @@ function renderAll() {
 // ======= Actions =======
 function addPoints(n) {
   save.points += n;
+  
+  // Инвалидируем кэш PPS/PPC при изменении поинтов
+  _cachedPPS = null;
+  _cachedPPC = null;
+  _cachedPoints = null; // Инвалидируем кэш отформатированных поинтов
+  
   // Обновляем статистику
   if (save.statistics) {
     save.statistics.totalPointsEarned += n;
@@ -4255,6 +4392,9 @@ function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
   _lastSortMode = -1;
+  // Инвалидируем кэш PPS/PPC при изменении уровней зданий
+  _cachedPPS = null;
+  _cachedPPC = null;
   renderAll();
   // Принудительно обновляем уровни зданий сразу после покупки (немедленно, без дебаунсинга)
   updateBuildingLevels(true);
@@ -4266,6 +4406,8 @@ function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
 }
 
 function buyClickLevels() {
+  // Инвалидируем кэш перед покупкой
+  _cachedPPC = null;
   const segStartLevel = save.click.level;
   const bought = buyBulkLevels('click', computeBulkCostForClick, () => {
     const lvl = save.click.level;
@@ -4283,6 +4425,8 @@ function buyClickLevels() {
 }
 
 function buyClickSegmentUpgrade(segIndex) {
+  // Инвалидируем кэш перед покупкой
+  _cachedPPC = null;
   let costSum = (save.click.pendingSegmentCost[segIndex] || 0) / 2;
   // Buff 6: Master Builder - upgrades cost 2x more
   const act = save.treasury?.actions;
@@ -4398,6 +4542,8 @@ function buyBuildingLevels(i) {
 }
 
 function buyBuildingSegUpgrade(i, segIndex) {
+  // Инвалидируем кэш перед покупкой
+  _cachedPPS = null;
   const b = save.buildings[i];
   let costSum = (b.pendingSegmentCost[segIndex] || 0) / 2;
   // Buff 6: Master Builder - upgrades cost 2x more
@@ -4421,6 +4567,9 @@ function buyBuildingSegUpgrade(i, segIndex) {
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
   _lastSortMode = -1;
+  // Инвалидируем кэш PPS/PPC при изменении уровней зданий
+  _cachedPPS = null;
+  _cachedPPC = null;
   renderAll();
   // Принудительно обновляем уровни зданий сразу после апгрейда (немедленно)
   updateBuildingLevels(true);
@@ -6561,6 +6710,25 @@ function tick() {
   const t = now();
   const dt = (t - (save.lastTick || t)) / 1000; // seconds
   save.lastTick = t;
+  
+  // Защита от накопления событий после пробуждения компьютера/браузера
+  // Если прошло больше 5 минут с последнего тика, сбрасываем таймеры спавна
+  const MAX_DT_FOR_SPAWN = 300; // 5 минут в секундах
+  if (dt > MAX_DT_FOR_SPAWN) {
+    // Сбрасываем таймеры спавна, чтобы не спавнить все события сразу
+    const resetDelay = _randInt(60000, 180000); // 1-3 минуты задержка
+    nextSpiderTs = t + resetDelay;
+    nextAngryBarmatunTs = t + resetDelay + _randInt(60000, 120000); // Разносим по времени
+    nextElfArcherTs = t + resetDelay + _randInt(120000, 180000);
+    // Король использует setTimeout, поэтому его таймер уже должен быть сброшен при пробуждении
+    // Но на всякий случай пересоздадим его
+    if (_kingState.spawnTimer) {
+      clearTimeout(_kingState.spawnTimer);
+      scheduleNextKing();
+    }
+    console.log('Large time gap detected, reset spawn timers to prevent simultaneous events');
+    return; // Пропускаем проверки спавна в этом тике
+  }
 
   // Treasury regen
   if (save.treasury) {
@@ -6685,6 +6853,9 @@ function tick() {
   maybeSpawnElfArcher();
 
   // Update UI (с дебаунсингом для производительности)
+  // Инвалидируем кэш PPS/PPC каждый тик (значения могут измениться из-за модификаторов времени)
+  _cachedPPS = null;
+  _cachedPPC = null;
   debouncedRenderTopStats();
   debouncedRenderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
   renderEffects();
@@ -7099,6 +7270,9 @@ function showGame() {
   setTimeout(() => {
     initHints();
   }, 1000);
+  
+  // Инициализируем таймер короля при входе в игру
+  scheduleNextKing();
   
   // Блокируем контекстное меню (ПКМ) на игровом экране
   if (gameScreen) {
