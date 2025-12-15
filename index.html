@@ -6,6 +6,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="style.css"/>
+  
+  <!-- Firebase SDK -->
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBbfHWMLUlfon2abluwURHHUUZOjiX_MNM",
+      authDomain: "ckickker.firebaseapp.com",
+      projectId: "ckickker",
+      storageBucket: "ckickker.firebasestorage.app",
+      messagingSenderId: "437726733760",
+      appId: "1:437726733760:web:d9a118b3d94d9523c4d425"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    window.firebaseAuth = getAuth(app);
+    window.firebaseDb = getFirestore(app);
+  </script>
   <style>
   /* Global reset to ensure full-bleed layout */
   html, body {
@@ -119,13 +142,14 @@
       <div class="auth-tabs">
         <button class="tab-btn active" data-tab="login">Login</button>
         <button class="tab-btn" data-tab="register">Register</button>
+        <button class="tab-btn" data-tab="local">Local save</button>
       </div>
 
       <div class="auth-panels">
         <div class="auth-panel" id="login-panel">
           <label class="label">
-            <span>Username</span>
-            <input id="login-username" type="text" maxlength="24" autocomplete="username" />
+            <span>Email</span>
+            <input id="login-username" type="email" maxlength="64" autocomplete="email" />
           </label>
           <label class="label">
             <span>Password</span>
@@ -136,14 +160,28 @@
 
         <div class="auth-panel hidden" id="register-panel">
           <label class="label">
-            <span>Username</span>
-            <input id="register-username" type="text" maxlength="24" autocomplete="username" />
+            <span>Email</span>
+            <input id="register-email" type="email" maxlength="64" autocomplete="email" />
           </label>
           <label class="label">
             <span>Password</span>
             <input id="register-password" type="password" maxlength="64" autocomplete="new-password"/>
           </label>
           <button id="register-btn" class="btn primary">Create account</button>
+        </div>
+
+        <div class="auth-panel hidden" id="local-panel">
+          <p style="margin-bottom: 16px; color: #aaa;">Load your local save from this browser</p>
+          <button id="local-load-btn" class="btn primary">Load Local Save</button>
+          <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="margin-bottom: 12px; color: #aaa;">Export/Import save file</p>
+            <button id="local-download-btn" class="btn secondary" style="margin-bottom: 8px; width: 100%;">Download Save</button>
+            <label class="label" style="margin-top: 12px;">
+              <span>Upload Save File</span>
+              <input id="local-upload-input" type="file" accept=".json" style="margin-top: 8px;" />
+            </label>
+            <button id="local-upload-btn" class="btn secondary" style="margin-top: 8px; width: 100%;">Upload Save</button>
+          </div>
         </div>
       </div>
 

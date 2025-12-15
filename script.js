@@ -779,9 +779,19 @@ function load() {
   } catch(e) { return null; }
 }
 
-function saveNow() {
+async function saveNow() {
   if (!save || !currentUser) return;
+  // Save to localStorage as backup
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: currentUser, data: save }));
+  // Save to Firebase if user has uid (online user)
+  if (currentUser.uid) {
+    try {
+      await saveToFirebase(currentUser.uid, save);
+    } catch (error) {
+      console.error('Failed to save to Firebase:', error);
+      // Continue silently - localStorage backup is saved
+    }
+  }
 }
 
 function autosaveLoop() {
@@ -793,18 +803,34 @@ const AUTOSAVE_INTERVAL_MS = 1000;
 let _autosaveTimer = null;
 
 function _storageKeyForUser(user) {
-  return `${STORAGE_KEY}::${user}`;
+  if (!user) return STORAGE_KEY;
+  // Use uid for Firebase users, username for local users
+  const identifier = user.uid || user.username || 'local';
+  return `${STORAGE_KEY}::${identifier}`;
 }
 
 function startAutosave() {
   if (_autosaveTimer) return;
   // Сохраняем сразу при старте
-  try { if (save && currentUser) { save.lastTick = now(); localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save })); } } catch(e){}
+  try { 
+    if (save && currentUser) { 
+      save.lastTick = now(); 
+      localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
+      // Also save to Firebase if online user
+      if (currentUser.uid) {
+        saveToFirebase(currentUser.uid, save).catch(e => console.error('Firebase autosave failed', e));
+      }
+    } 
+  } catch(e){}
   _autosaveTimer = setInterval(() => {
     try {
       if (!save || !currentUser) return;
       save.lastTick = now();
       localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
+      // Also save to Firebase if online user
+      if (currentUser.uid) {
+        saveToFirebase(currentUser.uid, save).catch(e => console.error('Firebase autosave failed', e));
+      }
     } catch (e) {
       console.error('Autosave failed', e);
     }
@@ -992,9 +1018,16 @@ const loginUsername = document.getElementById('login-username');
 const loginPassword = document.getElementById('login-password');
 const loginBtn = document.getElementById('login-btn');
 
-const registerUsername = document.getElementById('register-username');
+const registerEmail = document.getElementById('register-email');
 const registerPassword = document.getElementById('register-password');
 const registerBtn = document.getElementById('register-btn');
+
+// Local save elements
+const localPanel = document.getElementById('local-panel');
+const localLoadBtn = document.getElementById('local-load-btn');
+const localDownloadBtn = document.getElementById('local-download-btn');
+const localUploadInput = document.getElementById('local-upload-input');
+const localUploadBtn = document.getElementById('local-upload-btn');
 
 
 
@@ -7397,7 +7430,9 @@ function drawCitadelPixel(el) {
 function showGame() {
   authScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
-  usernameDisplay.textContent = save.meta.username;
+  // Display username from save or currentUser
+  const displayName = save.meta?.username || currentUser?.username || currentUser?.email?.split('@')[0] || 'Player';
+  usernameDisplay.textContent = displayName;
   // Инициализируем bulk, если его нет
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;
@@ -7439,19 +7474,98 @@ function showAuth() {
   authScreen.classList.remove('hidden');
 }
 
-if (loginBtn) {
-loginBtn.addEventListener('click', () => {
-  const u = loginUsername.value.trim();
-  const p = loginPassword.value;
-  if (!u || !p) { toast('Please enter username and password.', 'warn'); return; }
+// Tab switching logic
+if (tabBtns && tabBtns.length > 0) {
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      // Remove active class from all tabs and panels
+      tabBtns.forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.auth-panel').forEach(p => p.classList.add('hidden'));
+      // Add active class to clicked tab
+      btn.classList.add('active');
+      // Show corresponding panel
+      const panel = document.getElementById(`${tab}-panel`);
+      if (panel) panel.classList.remove('hidden');
+    });
+  });
+}
 
-  const stored = load();
-  if (!stored || !stored.user || stored.user.username !== u || stored.user.password !== p) {
-    toast('Invalid credentials.', 'bad');
-    return;
+// Firebase authentication functions
+async function registerWithFirebase(email, password) {
+  try {
+    const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
+    const auth = window.firebaseAuth;
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+  } catch (error) {
+    throw error;
   }
-  currentUser = stored.user;
-  save = stored.data;
+}
+
+async function loginWithFirebase(email, password) {
+  try {
+    const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
+    const auth = window.firebaseAuth;
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function saveToFirebase(userId, saveData) {
+  try {
+    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
+    const db = window.firebaseDb;
+    await setDoc(doc(db, "saves", userId), {
+      data: saveData,
+      lastUpdated: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving to Firebase:', error);
+    throw error;
+  }
+}
+
+async function loadFromFirebase(userId) {
+  try {
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
+    const db = window.firebaseDb;
+    const docRef = doc(db, "saves", userId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data().data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading from Firebase:', error);
+    throw error;
+  }
+}
+
+if (loginBtn) {
+loginBtn.addEventListener('click', async () => {
+  const email = loginUsername.value.trim();
+  const p = loginPassword.value;
+  if (!email || !p) { toast('Please enter email and password.', 'warn'); return; }
+
+  try {
+    const firebaseUser = await loginWithFirebase(email, p);
+    // Load save from Firebase
+    const firebaseSave = await loadFromFirebase(firebaseUser.uid);
+    
+    if (firebaseSave) {
+      save = firebaseSave;
+      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username: firebaseUser.email.split('@')[0] };
+    } else {
+      // Create new save if none exists
+      const username = firebaseUser.email.split('@')[0];
+      save = newSave(username);
+      initBuildings(save);
+      await saveToFirebase(firebaseUser.uid, save);
+      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username };
+    }
   // If buildings missing (first run), init
   if (!save.buildings || save.buildings.length === 0) initBuildings(save);
   // Инициализируем достижения, если их нет в старом сохранении
@@ -7491,48 +7605,260 @@ loginBtn.addEventListener('click', () => {
   if (!save.lastActivityTime) {
     save.lastActivityTime = now();
   }
-  // Check for offline earnings on login - always show message if time away > 0
-  checkOfflineEarnings(true);
-  showGame();
+    // Check for offline earnings on login - always show message if time away > 0
+    checkOfflineEarnings(true);
+    startAutosave();
+    showGame();
+  } catch (error) {
+    console.error('Login error:', error);
+    let errorMsg = 'Login failed. ';
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      errorMsg += 'Invalid email or password.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMsg += 'Invalid email format.';
+    } else {
+      errorMsg += error.message || 'Please try again.';
+    }
+    toast(errorMsg, 'bad');
+  }
 });
 }
 
 if (registerBtn) {
-registerBtn.addEventListener('click', () => {
-  const u = registerUsername.value.trim();
+registerBtn.addEventListener('click', async () => {
+  const email = registerEmail.value.trim();
   const p = registerPassword.value;
-  if (!u || !p) { toast('Please enter username and password.', 'warn'); return; }
+  if (!email || !p) { toast('Please enter email and password.', 'warn'); return; }
+  if (p.length < 6) { toast('Password must be at least 6 characters.', 'warn'); return; }
 
-  // Overwrite for simplicity
-  currentUser = { username: u, password: p };
-  save = newSave(u);
-  initBuildings(save);
-  // Инициализируем достижения (уже есть в newSave, но на всякий случай)
-  if (!save.achievements) {
-    save.achievements = {
-      unlocked: {},
-      stats: {
-        totalClicks: 0,
-        totalPlayTime: 0,
-        totalDestructions: 0,
-        firstBuildingBought: false,
-      }
-    };
+  try {
+    const firebaseUser = await registerWithFirebase(email, p);
+    const username = email.split('@')[0];
+    save = newSave(username);
+    initBuildings(save);
+    // Инициализируем достижения (уже есть в newSave, но на всякий случай)
+    if (!save.achievements) {
+      save.achievements = {
+        unlocked: {},
+        stats: {
+          totalClicks: 0,
+          totalPlayTime: 0,
+          totalDestructions: 0,
+          firstBuildingBought: false,
+        }
+      };
+    }
+    // Save to Firebase
+    await saveToFirebase(firebaseUser.uid, save);
+    currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username };
+    toast('Account created successfully!', 'good');
+    startAutosave();
+    showGame();
+  } catch (error) {
+    console.error('Registration error:', error);
+    let errorMsg = 'Registration failed. ';
+    if (error.code === 'auth/email-already-in-use') {
+      errorMsg += 'Email already registered.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMsg += 'Invalid email format.';
+    } else if (error.code === 'auth/weak-password') {
+      errorMsg += 'Password is too weak.';
+    } else {
+      errorMsg += error.message || 'Please try again.';
+    }
+    toast(errorMsg, 'bad');
   }
-  saveNow();
-  toast('Account created.', 'good');
-  showGame();
 });
 }
 
 if (logoutBtn) {
-logoutBtn.addEventListener('click', () => {
-  saveNow();
+logoutBtn.addEventListener('click', async () => {
+  await saveNow();
+  // Sign out from Firebase if logged in
+  if (currentUser && currentUser.uid) {
+    try {
+      const { signOut } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
+      const auth = window.firebaseAuth;
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }
   currentUser = null;
   save = null;
+  stopAutosave();
   toast('Logged out.', 'info');
   showAuth();
 });
+}
+
+// Local save handlers
+if (localLoadBtn) {
+  localLoadBtn.addEventListener('click', () => {
+    const stored = load();
+    if (!stored || !stored.data) {
+      toast('No local save found.', 'warn');
+      return;
+    }
+    save = stored.data;
+    currentUser = stored.user || { username: save.meta?.username || 'Local Player' };
+    
+    // If buildings missing, init
+    if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+    // Initialize achievements if missing
+    if (!save.achievements) {
+      save.achievements = {
+        unlocked: {},
+        stats: {
+          totalClicks: 0,
+          totalPlayTime: 0,
+          totalDestructions: 0,
+          firstBuildingBought: false,
+        }
+      };
+    }
+    // Normalize bulk
+    if (save.bulk === undefined || save.bulk === null) {
+      save.bulk = 1;
+    }
+    if (save.bulk !== 'max') {
+      const parsed = parseInt(save.bulk, 10);
+      save.bulk = isNaN(parsed) ? 1 : parsed;
+    }
+    // Migrate streak
+    if (!save.streak) {
+      save.streak = { count: 0, lastClickTs: 0, multiplier: 1.0 };
+    } else if (save.streak.multiplier === undefined) {
+      save.streak.multiplier = 1.0;
+    }
+    migrateAchievements();
+    // Migrate uber.max
+    if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
+      save.uber.max = 19;
+    }
+    // Initialize lastActivityTime
+    if (!save.lastActivityTime) {
+      save.lastActivityTime = now();
+    }
+    checkOfflineEarnings(true);
+    startAutosave();
+    toast('Local save loaded.', 'good');
+    showGame();
+  });
+}
+
+if (localDownloadBtn) {
+  localDownloadBtn.addEventListener('click', () => {
+    if (!save) {
+      toast('No save data to download.', 'warn');
+      return;
+    }
+    const saveData = {
+      user: currentUser,
+      data: save,
+      exported: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `medieval-pixel-idle-save-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Save file downloaded.', 'good');
+  });
+}
+
+if (localUploadBtn && localUploadInput) {
+  localUploadBtn.addEventListener('click', () => {
+    const file = localUploadInput.files[0];
+    if (!file) {
+      toast('Please select a save file.', 'warn');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const saveData = JSON.parse(e.target.result);
+        if (!saveData.data) {
+          toast('Invalid save file format.', 'bad');
+          return;
+        }
+        
+        // If user is logged in to Firebase, upload the save
+        if (currentUser && currentUser.uid) {
+          try {
+            await saveToFirebase(currentUser.uid, saveData.data);
+            save = saveData.data;
+            if (saveData.user) {
+              currentUser = { ...currentUser, ...saveData.user };
+            }
+            toast('Save uploaded to cloud successfully!', 'good');
+            startAutosave();
+            showGame();
+          } catch (error) {
+            console.error('Upload error:', error);
+            toast('Failed to upload to cloud. Loading locally...', 'warn');
+            // Fall through to local load
+          }
+        } else {
+          // Just load locally
+          save = saveData.data;
+          if (saveData.user) {
+            currentUser = saveData.user;
+          } else {
+            currentUser = { username: save.meta?.username || 'Local Player' };
+          }
+        }
+        
+        // Initialize missing data
+        if (!save.buildings || save.buildings.length === 0) initBuildings(save);
+        if (!save.achievements) {
+          save.achievements = {
+            unlocked: {},
+            stats: {
+              totalClicks: 0,
+              totalPlayTime: 0,
+              totalDestructions: 0,
+              firstBuildingBought: false,
+            }
+          };
+        }
+        if (save.bulk === undefined || save.bulk === null) {
+          save.bulk = 1;
+        }
+        if (save.bulk !== 'max') {
+          const parsed = parseInt(save.bulk, 10);
+          save.bulk = isNaN(parsed) ? 1 : parsed;
+        }
+        if (!save.streak) {
+          save.streak = { count: 0, lastClickTs: 0, multiplier: 1.0 };
+        } else if (save.streak.multiplier === undefined) {
+          save.streak.multiplier = 1.0;
+        }
+        migrateAchievements();
+        if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
+          save.uber.max = 19;
+        }
+        if (!save.lastActivityTime) {
+          save.lastActivityTime = now();
+        }
+        checkOfflineEarnings(true);
+        startAutosave();
+        toast('Save file loaded successfully!', 'good');
+        showGame();
+      } catch (error) {
+        console.error('Load error:', error);
+        toast('Failed to load save file. Invalid format.', 'bad');
+      }
+    };
+    reader.onerror = () => {
+      toast('Failed to read file.', 'bad');
+    };
+    reader.readAsText(file);
+  });
 }
 
 
