@@ -170,6 +170,30 @@ input:focus,textarea:focus,select:focus{
   border-color: var(--border-orange);
   box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
 }
+input.error{
+  border-color: #cc4444;
+  box-shadow: 0 0 8px rgba(204, 68, 68, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
+}
+input.valid{
+  border-color: #44cc44;
+}
+
+/* Field hints and errors */
+.field-hint{
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 4px;
+  display: block;
+}
+.field-error{
+  color: #cc4444;
+  font-size: 0.85rem;
+  margin-top: 4px;
+  display: none;
+}
+.field-error.show{
+  display: block;
+}
 
 /* ---------- BUTTONS (PoE стиль) ---------- */
 .btn{

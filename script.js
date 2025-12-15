@@ -749,7 +749,7 @@ const buildingNames = [
 
 function initBuildings(saveObj) {
   // Base cost/income for first building
-  const baseCost = 1.2345;
+  const baseCost = 1.2345; // Базовая цена (уменьшение применяется в buildingLevelCostAt для всех сохранений)
   const baseIncome = 0.00861; // Уменьшено на 30% (было 0.0123)
   const costStep = 1.015;   // "slightly more expensive"
   const incomeStep = 1.06; // "slightly more income"
@@ -1022,6 +1022,14 @@ const registerEmail = document.getElementById('register-email');
 const registerPassword = document.getElementById('register-password');
 const registerBtn = document.getElementById('register-btn');
 
+// Field error/hint elements
+const loginEmailError = document.getElementById('login-email-error');
+const loginPasswordError = document.getElementById('login-password-error');
+const registerEmailError = document.getElementById('register-email-error');
+const registerPasswordError = document.getElementById('register-password-error');
+const registerEmailHint = document.getElementById('register-email-hint');
+const registerPasswordHint = document.getElementById('register-password-hint');
+
 // Verify elements exist
 if (!registerEmail) console.warn('register-email element not found');
 if (!registerPassword) console.warn('register-password element not found');
@@ -1132,7 +1140,7 @@ function computeBulkCostForBlock(type, bulk, index = null) {
 // Level cost/income for Click
 function clickLevelCostAt(level) {
   // base upgrade price for click is 7.772 for first level (level 0->1)
-  const base = 0.0737;
+  const base = 0.0737 / 2; // Уменьшено в 2 раза
   // smooth price growth
   return base * Math.pow(1.055, level);
 }
@@ -1147,7 +1155,8 @@ function clickIncomeAt(level, upgradesCount) {
 // Building cost/income per level
 function buildingLevelCostAt(b, level) {
   // baseCost scales gently with level
-  const baseCost = b.baseCost * Math.pow(1.06, level);
+  // Уменьшаем цену в 2 раза для всех зданий (независимо от того, новое это сохранение или старое)
+  const baseCost = (b.baseCost / 2) * Math.pow(1.06, level);
   // Buff 6: Buildings can't break, but cost 2x more
   const act = save.treasury?.actions;
   const noBreakActive = act && act.noBreakUntil > now();
@@ -1169,20 +1178,21 @@ function uberCostAt(level) {
   const incomeAtLevel1 = uberIncomeAt(1);
   // Use a cost-to-income ratio similar to regular buildings, but adjusted for uber
   // Regular building ratio is ~100, but for uber we'll use a higher multiplier
-  const costToIncomeRatio = 200; // More expensive than regular, but not excessive
+  // Уменьшено в 100 раз
+  const costToIncomeRatio = 2; // Reduced from 200 to 2 (100x reduction)
   const base = incomeAtLevel1 * costToIncomeRatio;
   
   return base * Math.pow(1.35, level);
 }
 function uberIncomeAt(level) {
-  // Calculate total income of all buildings at level 1000 with 100 upgrades (13% each 10 levels)
+  // Calculate total income of all buildings at level 800 with 80 upgrades (3% each 10 levels)
   // Each building i: baseIncome_i = 0.00861 * 1.06^i (уменьшено на 30%)
-  // At level 1000 with 100 upgrades: income_i = baseIncome_i * 1.03645^1000 * 1.03^100 (прирост уменьшен на 20%)
-  // Total = sum of all 50 buildings
+  // At level 800 with 80 upgrades: income_i = baseIncome_i * 1.03645^800 * 1.03^80
+  // Total = sum of all 50 buildings, divided by 2
   const baseIncome = 0.00861; // Уменьшено на 30% (было 0.0123)
   const incomeStep = 1.06;
-  const levelMult = Math.pow(1.03645, 1000); // Прирост уменьшен на 20% (было 1.045, стало 1.03645)
-  const upgradeMult = Math.pow(1.03, 100); // 100 upgrades (1000/10 = 100 segments)
+  const levelMult = Math.pow(1.03645, 800); // Прирост на уровне 800
+  const upgradeMult = Math.pow(1.03, 80); // 80 upgrades (800/10 = 80 segments)
   
   // Calculate sum of geometric series: sum(i=0 to 49) of 1.06^i
   const numBuildings = 50;
@@ -1191,14 +1201,11 @@ function uberIncomeAt(level) {
     sumBaseIncomes += baseIncome * Math.pow(incomeStep, i);
   }
   
-  // Total income at level 1000
-  const totalAt1000 = sumBaseIncomes * levelMult * upgradeMult;
+  // Total income at level 800 with all upgrades
+  const totalAt800 = sumBaseIncomes * levelMult * upgradeMult;
   
-  // Uber building at level 1 should produce this total
-  // uberIncomeAt(1) = baseInc * 1.1782^1 = totalAt1000
-  // Therefore: baseInc = totalAt1000 / 1.1782
-  // Reduced by 2x
-  const baseInc = totalAt1000 / 1.1782 / 2;
+  // Uber building base income = total income at level 800 / 2
+  const baseInc = totalAt800 / 2;
   
   // Прирост за уровень уменьшен на 20% (дважды по 10%)
   // Было: 1.22 (+22% за уровень), стало: 1.1782 (+17.82% за уровень, уменьшение на 20%)
@@ -1442,8 +1449,10 @@ function totalPPC() {
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
   // Elf Archer: x33 multiplier for 11 seconds on hit
   const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
+  // King debuff: Passive income reduction
+  const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
   // Note: Random click multiplier is applied per-click in clickBtn event handler, not here
-  const result = ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult;
+  const result = ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
   
   // Сохраняем в кэш
   _cachedPPC = result;
@@ -3210,9 +3219,63 @@ function updateBuildingLevels(forceImmediate = false) {
     if (incEl) {
       // Убеждаемся, что используем правильный объект здания по оригинальному индексу
       const buildingObj = save.buildings[buildingIndex];
-      const newIncomeText = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(buildingObj, buildingObj.level, buildingObj.upgradeBonus))}`;
+      
+      // Если уровень 0, показываем 0.0000, в скобках прирост при прокачке
+      if (buildingObj.level < 1) {
+        const tNow = now();
+        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+        const achievementMult = getAchievementBonus();
+        const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+        const act = save.treasury?.actions;
+        const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+        const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+        const nextLevelBaseIncome = buildingIncomeAt(buildingObj, 1, buildingObj.upgradeBonus);
+        const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+        const incomeIncrease = nextLevelRealIncome * Math.min(bulk, buildingObj.max);
+        const newIncomeText = `<strong>Income/sec:</strong> 0.0000 <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
       if (incEl.innerHTML !== newIncomeText) {
         incEl.innerHTML = newIncomeText;
+        }
+      } else {
+        const baseIncome = buildingIncomeAt(buildingObj, buildingObj.level, buildingObj.upgradeBonus);
+        // Apply all modifiers to get real income
+        const tNow = now();
+        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+        const achievementMult = getAchievementBonus();
+        const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+        const act = save.treasury?.actions;
+        const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+        const realIncome = baseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+        
+        // Проверяем, нужен ли апгрейд
+        const seg = segmentIndex(buildingObj.level);
+        const within = withinSegment(buildingObj.level);
+        const prevSegBought = seg === 0 ? true : !!buildingObj.segUpgrades[seg-1];
+        const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+        
+        let incomeIncrease = 0;
+        if (needUpgrade) {
+          // Если нужен апгрейд, показываем прирост от апгрейда (+3%)
+          const baseIncomeAfterUpgrade = buildingIncomeAt(buildingObj, buildingObj.level, buildingObj.upgradeBonus + 1);
+          const realIncomeAfterUpgrade = baseIncomeAfterUpgrade * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          incomeIncrease = realIncomeAfterUpgrade - realIncome;
+        } else {
+          // Calculate income increase for next level (considering bulk)
+          const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+          const nextLevelBaseIncome = buildingIncomeAt(buildingObj, buildingObj.level + 1, buildingObj.upgradeBonus);
+          const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          const incomeIncreasePerLevel = nextLevelRealIncome - realIncome;
+          incomeIncrease = incomeIncreasePerLevel * bulk;
+        }
+        
+        const newIncomeText = `<strong>Income/sec:</strong> ${fmt(realIncome)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
+        if (incEl.innerHTML !== newIncomeText) {
+          incEl.innerHTML = newIncomeText;
+        }
       }
     }
     
@@ -3462,19 +3525,99 @@ function renderClick() {
   if (clickInfoContainer) {
     const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
     
-    // Элемент 0: Level
+    // Элемент 0: Level - обновляем также HTML элементы для совместимости
     if (metaElements[0]) {
       const newLevelText = `<strong>Level:</strong> ${save.click.level} / ${save.click.max}`;
       if (metaElements[0].innerHTML !== newLevelText) {
         metaElements[0].innerHTML = newLevelText;
       }
     }
+    // Также обновляем отдельные HTML элементы если они существуют
+    if (clickLevelEl) clickLevelEl.textContent = save.click.level;
+    if (clickMaxEl) clickMaxEl.textContent = save.click.max;
     
-    // Элемент 1: Income/click
+    // Элемент 1: Income/click - показываем реальный доход с модификаторами
     if (metaElements[1]) {
-      const newIncomeText = `<strong>Income/click:</strong> ${fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus))}`;
+      // Если уровень 0, показываем 0.0000, в скобках прирост при прокачке
+      if (save.click.level < 1) {
+        const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+        const baseIncomeNextLevel = clickIncomeAt(1, save.click.upgradeBonus);
+        const tNow = now();
+        const goldenActive = save.click.goldenUntil > tNow;
+        const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
+        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+        const achievementMult = getAchievementBonus();
+        const streakMult = save.streak ? save.streak.multiplier : 1.0;
+        const act = save.treasury?.actions;
+        const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.17 : 1.0;
+        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+        const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
+        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+        const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
+        const realPPCNextLevel = baseIncomeNextLevel * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
+        const incomeIncrease = realPPCNextLevel * Math.min(bulk, save.click.max);
+        const newIncomeText = `<strong>Income/click:</strong> 0.0000 <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
       if (metaElements[1].innerHTML !== newIncomeText) {
         metaElements[1].innerHTML = newIncomeText;
+      }
+        if (clickIncomeEl) {
+          clickIncomeEl.innerHTML = `0.0000 <span style="color: var(--muted); font-size: 0.9em;">(+${fmt(incomeIncrease)})</span>`;
+        }
+      } else {
+        const realPPC = totalPPC();
+        // Calculate income increase for next level or upgrade
+        const seg = segmentIndex(save.click.level);
+        const within = withinSegment(save.click.level);
+        const prevSegBought = seg === 0 ? true : !!save.click.segUpgrades[seg-1];
+        const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+        
+        let incomeIncrease = 0;
+        if (needUpgrade) {
+        // Calculate income after upgrade (+3%)
+        const baseIncomeAfterUpgrade = clickIncomeAt(save.click.level, save.click.upgradeBonus + 1);
+        const tNow = now();
+        const goldenActive = save.click.goldenUntil > tNow;
+        const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
+        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+        const achievementMult = getAchievementBonus();
+        const streakMult = save.streak ? save.streak.multiplier : 1.0;
+        const act = save.treasury?.actions;
+        const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.17 : 1.0;
+        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+        const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
+        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+        const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
+        const realPPCAfterUpgrade = baseIncomeAfterUpgrade * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
+        incomeIncrease = realPPCAfterUpgrade - realPPC;
+      } else {
+        // Calculate income increase for next level (considering bulk)
+        const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+        const baseIncomeNextLevel = clickIncomeAt(save.click.level + 1, save.click.upgradeBonus);
+        const tNow = now();
+        const goldenActive = save.click.goldenUntil > tNow;
+        const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
+        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+        const achievementMult = getAchievementBonus();
+        const streakMult = save.streak ? save.streak.multiplier : 1.0;
+        const act = save.treasury?.actions;
+        const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.17 : 1.0;
+        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+        const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
+        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+        const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
+        const realPPCNextLevel = baseIncomeNextLevel * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
+          const incomeIncreasePerLevel = realPPCNextLevel - realPPC;
+          incomeIncrease = incomeIncreasePerLevel * bulk;
+        }
+        
+        const newIncomeText = `<strong>Income/click:</strong> ${fmt(realPPC)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
+        if (metaElements[1].innerHTML !== newIncomeText) {
+          metaElements[1].innerHTML = newIncomeText;
+        }
+        // Также обновляем отдельный HTML элемент если он существует
+        if (clickIncomeEl) {
+          clickIncomeEl.innerHTML = `${fmt(realPPC)} <span style="color: var(--muted); font-size: 0.9em;">(+${fmt(incomeIncrease)})</span>`;
+        }
       }
     }
   }
@@ -3508,16 +3651,39 @@ function renderClick() {
       const clickInfoContainer = document.querySelector('.click-area .building-info');
       if (clickInfoContainer) {
         const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
-        // Элемент 1: Income/click - гарантируем, что он остается на месте
+        // Элемент 1: Income/click - показываем реальный доход с модификаторами
         if (metaElements[1]) {
-          const incomeText = `<strong>Income/click:</strong> ${fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus))}`;
+          const realPPC = totalPPC();
+          // Calculate income after upgrade (+3%)
+          const baseIncomeAfterUpgrade = clickIncomeAt(save.click.level, save.click.upgradeBonus + 1);
+          const tNow = now();
+          const goldenActive = save.click.goldenUntil > tNow;
+          const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
+          const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+          const achievementMult = getAchievementBonus();
+          const streakMult = save.streak ? save.streak.multiplier : 1.0;
+          const act = save.treasury?.actions;
+          const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.17 : 1.0;
+          const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+          const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
+          const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+          const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
+          const realPPCAfterUpgrade = baseIncomeAfterUpgrade * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
+          const incomeIncrease = realPPCAfterUpgrade - realPPC;
+          const incomeText = `<strong>Income/click:</strong> ${fmt(realPPC)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
           if (metaElements[1].innerHTML !== incomeText) {
             metaElements[1].innerHTML = incomeText;
+          }
+          // Также обновляем отдельный HTML элемент если он существует
+          if (clickIncomeEl) {
+            clickIncomeEl.innerHTML = `${fmt(realPPC)} <span style="color: var(--muted); font-size: 0.9em;">(+${fmt(incomeIncrease)})</span>`;
           }
         }
         // Элемент 2: Next Cost - обновляем стоимость апгрейда
         if (metaElements[2]) {
           metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+          // Также обновляем отдельный HTML элемент если он существует
+          if (clickCostEl) clickCostEl.textContent = fmt(upgradeCost);
         }
       }
       if (clickSegInfo) clickSegInfo.textContent = 'Segment upgrade required to progress';
@@ -3526,26 +3692,55 @@ function renderClick() {
 
       clickSegBtn.classList.remove('hidden');
       clickSegBtn.removeAttribute('aria-hidden');
-      // Визуально сделать похожей на primary (если нужно)
-      clickSegBtn.classList.add('primary');
       clickSegBtn.innerHTML = `Upgrade<br>(${fmt(upgradeCost)})`;
       clickSegBtn.disabled = save.points < upgradeCost;
+      // Убираем primary класс когда disabled, чтобы кнопка была серой (как у зданий)
+      if (clickSegBtn.disabled) {
+        clickSegBtn.classList.remove('primary');
+      } else {
+        clickSegBtn.classList.add('primary');
+      }
     } else {
       // Показываем покупку, скрываем апгрейд
       // Обновляем Next Cost в формате building-meta (Income остается на месте)
       const clickInfoContainer = document.querySelector('.click-area .building-info');
       if (clickInfoContainer) {
         const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
-        // Элемент 1: Income/click - гарантируем, что он остается на месте
+        // Элемент 1: Income/click - показываем реальный доход с модификаторами
         if (metaElements[1]) {
-          const incomeText = `<strong>Income/click:</strong> ${fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus))}`;
+          const realPPC = totalPPC();
+          // Calculate income increase for next level (considering bulk)
+          const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+          const baseIncomeNextLevel = clickIncomeAt(save.click.level + 1, save.click.upgradeBonus);
+          const tNow = now();
+          const goldenActive = save.click.goldenUntil > tNow;
+          const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
+          const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+          const achievementMult = getAchievementBonus();
+          const streakMult = save.streak ? save.streak.multiplier : 1.0;
+          const act = save.treasury?.actions;
+          const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.17 : 1.0;
+          const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+          const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
+          const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+          const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
+          const realPPCNextLevel = baseIncomeNextLevel * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
+          const incomeIncreasePerLevel = realPPCNextLevel - realPPC;
+          const incomeIncrease = incomeIncreasePerLevel * bulk;
+          const incomeText = `<strong>Income/click:</strong> ${fmt(realPPC)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
           if (metaElements[1].innerHTML !== incomeText) {
             metaElements[1].innerHTML = incomeText;
+          }
+          // Также обновляем отдельный HTML элемент если он существует
+          if (clickIncomeEl) {
+            clickIncomeEl.innerHTML = `${fmt(realPPC)} <span style="color: var(--muted); font-size: 0.9em;">(+${fmt(incomeIncrease)})</span>`;
           }
         }
         // Элемент 2: Next Cost - обновляем стоимость покупки
         if (metaElements[2]) {
           metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+          // Также обновляем отдельный HTML элемент если он существует
+          if (clickCostEl) clickCostEl.textContent = fmt(totalCost);
         }
       }
       clickSegBtn.classList.add('hidden');
@@ -3674,7 +3869,26 @@ function renderBuildings() {
     const lvlEl = document.createElement('div');
     lvlEl.innerHTML = `<strong>Level:</strong> ${b.level} / ${b.max}`;
     const incEl = document.createElement('div');
-    incEl.innerHTML = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(b, b.level, b.upgradeBonus))}`;
+    // Calculate base income
+    const baseIncome = buildingIncomeAt(b, b.level, b.upgradeBonus);
+    // Apply all modifiers to get real income
+    const tNow = now();
+    const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+    const achievementMult = getAchievementBonus();
+    const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+    const act = save.treasury?.actions;
+    const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+    const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+    const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+    const realIncome = baseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+    
+    // Calculate income increase for next level (considering bulk)
+    const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+    const nextLevelBaseIncome = buildingIncomeAt(b, b.level + 1, b.upgradeBonus);
+    const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+    const incomeIncreasePerLevel = nextLevelRealIncome - realIncome;
+    const incomeIncrease = incomeIncreasePerLevel * bulk;
+    incEl.innerHTML = `<strong>Income/sec:</strong> ${fmt(realIncome)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
     const nextCost = computeBulkCostForBuilding(originalIndex, save.bulk);
     const seg = segmentIndex(b.level);
     const within = withinSegment(b.level);
@@ -3920,7 +4134,35 @@ function renderUber() {
   
   uberLevelEl.textContent = save.uber.level;
   uberMaxEl.textContent = save.uber.max;
-  uberIncomeEl.textContent = fmt(uberIncomeAt(save.uber.level));
+  
+  // Показываем реальный доход с модификаторами и прирост в скобках
+  const baseIncome = uberIncomeAt(save.uber.level);
+  const tNow = now();
+  const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+  const achievementMult = getAchievementBonus();
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+  const act = save.treasury?.actions;
+  const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+  const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+  const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+  const realIncome = baseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+  
+  // Если уровень 0, показываем 0.0000, в скобках прирост при прокачке
+  if (save.uber.level < 1) {
+    const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+    const nextLevelBaseIncome = uberIncomeAt(1);
+    const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+    const incomeIncrease = nextLevelRealIncome * Math.min(bulk, save.uber.max);
+    uberIncomeEl.innerHTML = `0.0000 <span style="color: var(--muted); font-size: 0.9em;">(+${fmt(incomeIncrease)})</span>`;
+  } else {
+    // Calculate income increase for next level (considering bulk)
+    const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
+    const nextLevelBaseIncome = uberIncomeAt(save.uber.level + 1);
+    const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+    const incomeIncreasePerLevel = nextLevelRealIncome - realIncome;
+    const incomeIncrease = incomeIncreasePerLevel * Math.min(bulk, save.uber.max - save.uber.level);
+    uberIncomeEl.innerHTML = `${fmt(realIncome)} <span style="color: var(--muted); font-size: 0.9em;">(+${fmt(incomeIncrease)})</span>`;
+  }
 
   // Обновляем состояние блокировки карточки
   uberCard.classList.toggle('locked', !save.uber.unlocked);
@@ -3967,15 +4209,23 @@ function renderUber() {
     updateEndgameButtons();
   } else {
     if (note) note.textContent = '';
-    // Показываем обычную стоимость покупки
-    const uberCost = uberCostAt(save.uber.level);
-    uberCostEl.textContent = fmt(uberCost);
+    // Показываем стоимость покупки с учетом bulk (используем общий save.bulk)
+    const bulk = save.bulk || 1;
+    const bulkCost = computeBulkCostForBlock('uber', bulk);
+    const bulkText = bulk === 1 ? '' : ` (x${bulk})`;
+    uberCostEl.textContent = `${fmt(bulkCost.totalCost)}${bulkText}`;
     
     if (uberBuyBtn) {
     uberBuyBtn.classList.remove('hidden');
     uberBuyBtn.removeAttribute('aria-hidden');
       // Кнопка активна только если разблокировано И достаточно поинтов
-      uberBuyBtn.disabled = save.points < uberCost;
+      uberBuyBtn.disabled = save.points < bulkCost.totalCost || bulkCost.totalLevels === 0;
+      // Обновляем текст кнопки с учетом bulk
+      if (bulk === 1) {
+        uberBuyBtn.textContent = 'Buy levels';
+      } else {
+        uberBuyBtn.textContent = `Buy x${bulk}`;
+      }
     }
     // Скрываем кнопки завершения игры, если уровень < 19
     updateEndgameButtons();
@@ -4330,7 +4580,7 @@ function renderAll() {
   renderUber(); // Рендерим Uber здание (после проверки разблокировки)
   renderEffects();
   renderAchievements();
-  updateBulkButtons(); // Обновляем активное состояние кнопок bulk
+  updateBulkButtons(); // Обновляем активное состояние кнопок bulk (работают для всех)
   updateSeason(); // Обновляем сезонную тему
   startAutosave();
 
@@ -4404,8 +4654,15 @@ function _updateButtonStatesInternal() {
 
     if (needUpgrade) {
       const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
+      const upgradeCost = prevCostSum * 0.77;
       if (clickSegBtn && !clickSegBtn.classList.contains('hidden')) {
-        clickSegBtn.disabled = save.points < (prevCostSum/2);
+        clickSegBtn.disabled = save.points < upgradeCost;
+        // Убираем primary класс когда disabled, чтобы кнопка была серой
+        if (clickSegBtn.disabled) {
+          clickSegBtn.classList.remove('primary');
+        } else {
+          clickSegBtn.classList.add('primary');
+        }
       }
     } else {
       const { totalCost, totalLevels } = computeBulkCostForClick(save.bulk);
@@ -5154,6 +5411,7 @@ clickBtn.addEventListener('click', (event) => {
   resetPassiveBoost();
   
   // Buff 5: Click gives 0.2 treasury coins
+  const act = save.treasury?.actions;
   if (act && act.spiderBuffUntil > now()) {
     gainTreasury(0.2);
   }
@@ -5163,7 +5421,7 @@ clickBtn.addEventListener('click', (event) => {
   
   // 0.5% шанс на золотую или сломанную кнопку при каждом клике (отключено в Click Madness)
   // Buff 1: Can't become golden, can't break - skip both chances
-  // Buff 2: Always golden - кнопка всегда золотая, но может сломаться в 3 раза чаще
+  // Buff 2: Always golden - кнопка всегда золотая, но может сломаться в 9 раз чаще
   if (!madnessActive) {
     const noGoldenActive = act && act.noGoldenUntil > now();
     // Buff 1: Skip all golden/break chances if noGolden is active
@@ -5179,9 +5437,10 @@ clickBtn.addEventListener('click', (event) => {
       
       // Обычная золотая кнопка (на 8 секунд) не может сломаться
       // Но при активном alwaysGolden баффе кнопка может сломаться даже если она золотая
-      if (!brokenActive) {
         if (alwaysGoldenActive) {
-          // При alwaysGolden баффе: кнопка всегда золотая, но может сломаться в 3 раза чаще
+        // При alwaysGolden баффе: кнопка всегда золотая, но может сломаться в 9 раз чаще
+        // Проверяем только если кнопка не сломана
+        if (!brokenActive) {
           const roll = Math.random();
           const breakChance = 0.045; // 9x break chance (0.005 * 9)
           if (roll < breakChance) {
@@ -5195,8 +5454,10 @@ clickBtn.addEventListener('click', (event) => {
             
             renderClick();
           }
-        } else if (!normalGoldenActive) {
+        }
+      } else if (!normalGoldenActive && !brokenActive) {
           // Обычная логика: шанс на золотую или сломанную кнопку
+        // Работает только если кнопка не сломана и не золотая
           const roll = Math.random();
           const breakChance = 0.005; // 0.5% base chance
           if (roll < breakChance) {
@@ -5214,7 +5475,8 @@ clickBtn.addEventListener('click', (event) => {
               renderClick();
             } else {
               // 34% из шанса = золотая кнопка
-              save.click.goldenUntil = now() + 8000;
+            const goldenEndTime = now() + 8000;
+            save.click.goldenUntil = goldenEndTime;
               
               // Воспроизводим звук золотой кнопки
               playSound('clickGold');
@@ -5226,15 +5488,18 @@ clickBtn.addEventListener('click', (event) => {
               
               // Золотая кнопка просто заканчивается без поломки
               setTimeout(() => {
+              // Проверяем, что это та же золотая кнопка (не была перезаписана)
+              if (save.click.goldenUntil === goldenEndTime) {
                 save.click.goldenUntil = 0;
                 toast('Golden effect ended.', 'warn');
                 renderClick();
+              }
               }, 8000);
             }
           }
         }
         // Если normalGoldenActive = true, ничего не делаем (обычная золотая кнопка не может сломаться)
-      }
+      // Если brokenActive = true, ничего не делаем (сломанная кнопка не может стать золотой)
     }
   }
 
@@ -6304,7 +6569,8 @@ function spawnAngryBarmatun() {
 let nextAngryBarmatunTs = now() + _randInt(240000, 600000);
 function maybeSpawnAngryBarmatun() {
   const t = now();
-  if (t >= nextAngryBarmatunTs) {
+  // Angry Barmatun can only spawn if click level is 250 or higher
+  if (t >= nextAngryBarmatunTs && save && save.click && save.click.level >= 250) {
     spawnAngryBarmatun();
     nextAngryBarmatunTs = t + _randInt(240000, 600000);
   }
@@ -6342,9 +6608,9 @@ if (angryBarmatunEl) {
     } else {
       // 50% chance: Power of anger - activates random click multiplier effect
       // Each click will get a random multiplier (x0.1 to x100) for 12 seconds
-      save.modifiers.angryBarmatunUntil = now() + 36000; // 36 seconds (3x original)
+      save.modifiers.angryBarmatunUntil = now() + 18000; // 18 seconds (уменьшено в 2 раза)
       save.modifiers.angryBarmatunMult = 1.0; // Reset, will be generated per click
-      toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.001 to x100) for 36s.', 'good');
+      toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.001 to x100) for 18s.', 'good');
       
       // Воспроизводим звук положительного баффа от барматуна
       playSound('barmatunBuff');
@@ -6817,14 +7083,14 @@ function _shootArrow() {
     arrow.remove();
     _elfArcherState.shooting = false;
     
-    // 5% chance to hit
-    const hit = Math.random() < 0.05;
+    // 15% chance to hit (increased from 5% - 3x increase)
+    const hit = Math.random() < 0.15;
     
     if (hit) {
-      // Hit! Apply x33 multiplier for 11 seconds
-      save.modifiers.elfArcherMult = 33.0;
+      // Hit! Apply x13.2 multiplier for 11 seconds (reduced from x33 - 2.5x decrease: 33/2.5 = 13.2)
+      save.modifiers.elfArcherMult = 13.2;
       save.modifiers.elfArcherUntil = now() + 11000;
-      toast('Elf archer hit! Click income x33 for 11 seconds!', 'good');
+      toast('Elf archer hit! Click income x13.2 for 11 seconds!', 'good');
       renderTopStats(); // Update income display
     } else {
       toast('Elf archer missed!', 'info');
@@ -7127,17 +7393,32 @@ uberBuyBtn.addEventListener('click', () => {
   if (!save.uber.unlocked) return;
   if (save.uber.level >= save.uber.max) return;
   
-  const cost = uberCostAt(save.uber.level);
-  if (save.points < cost) {
+  // Используем общий bulk для покупки
+  const bulk = save.bulk || 1;
+  const bulkCost = computeBulkCostForBlock('uber', bulk);
+  
+  if (bulkCost.totalLevels === 0) {
+    toast('Cannot buy more levels. Max level reached or segment upgrade required.', 'warn');
+    return;
+  }
+  
+  if (save.points < bulkCost.totalCost) {
     toast('Not enough points.', 'warn');
     return;
   }
-  save.points -= cost;
+  
+  save.points -= bulkCost.totalCost;
   if (save.statistics) {
-    save.statistics.totalPointsSpent += cost;
+    save.statistics.totalPointsSpent += bulkCost.totalCost;
   }
-  save.uber.level = Math.min(save.uber.level + 1, save.uber.max);
+  save.uber.level = Math.min(save.uber.level + bulkCost.totalLevels, save.uber.max);
+  
+  if (bulkCost.totalLevels === 1) {
   toast('Citadel level increased.', 'good');
+  } else {
+    toast(`Citadel level increased by ${bulkCost.totalLevels}.`, 'good');
+  }
+  
   checkAchievements(); // Проверяем достижения после покупки уровня Uber
   renderAll();
 });
@@ -7492,8 +7773,73 @@ if (tabBtns && tabBtns.length > 0) {
       // Show corresponding panel
       const panel = document.getElementById(`${tab}-panel`);
       if (panel) panel.classList.remove('hidden');
+      // Clear validation errors when switching tabs
+      clearValidationErrors();
     });
   });
+}
+
+// Validation helper functions
+function showFieldError(field, errorElement, message) {
+  if (field) field.classList.add('error');
+  if (field) field.classList.remove('valid');
+  if (errorElement) {
+    errorElement.textContent = message;
+    errorElement.classList.add('show');
+  }
+}
+
+function showFieldValid(field, errorElement) {
+  if (field) field.classList.remove('error');
+  if (field) field.classList.add('valid');
+  if (errorElement) {
+    errorElement.textContent = '';
+    errorElement.classList.remove('show');
+  }
+}
+
+function clearFieldError(field, errorElement) {
+  if (field) field.classList.remove('error', 'valid');
+  if (errorElement) {
+    errorElement.textContent = '';
+    errorElement.classList.remove('show');
+  }
+}
+
+function clearValidationErrors() {
+  // Clear login errors
+  if (loginUsername) loginUsername.classList.remove('error', 'valid');
+  if (loginPassword) loginPassword.classList.remove('error', 'valid');
+  if (loginEmailError) {
+    loginEmailError.textContent = '';
+    loginEmailError.classList.remove('show');
+  }
+  if (loginPasswordError) {
+    loginPasswordError.textContent = '';
+    loginPasswordError.classList.remove('show');
+  }
+  // Clear register errors
+  if (registerEmail) registerEmail.classList.remove('error', 'valid');
+  if (registerPassword) registerPassword.classList.remove('error', 'valid');
+  if (registerEmailError) {
+    registerEmailError.textContent = '';
+    registerEmailError.classList.remove('show');
+  }
+  if (registerPasswordError) {
+    registerPasswordError.textContent = '';
+    registerPasswordError.classList.remove('show');
+  }
+}
+
+function validateEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function validatePassword(password) {
+  if (!password) return { valid: false, message: 'Password is required' };
+  if (password.length < 6) return { valid: false, message: 'Password must be at least 6 characters' };
+  return { valid: true, message: '' };
 }
 
 // Firebase authentication functions
@@ -7562,10 +7908,49 @@ async function loadFromFirebase(userId) {
 }
 
 if (loginBtn && loginUsername && loginPassword) {
+  // Real-time validation for login
+  if (loginUsername) {
+    loginUsername.addEventListener('blur', () => {
+      const email = loginUsername.value.trim();
+      if (email && !validateEmail(email)) {
+        showFieldError(loginUsername, loginEmailError, 'Please enter a valid email address');
+      } else if (email) {
+        clearFieldError(loginUsername, loginEmailError);
+      }
+    });
+    loginUsername.addEventListener('input', () => {
+      if (loginUsername.value.trim()) {
+        clearFieldError(loginUsername, loginEmailError);
+      }
+    });
+  }
+
 loginBtn.addEventListener('click', async () => {
   const email = loginUsername.value.trim();
   const p = loginPassword.value;
-  if (!email || !p) { toast('Please enter email and password.', 'warn'); return; }
+  
+  // Clear previous errors
+  clearValidationErrors();
+  
+  // Validate inputs
+  let hasErrors = false;
+  if (!email) {
+    showFieldError(loginUsername, loginEmailError, 'Email is required');
+    hasErrors = true;
+  } else if (!validateEmail(email)) {
+    showFieldError(loginUsername, loginEmailError, 'Please enter a valid email address');
+    hasErrors = true;
+  }
+  
+  if (!p) {
+    showFieldError(loginPassword, loginPasswordError, 'Password is required');
+    hasErrors = true;
+  }
+  
+  if (hasErrors) {
+    toast('Please fix the errors above', 'warn');
+    return;
+  }
 
   try {
     const firebaseUser = await loginWithFirebase(email, p);
@@ -7622,68 +8007,182 @@ loginBtn.addEventListener('click', async () => {
   if (!save.lastActivityTime) {
     save.lastActivityTime = now();
   }
-    // Check for offline earnings on login - always show message if time away > 0
-    checkOfflineEarnings(true);
+  // Check for offline earnings on login - always show message if time away > 0
+  checkOfflineEarnings(true);
     startAutosave();
-    showGame();
+    clearValidationErrors(); // Clear any validation errors on success
+  showGame();
   } catch (error) {
     console.error('Login error:', error);
-    let errorMsg = 'Login failed. ';
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-      errorMsg += 'Invalid email or password.';
+    let errorMsg = '';
+    let fieldToHighlight = null;
+    let errorElement = null;
+    
+    if (error.code === 'auth/user-not-found') {
+      errorMsg = 'No account found with this email address. Please check your email or register a new account.';
+      fieldToHighlight = loginUsername;
+      errorElement = loginEmailError;
+    } else if (error.code === 'auth/wrong-password') {
+      errorMsg = 'Incorrect password. Please try again or reset your password.';
+      fieldToHighlight = loginPassword;
+      errorElement = loginPasswordError;
     } else if (error.code === 'auth/invalid-email') {
-      errorMsg += 'Invalid email format.';
+      errorMsg = 'Invalid email format. Please enter a valid email address.';
+      fieldToHighlight = loginUsername;
+      errorElement = loginEmailError;
+    } else if (error.code === 'auth/invalid-credential') {
+      errorMsg = 'Invalid email or password. Please check your credentials and try again.';
+      fieldToHighlight = loginPassword;
+      errorElement = loginPasswordError;
+    } else if (error.code === 'auth/too-many-requests') {
+      errorMsg = 'Too many failed login attempts. Please try again later.';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMsg = 'Network error. Please check your internet connection and try again.';
     } else {
-      errorMsg += error.message || 'Please try again.';
+      errorMsg = error.message || 'Login failed. Please try again.';
     }
-    toast(errorMsg, 'bad');
+    
+    if (fieldToHighlight && errorElement) {
+      showFieldError(fieldToHighlight, errorElement, errorMsg);
+    }
+    toast(errorMsg || 'Login failed. Please try again.', 'bad');
   }
 });
 }
 
 if (registerBtn && registerEmail && registerPassword) {
+  // Real-time validation for registration
+  if (registerEmail) {
+    registerEmail.addEventListener('blur', () => {
+      const email = registerEmail.value.trim();
+      if (email && !validateEmail(email)) {
+        showFieldError(registerEmail, registerEmailError, 'Please enter a valid email address');
+      } else if (email) {
+        showFieldValid(registerEmail, registerEmailError);
+      }
+    });
+    registerEmail.addEventListener('input', () => {
+      if (registerEmail.value.trim()) {
+        clearFieldError(registerEmail, registerEmailError);
+      }
+    });
+  }
+  
+  if (registerPassword) {
+    registerPassword.addEventListener('input', () => {
+  const p = registerPassword.value;
+      // Update hint with character count
+      if (registerPasswordHint) {
+        if (p.length > 0 && p.length < 6) {
+          registerPasswordHint.textContent = `Minimum 6 characters required (${p.length}/6)`;
+          registerPasswordHint.style.color = '#cc4444';
+        } else if (p.length >= 6) {
+          registerPasswordHint.textContent = 'Password is valid ✓';
+          registerPasswordHint.style.color = '#44cc44';
+        } else {
+          registerPasswordHint.textContent = 'Minimum 6 characters required';
+          registerPasswordHint.style.color = 'var(--muted)';
+        }
+      }
+      // Show/hide errors
+      if (p.length > 0 && p.length < 6) {
+        showFieldError(registerPassword, registerPasswordError, `Password too short. ${6 - p.length} more character${6 - p.length > 1 ? 's' : ''} needed.`);
+      } else if (p.length >= 6) {
+        showFieldValid(registerPassword, registerPasswordError);
+      } else {
+        clearFieldError(registerPassword, registerPasswordError);
+      }
+    });
+    registerPassword.addEventListener('blur', () => {
+      const p = registerPassword.value;
+      if (p && p.length < 6) {
+        showFieldError(registerPassword, registerPasswordError, 'Password must be at least 6 characters');
+      }
+    });
+  }
+
 registerBtn.addEventListener('click', async () => {
   const email = registerEmail.value.trim();
   const p = registerPassword.value;
-  if (!email || !p) { toast('Please enter email and password.', 'warn'); return; }
-  if (p.length < 6) { toast('Password must be at least 6 characters.', 'warn'); return; }
+  
+  // Clear previous errors
+  clearValidationErrors();
+  
+  // Validate inputs
+  let hasErrors = false;
+  if (!email) {
+    showFieldError(registerEmail, registerEmailError, 'Email is required');
+    hasErrors = true;
+  } else if (!validateEmail(email)) {
+    showFieldError(registerEmail, registerEmailError, 'Please enter a valid email address');
+    hasErrors = true;
+  }
+  
+  const passwordValidation = validatePassword(p);
+  if (!passwordValidation.valid) {
+    showFieldError(registerPassword, registerPasswordError, passwordValidation.message);
+    hasErrors = true;
+  }
+  
+  if (hasErrors) {
+    toast('Please fix the errors above', 'warn');
+    return;
+  }
 
   try {
     const firebaseUser = await registerWithFirebase(email, p);
     const username = email.split('@')[0];
     save = newSave(username);
-    initBuildings(save);
-    // Инициализируем достижения (уже есть в newSave, но на всякий случай)
-    if (!save.achievements) {
-      save.achievements = {
-        unlocked: {},
-        stats: {
-          totalClicks: 0,
-          totalPlayTime: 0,
-          totalDestructions: 0,
-          firstBuildingBought: false,
-        }
-      };
-    }
+  initBuildings(save);
+  // Инициализируем достижения (уже есть в newSave, но на всякий случай)
+  if (!save.achievements) {
+    save.achievements = {
+      unlocked: {},
+      stats: {
+        totalClicks: 0,
+        totalPlayTime: 0,
+        totalDestructions: 0,
+        firstBuildingBought: false,
+      }
+    };
+  }
     // Save to Firebase
     await saveToFirebase(firebaseUser.uid, save);
     currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username };
+    clearValidationErrors(); // Clear any validation errors on success
     toast('Account created successfully!', 'good');
     startAutosave();
-    showGame();
+  showGame();
   } catch (error) {
     console.error('Registration error:', error);
-    let errorMsg = 'Registration failed. ';
+    let errorMsg = '';
+    let fieldToHighlight = null;
+    let errorElement = null;
+    
     if (error.code === 'auth/email-already-in-use') {
-      errorMsg += 'Email already registered.';
+      errorMsg = 'This email is already registered. Please use a different email or try logging in.';
+      fieldToHighlight = registerEmail;
+      errorElement = registerEmailError;
     } else if (error.code === 'auth/invalid-email') {
-      errorMsg += 'Invalid email format.';
+      errorMsg = 'Invalid email format. Please enter a valid email address (e.g., user@example.com).';
+      fieldToHighlight = registerEmail;
+      errorElement = registerEmailError;
     } else if (error.code === 'auth/weak-password') {
-      errorMsg += 'Password is too weak.';
+      errorMsg = 'Password is too weak. Please use at least 6 characters.';
+      fieldToHighlight = registerPassword;
+      errorElement = registerPasswordError;
+    } else if (error.code === 'auth/operation-not-allowed') {
+      errorMsg = 'Registration is currently disabled. Please contact support.';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMsg = 'Network error. Please check your internet connection and try again.';
     } else {
-      errorMsg += error.message || 'Please try again.';
+      errorMsg = error.message || 'Registration failed. Please try again.';
     }
-    toast(errorMsg, 'bad');
+    
+    if (fieldToHighlight && errorElement) {
+      showFieldError(fieldToHighlight, errorElement, errorMsg);
+    }
+    toast(errorMsg || 'Registration failed. Please try again.', 'bad');
   }
 });
 }
@@ -7875,7 +8374,7 @@ if (localUploadBtn && localUploadInput) {
       toast('Failed to read file.', 'bad');
     };
     reader.readAsText(file);
-  });
+});
 }
 
 

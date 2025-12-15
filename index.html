@@ -150,10 +150,14 @@
           <label class="label">
             <span>Email</span>
             <input id="login-username" type="email" maxlength="64" autocomplete="email" />
+            <small class="field-hint" id="login-email-hint"></small>
+            <small class="field-error" id="login-email-error"></small>
           </label>
           <label class="label">
             <span>Password</span>
             <input id="login-password" type="password" maxlength="64" autocomplete="current-password"/>
+            <small class="field-hint" id="login-password-hint"></small>
+            <small class="field-error" id="login-password-error"></small>
           </label>
           <button id="login-btn" class="btn primary">Enter</button>
         </div>
@@ -162,10 +166,14 @@
           <label class="label">
             <span>Email</span>
             <input id="register-email" type="email" maxlength="64" autocomplete="email" />
+            <small class="field-hint" id="register-email-hint">Enter a valid email address</small>
+            <small class="field-error" id="register-email-error"></small>
           </label>
           <label class="label">
             <span>Password</span>
             <input id="register-password" type="password" maxlength="64" autocomplete="new-password"/>
+            <small class="field-hint" id="register-password-hint">Minimum 6 characters required</small>
+            <small class="field-error" id="register-password-error"></small>
           </label>
           <button id="register-btn" class="btn primary">Create account</button>
         </div>
