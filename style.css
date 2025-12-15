@@ -188,22 +188,24 @@ input:focus,textarea:focus,select:focus{
 /* Кнопка активного нажатия */
 .btn:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(0,0,0,0.6)}
 .btn:focus{outline:none;box-shadow:0 0 0 2px rgba(200, 170, 110, 0.4)}
-.btn:hover{
+.btn:hover:not(:disabled){
   border-color: var(--border-orange);
-  box-shadow: 0 0 8px rgba(200, 170, 110, 0.2), inset 0 2px 4px rgba(0,0,0,0.5);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
-/* Основная кнопка: оранжевая PoE */
-@keyframes poe-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5); }
-  50% { box-shadow: 0 0 12px rgba(200, 170, 110, 0.5), inset 0 2px 4px rgba(0,0,0,0.5); }
-}
+/* Основная кнопка: оранжевая PoE - без анимаций, только рамка */
 .btn.primary{
   background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
   color: var(--poe-orange);
   border-color: var(--border-orange);
-  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
-  animation: poe-glow 2.5s ease-in-out infinite;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.btn.primary:hover:not(:disabled){
+  border-color: var(--poe-orange-bright);
+}
+.btn.primary:disabled{
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  border-color: var(--border);
 }
 
 /* Второстепенная кнопка */
@@ -223,8 +225,9 @@ input:focus,textarea:focus,select:focus{
   color: #ff6666;
   border-color: #cc3333;
 }
-.btn.danger:hover{
-  box-shadow: 0 0 8px rgba(204, 51, 51, 0.4), inset 0 2px 4px rgba(0,0,0,0.5);
+.btn.danger:hover:not(:disabled){
+  border-color: #ff6666;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* Малые размеры */
@@ -236,10 +239,13 @@ input:focus,textarea:focus,select:focus{
   transform:none;
   box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);
   filter: grayscale(0.5);
+  border-color: var(--border);
+  /* Рамка остается, никаких эффектов */
 }
 .btn:disabled:hover{
   border-color: var(--border);
   box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);
+  /* Никаких эффектов для disabled кнопок */
 }
 
 /* Иконки */
@@ -396,14 +402,13 @@ a:hover { color: var(--poe-orange-bright); }
   overflow:visible;
   will-change: border-color, box-shadow;
 }
-.treasury-actions .btn:hover{
+.treasury-actions .btn:hover:not(:disabled){
   border-color: var(--border-orange);
-  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 .treasury-actions .btn:active{
   transform:translateY(1px);
   box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
-  animation: borderWave 0.6s ease-out;
   transition: none !important;
 }
 
@@ -422,7 +427,8 @@ a:hover { color: var(--poe-orange-bright); }
 }
 
 .treasury-actions .btn.clicked::after{
-  animation:ripple 0.6s ease-out;
+  /* Анимация ripple отключена */
+  opacity:0;
 }
 
 @keyframes ripple{
@@ -598,9 +604,14 @@ a:hover { color: var(--poe-orange-bright); }
   opacity:0.5;
   cursor:not-allowed;
   filter:grayscale(0.3);
+  border-color: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  animation: none;
 }
 .treasury-actions .btn:disabled:hover{
   transform:none;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  border-color: var(--border);
 }
 .treasury-actions .btn::before{
   content:attr(data-icon);
@@ -641,11 +652,11 @@ a:hover { color: var(--poe-orange-bright); }
   cursor: var(--pointer-cursor);
   z-index:10;
   transition:all 0.2s ease;
-  box-shadow:0 0 8px rgba(200, 170, 110, 0.4);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
 }
 .treasury-actions .btn[data-can-upgrade] .upgrade-badge:hover{
   background:rgba(200, 170, 110, 0.2);
-  box-shadow:0 0 12px rgba(200, 170, 110, 0.6);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
 }
 .treasury-actions .btn .buff-timer,
 .treasury-actions-row .btn .buff-timer{
@@ -719,25 +730,26 @@ a:hover { color: var(--poe-orange-bright); }
   opacity:0;
 }
 .treasury-actions-row .btn.clicked::after{
-  animation:ripple 0.6s ease-out;
+  /* Анимация ripple отключена */
+  opacity:0;
 }
 .treasury-actions-row .btn:active{
   transform:translateY(1px);
   box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
-  animation: borderWave 0.6s ease-out;
   transition: none !important;
-}
-.treasury-actions-row .btn.uber-mode-btn:active,
-.treasury-actions .btn.uber-mode-btn:active{
-  animation: borderWaveUber 0.6s ease-out;
 }
 .treasury-actions-row .btn:disabled{
   opacity:0.5;
   cursor:not-allowed;
   filter:grayscale(0.3);
+  border-color: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  animation: none;
 }
 .treasury-actions-row .btn:disabled:hover{
   transform:none;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  border-color: var(--border);
 }
 
 /* Uber mode buttons - different color scheme (purple/blue instead of orange) */
@@ -746,12 +758,22 @@ a:hover { color: var(--poe-orange-bright); }
 .treasury-actions .btn.uber-mode-btn{
   background: linear-gradient(180deg, #2a1a2a, #1a0a1a);
   border-color: #6b4c9b;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 8px rgba(107, 76, 155, 0.3);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
-.treasury-actions-row .btn.uber-mode-btn:hover,
-.treasury-actions .btn.uber-mode-btn:hover{
+.treasury-actions-row .btn.uber-mode-btn:hover:not(:disabled),
+.treasury-actions .btn.uber-mode-btn:hover:not(:disabled){
   border-color: #8b6cbb;
-  box-shadow: 0 0 12px rgba(139, 108, 187, 0.5), inset 0 2px 4px rgba(0,0,0,0.5);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.treasury-actions-row .btn.uber-mode-btn:disabled,
+.treasury-actions .btn.uber-mode-btn:disabled{
+  border-color: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.treasury-actions-row .btn.uber-mode-btn:disabled:hover,
+.treasury-actions .btn.uber-mode-btn:disabled:hover{
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  border-color: var(--border);
 }
 .treasury-actions-row .btn.uber-mode-btn::after,
 .treasury-actions .btn.uber-mode-btn::after{
@@ -1234,7 +1256,7 @@ body.modal-open .game-columns {
   padding: 0 4px; /* Небольшой отступ от краев */
 }
 
-/* Click button — PoE стиль */
+/* Click button — PoE стиль, без свечений */
 .click-row #click-btn {
   width: 96px;
   height: 96px;
@@ -1247,29 +1269,34 @@ body.modal-open .game-columns {
   background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
   color: var(--text);
   border: 3px solid #d4af37;
-  box-shadow: 0 0 12px rgba(212, 175, 55, 0.6), 
-              inset 0 2px 4px rgba(0,0,0,0.5),
-              0 0 20px rgba(212, 175, 55, 0.3);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   cursor: var(--pointer-cursor);
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
 }
-.click-row #click-btn:hover {
+.click-row #click-btn:hover:not(:disabled) {
   border-color: #ffd700;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 
-              inset 0 2px 4px rgba(0,0,0,0.5),
-              0 0 30px rgba(255, 215, 0, 0.5);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.click-row #click-btn:disabled {
+  border-color: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.click-row #click-btn:disabled:hover {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  border-color: var(--border);
 }
 
-/* Golden click button state */
+/* Golden click button state - без анимаций */
 .click-row #click-btn.golden {
   background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
   border-color: #ffd700;
-  box-shadow: 0 0 24px rgba(255, 215, 0, 0.9),
-              0 0 40px rgba(255, 215, 0, 0.6),
-    inset 0 2px 4px rgba(0,0,0,0.5);
-  animation: poe-golden-glow 2s ease-in-out infinite;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.click-row #click-btn.golden:disabled {
+  border-color: var(--border);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 @keyframes poe-golden-glow {

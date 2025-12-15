@@ -566,7 +566,7 @@ function newSave(username) {
   return {
     meta: { username, created: now(), extendedCaps: false, endgameUnlocked: false },
     points: 0,
-    ppcBase: 0.0111,
+    ppcBase: 0.00777, // Уменьшено на 30% (было 0.0111)
     click: {
       level: 0,
       max: 1000,
@@ -575,7 +575,7 @@ function newSave(username) {
       brokenUntil: 0,
       goldenUntil: 0,
       goldenMult: 1.5,
-      upgradeBonus: 0, // cumulative 13% bonuses applied count
+      upgradeBonus: 0, // cumulative 3% bonuses applied count
     },
     bulk: 1, // 1,10,50,100,'max'
     buildings: [], // filled later
@@ -620,6 +620,8 @@ function newSave(username) {
       elfArcherMult: 1.0,
       elfArcherUntil: 0,
       goodLuckMode: false, // Debug mode: buildings can't break
+      kingDebuffUntil: 0,
+      kingDebuffMult: 1.0,
     },
     achievements: {
       unlocked: {}, // key: achievementId, value: true when unlocked
@@ -661,14 +663,14 @@ function ensureTreasury(saveObj) {
         casinoCd: 0,
         // Uber mode buffs (3 hours duration)
         noGoldenUntil: 0, // Buff 1: Click can't become golden
-        alwaysGoldenUntil: 0, // Buff 2: Click always golden, breaks 3x more
-        fastRepairUntil: 0, // Buff 3: Buildings repair 2x faster, break 3x more
+        alwaysGoldenUntil: 0, // Buff 2: Click always golden, breaks 9x more
+        fastRepairUntil: 0, // Buff 3: Buildings repair 2x faster, break 9x more
         passiveBoostUntil: 0, // Buff 4: Passive income boost (resets on click)
-        passiveBoostLevel: 0, // Current boost level (0-150%)
-        passiveBoostLastTick: 0, // Last 3-minute tick
+        passiveBoostLevel: 0, // Current boost level (0-56%)
+        passiveBoostLastTick: 0, // Last 7-minute tick
         spiderBuffUntil: 0, // Buff 5: Spider buff, click gives treasury
         treasuryNoPassiveUntil: 0, // Treasury doesn't fill passively during buff 5
-        noBreakUntil: 0, // Buff 6: Buildings can't break, but cost 2x more
+        noBreakUntil: 0, // Buff 6: Buildings can't break, but cost 7x more
       }
     };
   } else {
@@ -729,6 +731,8 @@ function ensureTreasury(saveObj) {
   if (saveObj.modifiers.angryBarmatunMult === undefined) saveObj.modifiers.angryBarmatunMult = 1.0;
   if (saveObj.modifiers.angryBarmatunUntil === undefined) saveObj.modifiers.angryBarmatunUntil = 0;
   if (saveObj.modifiers.angryBarmatunIncomeReduction === undefined) saveObj.modifiers.angryBarmatunIncomeReduction = 0;
+  if (saveObj.modifiers.kingDebuffUntil === undefined) saveObj.modifiers.kingDebuffUntil = 0;
+  if (saveObj.modifiers.kingDebuffMult === undefined) saveObj.modifiers.kingDebuffMult = 1.0;
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
@@ -746,7 +750,7 @@ const buildingNames = [
 function initBuildings(saveObj) {
   // Base cost/income for first building
   const baseCost = 1.2345;
-  const baseIncome = 0.0123;
+  const baseIncome = 0.00861; // Уменьшено на 30% (было 0.0123)
   const costStep = 1.015;   // "slightly more expensive"
   const incomeStep = 1.06; // "slightly more income"
 
@@ -1007,6 +1011,86 @@ function nextSegmentGate(level) {
   return { seg, within: withinSegment(level) };
 }
 
+// ======= Унифицированная система для всех блоков (Click, Buildings, Uber) =======
+// Типы блоков: 'click', 'building', 'uber'
+function getBlockData(type, index = null) {
+  if (type === 'click') {
+    return save.click;
+  } else if (type === 'building') {
+    return save.buildings[index];
+  } else if (type === 'uber') {
+    return save.uber;
+  }
+  return null;
+}
+
+function getBlockCostAt(type, level, index = null) {
+  if (type === 'click') {
+    return clickLevelCostAt(level);
+  } else if (type === 'building') {
+    const b = save.buildings[index];
+    return buildingLevelCostAt(b, level);
+  } else if (type === 'uber') {
+    return uberCostAt(level);
+  }
+  return 0;
+}
+
+function getBlockIncomeAt(type, level, upgradesCount = 0, index = null) {
+  if (type === 'click') {
+    return clickIncomeAt(level, upgradesCount);
+  } else if (type === 'building') {
+    const b = save.buildings[index];
+    return buildingIncomeAt(b, level, upgradesCount);
+  } else if (type === 'uber') {
+    return uberIncomeAt(level);
+  }
+  return 0;
+}
+
+function canProgressSegment(level, segUpgrades) {
+  if (!segUpgrades) return true; // Uber не имеет segUpgrades
+  const seg = segmentIndex(level);
+  if (seg === 0) return true; // Первый сегмент всегда доступен
+  return !!segUpgrades[seg - 1];
+}
+
+function hasSegmentUpgrades(type) {
+  return type === 'click' || type === 'building';
+}
+
+// Универсальная функция для вычисления стоимости bulk покупки
+function computeBulkCostForBlock(type, bulk, index = null) {
+  const block = getBlockData(type, index);
+  if (!block) return { totalCost: 0, totalLevels: 0 };
+  
+  let needLevels = 0;
+  if (bulk === 'max') {
+    needLevels = block.max - block.level;
+  } else {
+    needLevels = typeof bulk === 'number' ? bulk : parseInt(bulk, 10);
+    if (isNaN(needLevels) || needLevels < 1) {
+      needLevels = 1;
+    }
+  }
+  
+  let allowedLevels = 0;
+  const segUpgrades = hasSegmentUpgrades(type) ? block.segUpgrades : null;
+  
+  for (let i = 0; i < needLevels; i++) {
+    const lvl = block.level + i;
+    if (!canProgressSegment(lvl, segUpgrades)) break;
+    allowedLevels++;
+  }
+  
+  let totalCost = 0;
+  for (let i = 0; i < allowedLevels; i++) {
+    totalCost += getBlockCostAt(type, block.level + i, index);
+  }
+  
+  return { totalCost, totalLevels: allowedLevels };
+}
+
 // Level cost/income for Click
 function clickLevelCostAt(level) {
   // base upgrade price for click is 7.772 for first level (level 0->1)
@@ -1016,9 +1100,10 @@ function clickLevelCostAt(level) {
 }
 function clickIncomeAt(level, upgradesCount) {
   const basePpc = save.ppcBase;
-  const upgradeMult = Math.pow(1.13, upgradesCount || 0);
-  // Smooth per-level ppc growth (gentle)
-  return basePpc * Math.pow(1.05, level) * upgradeMult;
+  const upgradeMult = Math.pow(1.03, upgradesCount || 0);
+  // Smooth per-level ppc growth (gentle) - reduced by 2x, прирост уменьшен на 20% (дважды по 10%)
+  // Было: 1.024695 (+2.4695% за уровень), стало: 1.02000295 (+2.000295% за уровень, уменьшение на 20%)
+  return basePpc * Math.pow(1.02000295, level) * upgradeMult;
 }
 
 // Building cost/income per level
@@ -1028,11 +1113,13 @@ function buildingLevelCostAt(b, level) {
   // Buff 6: Buildings can't break, but cost 2x more
   const act = save.treasury?.actions;
   const noBreakActive = act && act.noBreakUntil > now();
-  return noBreakActive ? baseCost * 2 : baseCost;
+  return noBreakActive ? baseCost * 7 : baseCost;
 }
 function buildingIncomeAt(b, level, upgradesCount) {
-  const upgradeMult = Math.pow(1.13, upgradesCount || 0);
-  return b.baseIncome * Math.pow(1.045, level) * upgradeMult;
+  const upgradeMult = Math.pow(1.03, upgradesCount || 0);
+  // Прирост за уровень уменьшен на 20% (дважды по 10%)
+  // Было: 1.045 (+4.5% за уровень), стало: 1.03645 (+3.645% за уровень, уменьшение на 20%)
+  return b.baseIncome * Math.pow(1.03645, level) * upgradeMult;
 }
 
 // Uber building
@@ -1051,13 +1138,13 @@ function uberCostAt(level) {
 }
 function uberIncomeAt(level) {
   // Calculate total income of all buildings at level 1000 with 100 upgrades (13% each 10 levels)
-  // Each building i: baseIncome_i = 0.0123 * 1.06^i
-  // At level 1000 with 100 upgrades: income_i = baseIncome_i * 1.045^1000 * 1.13^100
+  // Each building i: baseIncome_i = 0.00861 * 1.06^i (уменьшено на 30%)
+  // At level 1000 with 100 upgrades: income_i = baseIncome_i * 1.03645^1000 * 1.03^100 (прирост уменьшен на 20%)
   // Total = sum of all 50 buildings
-  const baseIncome = 0.0123;
+  const baseIncome = 0.00861; // Уменьшено на 30% (было 0.0123)
   const incomeStep = 1.06;
-  const levelMult = Math.pow(1.045, 1000);
-  const upgradeMult = Math.pow(1.13, 100); // 100 upgrades (1000/10 = 100 segments)
+  const levelMult = Math.pow(1.03645, 1000); // Прирост уменьшен на 20% (было 1.045, стало 1.03645)
+  const upgradeMult = Math.pow(1.03, 100); // 100 upgrades (1000/10 = 100 segments)
   
   // Calculate sum of geometric series: sum(i=0 to 49) of 1.06^i
   const numBuildings = 50;
@@ -1070,11 +1157,14 @@ function uberIncomeAt(level) {
   const totalAt1000 = sumBaseIncomes * levelMult * upgradeMult;
   
   // Uber building at level 1 should produce this total
-  // uberIncomeAt(1) = baseInc * 1.22^1 = totalAt1000
-  // Therefore: baseInc = totalAt1000 / 1.22
-  const baseInc = totalAt1000 / 1.22;
+  // uberIncomeAt(1) = baseInc * 1.1782^1 = totalAt1000
+  // Therefore: baseInc = totalAt1000 / 1.1782
+  // Reduced by 2x
+  const baseInc = totalAt1000 / 1.1782 / 2;
   
-  return baseInc * Math.pow(1.22, level);
+  // Прирост за уровень уменьшен на 20% (дважды по 10%)
+  // Было: 1.22 (+22% за уровень), стало: 1.1782 (+17.82% за уровень, уменьшение на 20%)
+  return baseInc * Math.pow(1.1782, level);
 }
 
 // ======= Achievements system =======
@@ -1296,7 +1386,7 @@ function totalPPC() {
   const tNow = t; // Кэшируем now() для всех проверок
   // Madness modifier
   if (save.treasury?.actions?.clickMadnessUntil > tNow) {
-    ppc *= 1001;
+    ppc *= 99.9999;
   }
   // Golden modifier
   const goldenActive = save.click.goldenUntil > tNow;
@@ -1307,9 +1397,9 @@ function totalPPC() {
   const achievementMult = getAchievementBonus();
   // Streak multiplier
   const streakMult = save.streak ? save.streak.multiplier : 1.0;
-  // Buff 1: No Golden Click - 50% less income
+  // Buff 1: No Golden Click - 17% less income
   const act = save.treasury?.actions;
-  const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.5 : 1.0;
+  const noGoldenMult = (act && act.noGoldenUntil > tNow) ? 0.17 : 1.0;
   // Angry Barmatun: Income reduction (50% less) - applied to all income
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
   // Elf Archer: x33 multiplier for 11 seconds on hit
@@ -1347,15 +1437,17 @@ function totalPPS() {
   const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
   // Achievement bonus
   const achievementMult = getAchievementBonus();
-  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 101 : 1.0; // x101
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0; // x11
   // Buff 4: Passive income boost
   const act = save.treasury?.actions;
   const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   // Angry Barmatun: Income reduction (50% less)
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+  // King debuff: Passive income reduction
+  const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
   // Buff 5: Spider Buff - не обнуляет доход, только изменяет поведение клика (клик дает казну вместо поинтов)
   // Доход от зданий продолжает работать нормально
-  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
   
   // Сохраняем в кэш
   _cachedPPS = result;
@@ -1379,12 +1471,13 @@ function calculateBuildingOfflineEarnings(timeAwaySeconds) {
   // Apply modifiers that would have been active (simplified - use current state)
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
   const achievementMult = getAchievementBonus();
-  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0;
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 11 : 1.0;
   const act = save.treasury?.actions;
   const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  const kingDebuffMult = save.modifiers.kingDebuffUntil > now() ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
   // Spider Buff не обнуляет доход от зданий
-  const totalPPS = buildingPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  const totalPPS = buildingPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
   return totalPPS * timeAwaySeconds;
 }
 
@@ -1397,12 +1490,13 @@ function calculateUberOfflineEarnings(timeAwaySeconds) {
   // Apply modifiers
   const spiderMult = save.modifiers.spiderUntil > now() ? save.modifiers.spiderMult : 1.0;
   const achievementMult = getAchievementBonus();
-  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 101 : 1.0;
+  const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > now() ? 11 : 1.0;
   const act = save.treasury?.actions;
   const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
+  const kingDebuffMult = save.modifiers.kingDebuffUntil > now() ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
   // Spider Buff не обнуляет доход от uber здания
-  const totalPPS = uberPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction;
+  const totalPPS = uberPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
   return totalPPS * timeAwaySeconds;
 }
 
@@ -1712,10 +1806,10 @@ function startLazyClick(level = 1) {
   }
   
   const lazyClickLevels = [
-    { lvl: 1, clicks: 1000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
-    { lvl: 2, clicks: 2000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
-    { lvl: 3, clicks: 5000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
-    { lvl: 4, clicks: 10000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+    { lvl: 1, clicks: 200, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+    { lvl: 2, clicks: 400, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+    { lvl: 3, clicks: 1000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+    { lvl: 4, clicks: 2000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
   ];
   
   const levelData = lazyClickLevels.find(l => l.lvl === level) || lazyClickLevels[0];
@@ -1876,10 +1970,10 @@ function renderTreasuryActions() {
 
   // Lazy click - одна кнопка с 4 уровнями апгрейда
   const lazyClickLevels = [
-    { lvl: 1, clicks: 10000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
-    { lvl: 2, clicks: 20000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
-    { lvl: 3, clicks: 50000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
-    { lvl: 4, clicks: 100000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+    { lvl: 1, clicks: 2000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+    { lvl: 2, clicks: 4000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+    { lvl: 3, clicks: 10000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+    { lvl: 4, clicks: 20000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
   ];
   
   // Кнопка показывается только если есть минимум 589 кликов
@@ -1915,10 +2009,11 @@ function renderTreasuryActions() {
       const cdUntil = act.lazyClickCd || 0;
       const ready = nowTs >= cdUntil;
       const canUse = ready && save.treasury.value >= currentLevelData.cost && !active;
+      const breakDurationText = currentLevelData.breakDuration > 0 ? ` for ${currentLevelData.breakDuration/1000}s` : '';
       const desc = {
         header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
         effect: `Performs ${currentLevelData.clicks} passive clicks with x${currentLevelData.multiplier} multiplier over ${currentLevelData.durationMs/1000} seconds.`,
-        details: `This is your current lazy click level.`,
+        details: `This is your current lazy click level. Warning: Click button may break${breakDurationText} when used.`,
         cost: currentLevelData.cost,
         cooldown: 54,
         upgradeCost: nextLevelData.breakDuration
@@ -1951,10 +2046,11 @@ function renderTreasuryActions() {
     const cdUntil = act.lazyClickCd || 0;
     const ready = nowTs >= cdUntil;
     const canUse = ready && save.treasury.value >= l.cost && !active;
+    const breakDurationText = l.breakDuration > 0 ? ` for ${l.breakDuration/1000}s` : '';
     const desc = {
       header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
       effect: `Performs ${l.clicks} passive clicks with x${l.multiplier} multiplier over ${l.durationMs/1000} seconds.`,
-      note: 'These clicks do not count towards your total clicks.',
+      note: `These clicks do not count towards your total clicks. Warning: Click button may break${breakDurationText}.`,
       cost: l.cost,
       cooldown: 54,
       duration: l.durationMs / 1000
@@ -1978,7 +2074,7 @@ function renderTreasuryActions() {
     const active = profitUntil > nowTs;
     const desc = {
       header: 'PROFIT WITHOUT TAXES',
-      effect: 'All building income x101 for 32 seconds.',
+      effect: 'All building income x11 for 32 seconds.',
       warning: 'Five random buildings break for 936 seconds.',
       cost: 200,
       cooldown: 32,
@@ -2028,7 +2124,7 @@ function renderTreasuryActions() {
     const active = clickMadnessUntil > nowTs;
     const desc = {
       header: 'CLICK MADNESS!',
-      effect: 'Click income x1001.',
+      effect: 'Click income x99.9999.',
       warning: 'There is a chance to lose 3 Click levels per click.',
       note: 'Click button cannot become golden or broken during effect.',
       cost: 350,
@@ -2331,10 +2427,10 @@ function renderTreasuryActions() {
         if (isLazyClick) {
           // Данные для Lazy Click
           const lazyClickLevelsData = [
-            { lvl: 1, clicks: 1000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
-            { lvl: 2, clicks: 2000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
-            { lvl: 3, clicks: 5000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
-            { lvl: 4, clicks: 10000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+            { lvl: 1, clicks: 200, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+            { lvl: 2, clicks: 400, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+            { lvl: 3, clicks: 1000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+            { lvl: 4, clicks: 2000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
           ];
           
           const nextLevelData = lazyClickLevelsData.find(l => l.lvl === targetLevelNum);
@@ -2560,13 +2656,13 @@ function renderTreasuryActions() {
                           (act.spiderBuffUntil > nowTs) ||
                           (act.noBreakUntil > nowTs);
     
-    // Buff 1: Click can't become golden, can't break, -50% income
+    // Buff 1: Click can't become golden, can't break, -83% income (17% of original)
     {
       const active = act.noGoldenUntil > nowTs;
       const desc = {
         header: 'NO GOLDEN CLICK',
         effect: 'Click button cannot become golden or break.',
-        warning: 'Click button brings 50% less income.',
+        warning: 'Click button brings 17% less income.',
         cost: 1000,
         duration: 10800
       };
@@ -2586,13 +2682,13 @@ function renderTreasuryActions() {
       });
     }
     
-    // Buff 2: Click always golden, breaks 3x more often
+    // Buff 2: Click always golden, breaks 9x more often
     {
       const active = act.alwaysGoldenUntil > nowTs;
       const desc = {
         header: 'ALWAYS GOLDEN',
         effect: 'Click button is always golden.',
-        warning: 'Click button breaks 3 times more often.',
+        warning: 'Click button breaks 9 times more often.',
         cost: 1000,
         duration: 10800
       };
@@ -2616,13 +2712,13 @@ function renderTreasuryActions() {
       });
     }
     
-    // Buff 3: Buildings repair 2x faster, break 3x more often
+    // Buff 3: Buildings repair 2x faster, break 9x more often
     {
       const active = act.fastRepairUntil > nowTs;
       const desc = {
         header: 'FAST REPAIR',
         effect: 'Buildings repair 2 times faster.',
-        warning: 'Buildings break 3 times more often.',
+        warning: 'Buildings break 9 times more often.',
         cost: 1000,
         duration: 10800
       };
@@ -2650,14 +2746,14 @@ function renderTreasuryActions() {
       });
     }
     
-    // Buff 4: Passive income boost (5% every 3 min, up to 150%, resets on click)
+    // Buff 4: Passive income boost (1% every 7 min, up to 56%, resets on various actions)
     {
       const active = act.passiveBoostUntil > nowTs;
-      const currentBoost = Math.min(act.passiveBoostLevel || 0, 150);
+      const currentBoost = Math.min(act.passiveBoostLevel || 0, 56);
       const desc = {
         header: 'PASSIVE BOOST',
-        effect: `Passive income increases by 5% every 3 minutes (current: +${currentBoost}%).`,
-        warning: 'Clicking the click button resets this bonus.',
+        effect: `Passive income increases by 1% every 7 minutes (current: +${currentBoost}%).`,
+        warning: 'Clicking click button, spider, king, barmatun, elf, buying click levels, or upgrading click resets this bonus.',
         cost: 1000,
         duration: 10800
       };
@@ -2679,13 +2775,13 @@ function renderTreasuryActions() {
       });
     }
     
-    // Buff 6: Buildings can't break, but cost 2x more (including upgrades)
+    // Buff 6: Buildings can't break, but cost 7x more (including upgrades)
     {
       const active = act.noBreakUntil > nowTs;
       const desc = {
         header: 'MASTER BUILDER',
         effect: 'Buildings cannot break.',
-        warning: 'Buildings and upgrades cost 2 times more.',
+        warning: 'Buildings and upgrades cost 7 times more.',
         cost: 1000,
         duration: 10800
       };
@@ -3059,7 +3155,7 @@ function updateBuildingLevels(forceImmediate = false) {
     if (!infoContainer) return; // Если нет контейнера, пропускаем
     
     const metaElements = Array.from(infoContainer.children);
-    if (metaElements.length < 5) return; // Если недостаточно элементов, пропускаем
+    if (metaElements.length < 4) return; // Если недостаточно элементов, пропускаем
     
     // Элемент 0: name (не трогаем)
     // Элемент 1: Level
@@ -3071,10 +3167,12 @@ function updateBuildingLevels(forceImmediate = false) {
       }
     }
     
-    // Элемент 2: Income/sec
+    // Элемент 2: Income/sec - используем правильный объект здания из save.buildings
     const incEl = metaElements[2];
     if (incEl) {
-      const newIncomeText = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(b, b.level, b.upgradeBonus))}`;
+      // Убеждаемся, что используем правильный объект здания по оригинальному индексу
+      const buildingObj = save.buildings[buildingIndex];
+      const newIncomeText = `<strong>Income/sec:</strong> ${fmt(buildingIncomeAt(buildingObj, buildingObj.level, buildingObj.upgradeBonus))}`;
       if (incEl.innerHTML !== newIncomeText) {
         incEl.innerHTML = newIncomeText;
       }
@@ -3091,13 +3189,13 @@ function updateBuildingLevels(forceImmediate = false) {
       
       let newCostText;
       if (needUpgrade) {
-        let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
-        // Buff 6: Master Builder - upgrades cost 2x more
-        const act = save.treasury?.actions;
-        const noBreakActive = act && act.noBreakUntil > now();
-        if (noBreakActive) {
-          upgradeCost *= 2;
-        }
+        let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) * 0.77;
+            // Buff 6: Master Builder - upgrades cost 7x more
+            const act = save.treasury?.actions;
+            const noBreakActive = act && act.noBreakUntil > now();
+            if (noBreakActive) {
+              upgradeCost *= 7;
+            }
         newCostText = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
       } else {
         newCostText = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
@@ -3112,15 +3210,15 @@ function updateBuildingLevels(forceImmediate = false) {
     // Обновляем кнопки (Buy/Upgrade переключение)
     const actionSlot = card.querySelector('.building-action-slot');
     if (actionSlot) {
-      // Находим кнопки более надежным способом
+      // Находим кнопки более надежным способом по тексту
       const allButtons = actionSlot.querySelectorAll('.btn.small');
       let buyBtn = null;
       let segBtn = null;
       
       allButtons.forEach(btn => {
-        if (btn.classList.contains('primary')) {
+        if (btn.textContent.includes('Buy')) {
           buyBtn = btn;
-        } else {
+        } else if (btn.textContent.includes('Upgrade')) {
           segBtn = btn;
         }
       });
@@ -3147,8 +3245,8 @@ function updateBuildingLevels(forceImmediate = false) {
           
           if (needUpgrade) {
             // Показываем Upgrade, скрываем Buy
-            let prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
-            // Buff 6: Master Builder - upgrades cost 2x more
+            let prevCost = (b.pendingSegmentCost[seg-1] || 0) * 0.77;
+            // Buff 6: Master Builder - upgrades cost 7x more
             const act = save.treasury?.actions;
             const noBreakActive = act && act.noBreakUntil > now();
             if (noBreakActive) {
@@ -3187,16 +3285,21 @@ function updateBuildingLevels(forceImmediate = false) {
               card.classList.add('has-upgrade');
             }
             
-            // Обновляем текст в costEl
-            const costEl = card.querySelector('.building-info > div:nth-last-child(2)');
-            if (costEl) {
-              let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
-              const act = save.treasury?.actions;
-              const noBreakActive = act && act.noBreakUntil > now();
-              if (noBreakActive) {
-                upgradeCost *= 2;
+            // Обновляем текст в costEl (элемент 3 - Next Cost, Income остается на месте)
+            const infoContainer = card.querySelector('.building-info');
+            if (infoContainer) {
+              const metaElements = Array.from(infoContainer.children);
+              // Элемент 0: name, Элемент 1: Level, Элемент 2: Income/sec, Элемент 3: Next Cost
+              const costEl = metaElements[3];
+              if (costEl) {
+                let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) * 0.77;
+                const act = save.treasury?.actions;
+                const noBreakActive = act && act.noBreakUntil > now();
+                if (noBreakActive) {
+                  upgradeCost *= 7;
+                }
+                costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
               }
-              costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
             }
           } else {
             // Показываем Buy, скрываем Upgrade
@@ -3231,15 +3334,31 @@ function updateBuildingLevels(forceImmediate = false) {
               card.classList.remove('has-upgrade');
             }
             
-            // Обновляем текст в costEl
-            const costEl = card.querySelector('.building-info > div:nth-last-child(2)');
-            if (costEl) {
-              const nextCost = computeBulkCostForBuilding(i, save.bulk);
-              costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+            // Обновляем текст в costEl (элемент 3 - Next Cost, Income остается на месте)
+            const infoContainer = card.querySelector('.building-info');
+            if (infoContainer) {
+              const metaElements = Array.from(infoContainer.children);
+              // Элемент 0: name, Элемент 1: Level, Элемент 2: Income/sec, Элемент 3: Next Cost
+              const costEl = metaElements[3];
+              if (costEl) {
+                const nextCost = computeBulkCostForBuilding(i, save.bulk);
+                costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+              }
             }
           }
         }
       }
+    }
+    
+    // Обновляем note элемент с временем блокировки (только обновляем существующие)
+    const note = card.querySelector('.building-note.building-downnote');
+    if (note && nowTs < b.blockedUntil) {
+      note.dataset.blockedUntil = String(b.blockedUntil);
+      const remain = Math.ceil((b.blockedUntil - nowTs) / 1000);
+      note.textContent = `Under repair: ${remain}s`;
+    } else if (note && nowTs >= b.blockedUntil) {
+      // Время истекло - удаляем note (startCountdownLoop тоже это делает, но на всякий случай)
+      note.remove();
     }
   });
   
@@ -3346,13 +3465,21 @@ function renderClick() {
     if (needUpgrade) {
       // Показываем апгрейд вместо покупки
       const prevCostSum = save.click.pendingSegmentCost[seg-1] || 0;
-      const upgradeCost = prevCostSum / 2;
-      // Обновляем Next Cost в формате building-meta
+      const upgradeCost = prevCostSum * 0.77;
+      // Обновляем Next Cost в формате building-meta (Income остается на месте)
       const clickInfoContainer = document.querySelector('.click-area .building-info');
       if (clickInfoContainer) {
         const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
+        // Элемент 1: Income/click - гарантируем, что он остается на месте
+        if (metaElements[1]) {
+          const incomeText = `<strong>Income/click:</strong> ${fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus))}`;
+          if (metaElements[1].innerHTML !== incomeText) {
+            metaElements[1].innerHTML = incomeText;
+          }
+        }
+        // Элемент 2: Next Cost - обновляем стоимость апгрейда
         if (metaElements[2]) {
-          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
+          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
         }
       }
       if (clickSegInfo) clickSegInfo.textContent = 'Segment upgrade required to progress';
@@ -3367,12 +3494,20 @@ function renderClick() {
       clickSegBtn.disabled = save.points < upgradeCost;
     } else {
       // Показываем покупку, скрываем апгрейд
-      // Обновляем Next Cost в формате building-meta
+      // Обновляем Next Cost в формате building-meta (Income остается на месте)
       const clickInfoContainer = document.querySelector('.click-area .building-info');
       if (clickInfoContainer) {
         const metaElements = Array.from(clickInfoContainer.querySelectorAll('.building-meta'));
+        // Элемент 1: Income/click - гарантируем, что он остается на месте
+        if (metaElements[1]) {
+          const incomeText = `<strong>Income/click:</strong> ${fmt(clickIncomeAt(save.click.level, save.click.upgradeBonus))}`;
+          if (metaElements[1].innerHTML !== incomeText) {
+            metaElements[1].innerHTML = incomeText;
+          }
+        }
+        // Элемент 2: Next Cost - обновляем стоимость покупки
         if (metaElements[2]) {
-          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(totalCost)}`;
+          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
         }
       }
       clickSegBtn.classList.add('hidden');
@@ -3389,27 +3524,8 @@ function renderClick() {
 
 
 function computeBulkCostForClick(bulk) {
-  let needLevels = 0;
-  if (bulk === 'max') {
-    needLevels = save.click.max - save.click.level;
-  } else {
-    // Ensure bulk is a number
-    needLevels = typeof bulk === 'number' ? bulk : parseInt(bulk, 10);
-    if (isNaN(needLevels) || needLevels < 1) {
-      needLevels = 1;
-    }
-  }
-  let allowedLevels = 0;
-  for (let i = 0; i < needLevels; i++) {
-    const lvl = save.click.level + i;
-    if (!canProgressSegment(lvl, save.click.segUpgrades)) break;
-    allowedLevels++;
-  }
-  let totalCost = 0;
-  for (let i = 0; i < allowedLevels; i++) {
-    totalCost += clickLevelCostAt(save.click.level + i);
-  }
-  return { totalCost, totalLevels: allowedLevels };
+  // Используем универсальную функцию
+  return computeBulkCostForBlock('click', bulk);
 }
 
 // Building sort state
@@ -3530,13 +3646,13 @@ function renderBuildings() {
     const costEl = document.createElement('div');
     if (needUpgrade) {
       // Показываем цену апгрейда в строке стоимости (как у клика)
-      let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
-      // Buff 6: Master Builder - upgrades cost 2x more
-      const act = save.treasury?.actions;
-      const noBreakActive = act && act.noBreakUntil > now();
-      if (noBreakActive) {
-        upgradeCost *= 2;
-      }
+      let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) * 0.77;
+            // Buff 6: Master Builder - upgrades cost 7x more
+            const act = save.treasury?.actions;
+            const noBreakActive = act && act.noBreakUntil > now();
+            if (noBreakActive) {
+              upgradeCost *= 7;
+            }
       costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
     } else {
       // Показываем обычную стоимость покупки
@@ -3561,7 +3677,7 @@ function renderBuildings() {
     } else if (needUpgrade) {
       // Требуется сегментный апгрейд — показываем только segBtn (как у клика)
       let prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
-      // Buff 6: Master Builder - upgrades cost 2x more
+      // Buff 6: Master Builder - upgrades cost 7x more
       const act = save.treasury?.actions;
       const noBreakActive = act && act.noBreakUntil > now();
       if (noBreakActive) {
@@ -3628,25 +3744,29 @@ function renderBuildings() {
     divider.className = 'building-card-divider';
     card.appendChild(divider);
 
-    // lock overlay if previous building not level 67
+    // Создаем note элемент только если нужно показать сообщение
     const note = document.createElement('div');
     note.className = 'building-note';
+    let hasNote = false;
+    
     if (shouldHideButtons) {
       note.textContent = 'Reach Uber Mode to continue';
+      hasNote = true;
     } else if (!canBuyNextBuilding(originalIndex)) {
       note.textContent = 'Locked: previous building must reach level 67.';
+      hasNote = true;
     } else if (now() < b.blockedUntil) {
-      // Учитываем модификатор Fast Repair при отображении оставшегося времени
-      const act = save.treasury?.actions;
-      const fastRepairActive = act && act.fastRepairUntil > now();
-      let remain = Math.ceil((b.blockedUntil - now()) / 1000);
-      // Если бафф активен, время восстановления уменьшается в 2 раза быстрее
-      // Но blockedUntil уже уменьшается в tick(), так что просто показываем реальное оставшееся время
+      // Здание заблокировано - показываем время ремонта
       note.classList.add('building-downnote');
       note.dataset.blockedUntil = String(b.blockedUntil);
+      const remain = Math.ceil((b.blockedUntil - now()) / 1000);
       note.textContent = `Under repair: ${remain}s`;
+      hasNote = true;
     }
-    card.appendChild(note);
+    
+    if (hasNote) {
+      card.appendChild(note);
+    }
 
     fragment.appendChild(card);
   });
@@ -3724,6 +3844,8 @@ function normalizeUberCardLayout() {
 
 
 function computeBulkCostForBuilding(i, bulk) {
+  // Используем универсальную функцию
+  return computeBulkCostForBlock('building', bulk, i);
   const b = save.buildings[i];
   let needLevels = 0;
   if (bulk === 'max') {
@@ -4286,7 +4408,7 @@ function _updateButtonStatesInternal() {
       const buildingNeedUpgrade = buildingWithin === 0 && buildingSeg > 0 && !buildingPrevSegBought;
 
       if (buildingNeedUpgrade) {
-        const prevCost = (b.pendingSegmentCost[buildingSeg-1] || 0) / 2;
+        const prevCost = (b.pendingSegmentCost[buildingSeg-1] || 0) * 0.77;
         if (segBtn && !segBtn.classList.contains('hidden')) {
           segBtn.disabled = save.points < prevCost;
           // Делаем кнопку primary, как у клика
@@ -4405,7 +4527,35 @@ function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
   return true;
 }
 
+// Helper function to reset passive boost
+function resetPassiveBoost() {
+  const act = save.treasury?.actions;
+  if (act && act.passiveBoostUntil > now()) {
+    const hadBoost = (act.passiveBoostLevel || 0) > 0;
+    act.passiveBoostLevel = 0;
+    act.passiveBoostLastTick = now();
+    if (hadBoost) {
+      renderTopStats();
+      const isInUberMode = save.uber && save.uber.max !== 19;
+      if (isInUberMode) {
+        const passiveBoostBtn = document.querySelector('#treasury-actions-row2 .btn[data-btn-id="passiveBoost"]');
+        if (passiveBoostBtn) {
+          const tooltip = passiveBoostBtn.querySelector('.tooltip');
+          if (tooltip) {
+            const effectLine = tooltip.querySelector('.tooltip-line > div');
+            if (effectLine) {
+              effectLine.textContent = `Passive income increases by 1% every 7 minutes (current: +0%).`;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 function buyClickLevels() {
+  resetPassiveBoost(); // Reset passive boost when buying click levels
+  
   // Инвалидируем кэш перед покупкой
   _cachedPPC = null;
   const segStartLevel = save.click.level;
@@ -4425,15 +4575,17 @@ function buyClickLevels() {
 }
 
 function buyClickSegmentUpgrade(segIndex) {
+  resetPassiveBoost(); // Reset passive boost when upgrading click
+  
   // Инвалидируем кэш перед покупкой
   _cachedPPC = null;
-  let costSum = (save.click.pendingSegmentCost[segIndex] || 0) / 2;
-  // Buff 6: Master Builder - upgrades cost 2x more
-  const act = save.treasury?.actions;
-  const noBreakActive = act && act.noBreakUntil > now();
-  if (noBreakActive) {
-    costSum *= 2;
-  }
+  let costSum = (save.click.pendingSegmentCost[segIndex] || 0) * 0.77;
+      // Buff 6: Master Builder - upgrades cost 7x more
+      const act = save.treasury?.actions;
+      const noBreakActive = act && act.noBreakUntil > now();
+      if (noBreakActive) {
+        costSum *= 7;
+      }
   if (save.points < costSum) {
     toast('Not enough points for segment upgrade.', 'warn');
     return;
@@ -4443,8 +4595,8 @@ function buyClickSegmentUpgrade(segIndex) {
     save.statistics.totalPointsSpent += costSum;
   }
   save.click.segUpgrades[segIndex] = true;
-  save.click.upgradeBonus += 1; // 13% per upgrade (count stack)
-  toast('Click segment upgraded: +13% income.', 'good');
+  save.click.upgradeBonus += 1; // 3% per upgrade (count stack)
+  toast('Click segment upgraded: +3% income.', 'good');
   triggerUpgradeEffect(clickBtn, 'Upgrade!');
   renderAll();
 }
@@ -4496,7 +4648,7 @@ function buyBuildingLevels(i) {
     // Break can happen on any level, not just levels ending in 9
     const baseFailChance = 0.01; // 1% base chance on any level
     const breakChanceMult = save.modifiers.breakChanceMult || 1;
-    // Buff 3: Buildings break 3x more often
+    // Buff 3: Buildings break 9x more often
     const fastRepairActive = act && act.fastRepairUntil > now();
     const breakMult = fastRepairActive ? 3 : 1;
     const adjustedFailChance = baseFailChance * breakChanceMult * breakMult;
@@ -4545,13 +4697,13 @@ function buyBuildingSegUpgrade(i, segIndex) {
   // Инвалидируем кэш перед покупкой
   _cachedPPS = null;
   const b = save.buildings[i];
-  let costSum = (b.pendingSegmentCost[segIndex] || 0) / 2;
-  // Buff 6: Master Builder - upgrades cost 2x more
-  const act = save.treasury?.actions;
-  const noBreakActive = act && act.noBreakUntil > now();
-  if (noBreakActive) {
-    costSum *= 2;
-  }
+  let costSum = (b.pendingSegmentCost[segIndex] || 0) * 0.77;
+      // Buff 6: Master Builder - upgrades cost 7x more
+      const act = save.treasury?.actions;
+      const noBreakActive = act && act.noBreakUntil > now();
+      if (noBreakActive) {
+        costSum *= 7;
+      }
   if (save.points < costSum) {
     toast('Not enough points for segment upgrade.', 'warn');
     return;
@@ -4562,7 +4714,7 @@ function buyBuildingSegUpgrade(i, segIndex) {
   }
   b.segUpgrades[segIndex] = true;
   b.upgradeBonus += 1;
-  toast(`${b.name} segment upgraded: +13% income.`, 'good');
+    toast(`${b.name} segment upgraded: +3% income.`, 'good');
   triggerBuildingUpgradeEffect(i, 'Upgrade!');
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
@@ -4925,7 +5077,7 @@ clickBtn.addEventListener('click', (event) => {
   const angryBarmatunActive = save.modifiers.angryBarmatunUntil > now();
   if (angryBarmatunActive) {
     // Generate random multiplier between 0.1 and 100 for this click
-    const minMult = 0.1;
+    const minMult = 0.001;
     const maxMult = 100.0;
     // Use logarithmic distribution for more interesting range
     const logMin = Math.log10(minMult);
@@ -4961,30 +5113,7 @@ clickBtn.addEventListener('click', (event) => {
   }
 
   // Buff 4: Reset passive boost on click
-  const act = save.treasury?.actions;
-  if (act && act.passiveBoostUntil > now()) {
-    const hadBoost = (act.passiveBoostLevel || 0) > 0;
-    act.passiveBoostLevel = 0;
-    act.passiveBoostLastTick = now();
-    // Update UI immediately if boost was reset
-    if (hadBoost) {
-      renderTopStats(); // Update PPS display immediately
-      // Update button description if in Uber mode
-      const isInUberMode = save.uber && save.uber.max !== 19;
-      if (isInUberMode) {
-        const passiveBoostBtn = document.querySelector('#treasury-actions-row2 .btn[data-btn-id="passiveBoost"]');
-        if (passiveBoostBtn) {
-          const tooltip = passiveBoostBtn.querySelector('.tooltip');
-          if (tooltip) {
-            const effectLine = tooltip.querySelector('.tooltip-line > div');
-            if (effectLine) {
-              effectLine.textContent = `Passive income increases by 5% every 3 minutes (current: +0%).`;
-            }
-          }
-        }
-      }
-    }
-  }
+  resetPassiveBoost();
   
   // Buff 5: Click gives 0.2 treasury coins
   if (act && act.spiderBuffUntil > now()) {
@@ -5016,12 +5145,12 @@ clickBtn.addEventListener('click', (event) => {
         if (alwaysGoldenActive) {
           // При alwaysGolden баффе: кнопка всегда золотая, но может сломаться в 3 раза чаще
           const roll = Math.random();
-          const breakChance = 0.015; // 3x break chance (0.005 * 3)
+          const breakChance = 0.045; // 9x break chance (0.005 * 9)
           if (roll < breakChance) {
-            save.click.brokenUntil = now() + 26000;
+            save.click.brokenUntil = now() + 52000;
             save.streak.count = 0;
             save.streak.multiplier = 1.0;
-            toast('Always Golden backlash: Click button broke for 26s!', 'bad');
+            toast('Always Golden backlash: Click button broke for 52s!', 'bad');
             
             // Воспроизводим звук сломанной кнопки
             playSound('clickBroken');
@@ -5036,10 +5165,10 @@ clickBtn.addEventListener('click', (event) => {
             const outcomeRoll = Math.random();
             if (outcomeRoll < 0.66) {
               // 66% из шанса = сломанная кнопка
-              save.click.brokenUntil = now() + 26000;
+              save.click.brokenUntil = now() + 52000;
               save.streak.count = 0;
               save.streak.multiplier = 1.0;
-              toast('Click button broke for 26s.', 'bad');
+              toast('Click button broke for 52s.', 'bad');
               
               // Воспроизводим звук сломанной кнопки
               playSound('clickBroken');
@@ -5357,6 +5486,18 @@ function drawKing(canvas) {
 function spawnKing() {
   if (!kingEl) return;
   
+  // Проверяем условие: минимум 25 зданий с уровнем 50
+  if (!save || !save.buildings) {
+    scheduleNextKing();
+    return;
+  }
+  const buildingsWithLevel50 = save.buildings.filter(b => b.level >= 50).length;
+  if (buildingsWithLevel50 < 25) {
+    // Условие не выполнено - переносим появление короля
+    scheduleNextKing();
+    return;
+  }
+  
   // Создаем canvas для короля, если его еще нет
   if (!kingEl.querySelector('canvas')) {
     const canvas = document.createElement('canvas');
@@ -5403,6 +5544,7 @@ function hideKing() {
 kingEl.addEventListener('click', (e) => {
   e.stopPropagation();
   if (!kingEl.classList.contains('show')) return;
+  resetPassiveBoost(); // Reset passive boost when clicking king
   // open mini-game
   openKingMiniGame();
   // hide king from screen while mini-game is active
@@ -5538,13 +5680,13 @@ function endKingMiniGame(outcome, info = {}) {
   const target = info.target || (_kingState.miniGame && _kingState.miniGame.target) || 15;
 
   if (outcome === 'success') {
-    // reward: +4 levels to each opened Building, +3 Click, +5% points
+    // reward: +2 levels to each opened Building, +1 Click, +5% points
     // Король добавляет максимально возможное количество уровней до следующего апгрейда
     let openedCount = 0;
     let totalLevelsAdded = 0;
     save.buildings.forEach(b => {
       if (b.level > 0) {
-        const maxAddable = maxLevelsBeforeUpgrade(b.level, 4, b.segUpgrades, b.max);
+        const maxAddable = maxLevelsBeforeUpgrade(b.level, 2, b.segUpgrades, b.max);
         if (maxAddable > 0) {
           b.level = Math.min(b.max, b.level + maxAddable);
         openedCount++;
@@ -5554,7 +5696,7 @@ function endKingMiniGame(outcome, info = {}) {
     });
     
     // Для Click также применяем ограничение по апгрейдам
-    const clickMaxAddable = maxLevelsBeforeUpgrade(save.click.level, 3, save.click.segUpgrades, save.click.max);
+    const clickMaxAddable = maxLevelsBeforeUpgrade(save.click.level, 1, save.click.segUpgrades, save.click.max);
     if (clickMaxAddable > 0) {
       save.click.level = Math.min(save.click.max, save.click.level + clickMaxAddable);
     }
@@ -5571,12 +5713,15 @@ function endKingMiniGame(outcome, info = {}) {
     // Обновляем состояние кнопок
     updateButtonStates();
   } else if (outcome === 'timeout') {
-    // not enough crowns in time -> penalty: -1 level each opened building, -2 click
+    // not enough crowns in time -> penalty: -13 levels each opened building, -13 click, 23% passive income for 48s
     save.buildings.forEach(b => {
-      if (b.level > 0) b.level = Math.max(0, b.level - 1);
+      if (b.level > 0) b.level = Math.max(0, b.level - 13);
     });
-    save.click.level = Math.max(0, save.click.level - 2);
-    toast(`Time's up. The King punished you: -1 level Building, -2 Click.`, 'bad');
+    save.click.level = Math.max(0, save.click.level - 13);
+    // Apply 23% passive income debuff for 48 seconds
+    save.modifiers.kingDebuffUntil = now() + 48000;
+    save.modifiers.kingDebuffMult = 0.23;
+    toast(`Time's up. The King punished you: -13 levels Building, -13 Click. Passive income reduced to 23% for 48s.`, 'bad');
     
     // Воспроизводим звук дебафа от короля
     playSound('debuff');
@@ -5586,13 +5731,16 @@ function endKingMiniGame(outcome, info = {}) {
     // Обновляем состояние кнопок
     updateButtonStates();
   } else if (outcome === 'miss') {
-    // immediate heavy penalty: -3 each building, -7 click, -30% points
+    // immediate heavy penalty: -13 each building, -13 click, -30% points, 23% passive income for 48s
     save.buildings.forEach(b => {
-      b.level = Math.max(0, b.level - 3);
+      b.level = Math.max(0, b.level - 13);
     });
-    save.click.level = Math.max(0, save.click.level - 7);
+    save.click.level = Math.max(0, save.click.level - 13);
     save.points = Math.max(0, save.points * 0.7);
-    toast(`Miss! The King is furious: -3 levels Buildings, -7 Click, -30% points.`, 'bad');
+    // Apply 23% passive income debuff for 48 seconds
+    save.modifiers.kingDebuffUntil = now() + 48000;
+    save.modifiers.kingDebuffMult = 0.23;
+    toast(`Miss! The King is furious: -13 levels Buildings, -13 Click, -30% points. Passive income reduced to 23% for 48s.`, 'bad');
     
     // Воспроизводим звук дебафа от короля
     playSound('debuff');
@@ -5797,6 +5945,7 @@ if (spiderEl) {
   }
 
   spiderEl.addEventListener('click', () => {
+    resetPassiveBoost(); // Reset passive boost when clicking spider
     // отменяем таймер "убежал", если он есть
     if (_spiderState.escapeTimer) {
       clearTimeout(_spiderState.escapeTimer);
@@ -5819,9 +5968,9 @@ if (spiderEl) {
       // Positive: 75% chance (was 25%), Negative: 5% chance (was 25%), No effect: 20% (was 50%)
       if (roll < 0.75) {
         // Positive effect - shorter duration (4s instead of 7s)
-        save.modifiers.spiderMult = 100.0;
+        save.modifiers.spiderMult = 11.0;
         save.modifiers.spiderUntil = now() + 4000;
-        toast('Spider blessing! All income x100 for 4s.', 'good');
+        toast('Spider blessing! All income x11 for 4s.', 'good');
         
         // Воспроизводим звук баффа от паука
         playSound('spiderBuff');
@@ -5846,9 +5995,9 @@ if (spiderEl) {
         // Воспроизводим звук дебафа от паука
         playSound('debuff');
       } else if (roll < 0.50) {
-        save.modifiers.spiderMult = 100.0;
+        save.modifiers.spiderMult = 11.0;
         save.modifiers.spiderUntil = now() + 7000;
-        toast('Spider blessing! All income x100 for 7s.', 'good');
+        toast('Spider blessing! All income x11 for 7s.', 'good');
         
         // Воспроизводим звук баффа от паука
         playSound('spiderBuff');
@@ -6131,6 +6280,7 @@ if (angryBarmatunEl) {
   }
 
   angryBarmatunEl.addEventListener('click', () => {
+    resetPassiveBoost(); // Reset passive boost when clicking angry barmatun
     // cancel escape timer
     if (_angryBarmatunState.escapeTimer) {
       clearTimeout(_angryBarmatunState.escapeTimer);
@@ -6145,18 +6295,18 @@ if (angryBarmatunEl) {
 
     const roll = Math.random();
     if (roll < 0.5) {
-      // 50% chance: Angry - reduce all income by 50% for 12 seconds
-      save.modifiers.angryBarmatunIncomeReduction = now() + 12000;
-      toast('Angry Barmatun is furious! All income reduced by 50% for 12s.', 'bad');
+      // 50% chance: Angry - reduce all income by 50% for 36 seconds (3x original)
+      save.modifiers.angryBarmatunIncomeReduction = now() + 36000;
+      toast('Angry Barmatun is furious! All income reduced by 50% for 36s.', 'bad');
       
       // Воспроизводим звук дебафа от барматуна
       playSound('debuff');
     } else {
       // 50% chance: Power of anger - activates random click multiplier effect
       // Each click will get a random multiplier (x0.1 to x100) for 12 seconds
-      save.modifiers.angryBarmatunUntil = now() + 12000; // 12 seconds
+      save.modifiers.angryBarmatunUntil = now() + 36000; // 36 seconds (3x original)
       save.modifiers.angryBarmatunMult = 1.0; // Reset, will be generated per click
-      toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.1 to x100) for 12s.', 'good');
+      toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.001 to x100) for 36s.', 'good');
       
       // Воспроизводим звук положительного баффа от барматуна
       playSound('barmatunBuff');
@@ -6670,10 +6820,11 @@ function maybeSpawnElfArcher() {
   }
 }
 
-// Click handler for elf archer (scare away)
+// Click handler for elf archer - просто отпугиваем его
 if (elfArcherEl) {
   elfArcherEl.addEventListener('click', () => {
-    if (_elfArcherState.shooting) return; // Can't scare while shooting
+    if (_elfArcherState.shooting) return; // Can't interact while shooting
+    resetPassiveBoost(); // Reset passive boost when clicking elf archer
     
     // Cancel any timers
     if (_elfArcherState.shootTimer) {
@@ -6685,11 +6836,12 @@ if (elfArcherEl) {
       _elfArcherState.escapeTimer = null;
     }
     
+    toast('Elf archer scared away!', 'info');
+    
     _elfArcherState.aliveUntil = 0;
     _elfArcherState.moving = false;
     
-    // Elf runs away scared
-    toast('Elf archer got scared and ran away!', 'info');
+    // Elf disappears
     elfArcherEl.style.transition = 'left 1.5s ease-in, transform 1.5s ease';
     elfArcherEl.style.left = window.innerWidth + 'px';
     elfArcherEl.style.transform = 'rotate(180deg)';
@@ -6745,14 +6897,14 @@ function tick() {
       }
     }
     
-    // Buff 4: Passive income boost (5% every 3 minutes, up to 500%)
+    // Buff 4: Passive income boost (1% every 7 minutes, up to 56%)
     let passiveBoostChanged = false;
     if (act && act.passiveBoostUntil > t) {
-      const threeMinMs = 180000; // 3 minutes
+      const sevenMinMs = 420000; // 7 minutes
       const lastTick = act.passiveBoostLastTick || t;
       const oldLevel = act.passiveBoostLevel || 0;
-      if (t - lastTick >= threeMinMs) {
-        act.passiveBoostLevel = Math.min((act.passiveBoostLevel || 0) + 5, 150);
+      if (t - lastTick >= sevenMinMs) {
+        act.passiveBoostLevel = Math.min((act.passiveBoostLevel || 0) + 1, 56);
         act.passiveBoostLastTick = t;
         if (act.passiveBoostLevel !== oldLevel) {
           passiveBoostChanged = true;
@@ -6778,8 +6930,8 @@ function tick() {
           if (tooltip) {
             const effectLine = tooltip.querySelector('.tooltip-line > div');
             if (effectLine) {
-              const currentBoost = Math.min(act.passiveBoostLevel || 0, 150);
-              effectLine.textContent = `Passive income increases by 5% every 3 minutes (current: +${currentBoost}%).`;
+              const currentBoost = Math.min(act.passiveBoostLevel || 0, 56);
+              effectLine.textContent = `Passive income increases by 1% every 7 minutes (current: +${currentBoost}%).`;
             }
           }
         }
@@ -6789,7 +6941,7 @@ function tick() {
     // Buff 3: Fast Repair - ускоряет восстановление зданий в 2 раза
     const fastRepairActive = act && act.fastRepairUntil > t;
     if (fastRepairActive) {
-      save.modifiers.breakChanceMult = 3.0; // Breaks 3x more often
+      save.modifiers.breakChanceMult = 9.0; // Breaks 9x more often
       // Ускоряем восстановление уже сломанных зданий в 2 раза
       // За каждую секунду реального времени проходит 2 секунды времени восстановления
       // Это означает, что за dt секунд реального времени должно пройти dt * 2 секунд времени восстановления
@@ -6874,8 +7026,8 @@ function tick() {
       if (tooltip) {
         const effectLine = tooltip.querySelector('.tooltip-line > div');
         if (effectLine) {
-          const currentBoost = Math.min(act.passiveBoostLevel || 0, 500);
-          effectLine.textContent = `Passive income increases by 5% every 3 minutes (current: +${currentBoost}%).`;
+          const currentBoost = Math.min(act.passiveBoostLevel || 0, 56);
+          effectLine.textContent = `Passive income increases by 1% every 7 minutes (current: +${currentBoost}%).`;
         }
       }
     }
@@ -7383,6 +7535,7 @@ logoutBtn.addEventListener('click', () => {
 });
 }
 
+
 // Инициализация обработчика кнопки статистики
 function initStatsButton() {
   const btn = document.getElementById('stats-btn');
@@ -7482,6 +7635,7 @@ debugTools.addEventListener('click', (e) => {
     case 'addAllBuildingLevels':
       save.buildings.forEach((b,i)=>{
         for (let k=0;k<100;k++){
+          if (b.level >= b.max) break; // Не превышаем максимум
           const seg = segmentIndex(b.level);
           const cost = buildingLevelCostAt(b, b.level);
           b.pendingSegmentCost[seg] = (b.pendingSegmentCost[seg]||0)+cost;
@@ -7489,19 +7643,26 @@ debugTools.addEventListener('click', (e) => {
         }
       });
       toast('Added 100 levels to all buildings.', 'good');
-      // Принудительно обновляем уровни зданий сразу (немедленно)
+      // Полностью пересоздаем UI
       _lastBuildingsState = null;
       _lastSortMode = -1;
+      _cachedPPS = null;
+      _cachedPPC = null;
+      renderBuildings();
       updateBuildingLevels(true);
       updateButtonStates();
+      renderAll();
       break;
     case 'addClickLevels':
       for (let k=0;k<100;k++){
+        if (save.click.level >= save.click.max) break; // Не превышаем максимум
         const seg = segmentIndex(save.click.level);
         const cost = clickLevelCostAt(save.click.level);
         save.click.pendingSegmentCost[seg]=(save.click.pendingSegmentCost[seg]||0)+cost;
         save.click.level = Math.min(save.click.level+1, save.click.max);
       }
+      _cachedPPC = null;
+      renderClick();
       toast('Added 100 levels to Click.', 'good');
       break;
     case 'clickIncomeBoost':
@@ -7537,7 +7698,7 @@ debugTools.addEventListener('click', (e) => {
       cycleSeason();
       break;
     case 'breakClick':
-      save.click.brokenUntil = now() + 26000;
+      save.click.brokenUntil = now() + 52000;
       toast('Click button broken.', 'bad'); break;
     case 'goldenClick':
       save.click.goldenUntil = now() + 8000;
@@ -7581,8 +7742,19 @@ debugTools.addEventListener('click', (e) => {
       break;
     case 'resetAll':
       const uname = save.meta.username;
-      save = newSave(uname); initBuildings(save);
-      toast('Reset complete.', 'warn'); break;
+      save = newSave(uname);
+      initBuildings(save);
+      // Полностью сбрасываем кэш и состояние
+      _lastBuildingsState = null;
+      _lastSortMode = -1;
+      _cachedPPS = null;
+      _cachedPPC = null;
+      _cachedPoints = null;
+      _cachedPointsText = null;
+      // Полностью перерисовываем все
+      renderAll();
+      toast('Reset complete.', 'warn');
+      break;
   }
   renderAll();
 });
@@ -8643,7 +8815,7 @@ const hints = {
   },
   'click-seg-upgrade': {
     title: 'Click Upgrade',
-    text: 'Upgrade your Click button to gain +13% income bonus! Upgrades are available every 10 levels. Each upgrade permanently increases your click income.'
+    text: 'Upgrade your Click button to gain +3% income bonus! Upgrades are available every 10 levels. Each upgrade permanently increases your click income. Upgrade costs 77% of previous segment cost.'
   },
   'sort-buildings-btn': {
     title: 'Sort Buildings',
