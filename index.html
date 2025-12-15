@@ -246,6 +246,8 @@
 
     <!-- STATS -->
     <div class="stats-container">
+      <button id="achievements-btn" class="btn secondary achievements-btn-left" title="Hall of Fame">Hall of Fame</button>
+      
       <div class="stats-bar">
         <div class="stat">
           <span class="stat-label">Points</span>
@@ -432,14 +434,261 @@
 </div>
 
 <!-- Statistics modal -->
-<div id="stats-modal" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal-card" role="document" aria-labelledby="stats-title">
-    <div class="modal-header">
-      <h3 id="stats-title">Statistics</h3>
-      <button class="modal-close" id="stats-close" aria-label="Close statistics">✕</button>
+<div id="stats-modal" role="dialog" aria-modal="true" aria-hidden="true" class="stats-modal-fullscreen">
+  <div class="stats-modal-content">
+    <div class="stats-modal-header">
+      <h2 class="stats-modal-title">🏆 Hall of Fame</h2>
+      <button class="modal-close" id="stats-close" aria-label="Close achievements">✕</button>
     </div>
-    <div class="modal-body" id="stats-body">
-      <!-- Statistics will be rendered here -->
+    
+    <div class="stats-modal-tabs">
+      <button class="stats-tab active" data-tab="overall">Overall</button>
+      <button class="stats-tab" data-tab="points">Points</button>
+      <button class="stats-tab" data-tab="buildings">Buildings</button>
+      <button class="stats-tab" data-tab="clicks">Clicks</button>
+      <button class="stats-tab" data-tab="achievements">Achievements</button>
+      <button class="stats-tab" data-tab="spidersSquished">Spiders Squished</button>
+      <button class="stats-tab" data-tab="spidersWithBuff">Spiders (Buff)</button>
+      <button class="stats-tab" data-tab="spidersWithDebuff">Spiders (Debuff)</button>
+      <button class="stats-tab" data-tab="barmatunsCaught">Barmatuns</button>
+      <button class="stats-tab" data-tab="barmatunsWithBuff">Barmatuns (Buff)</button>
+      <button class="stats-tab" data-tab="barmatunsWithDebuff">Barmatuns (Debuff)</button>
+      <button class="stats-tab" data-tab="destructions">Destructions</button>
+      <button class="stats-tab" data-tab="kingBlessings">King Blessings</button>
+      <button class="stats-tab" data-tab="statistics">Statistics</button>
+    </div>
+    
+    <div class="leaderboard-time-filter">
+      <button class="time-filter-btn active" data-filter="all">All Time</button>
+      <button class="time-filter-btn" data-filter="week">This Week</button>
+      <button class="time-filter-btn" data-filter="month">This Month</button>
+    </div>
+    
+    <div class="stats-modal-body">
+      <div class="stats-tab-content active" id="stats-tab-overall">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-overall"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-overall"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-points">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-points"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Points</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-points"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-buildings">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-buildings"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Total Levels</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-buildings"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-clicks">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-clicks"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Clicks</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-clicks"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-achievements">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-achievements"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Achievements</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-achievements"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-spidersSquished">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-spidersSquished"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-spidersSquished"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-spidersWithBuff">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-spidersWithBuff"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-spidersWithBuff"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-spidersWithDebuff">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-spidersWithDebuff"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-spidersWithDebuff"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-barmatunsCaught">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-barmatunsCaught"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-barmatunsCaught"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-barmatunsWithBuff">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-barmatunsWithBuff"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-barmatunsWithBuff"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-barmatunsWithDebuff">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-barmatunsWithDebuff"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-barmatunsWithDebuff"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-destructions">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-destructions"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-destructions"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-kingBlessings">
+        <div class="leaderboard-container">
+          <div class="leaderboard-player-position" id="leaderboard-player-position-kingBlessings"></div>
+          <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-table-body-kingBlessings"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="stats-tab-content" id="stats-tab-statistics">
+        <div id="stats-body"></div>
+      </div>
     </div>
   </div>
 </div>

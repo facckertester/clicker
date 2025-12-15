@@ -1419,6 +1419,15 @@ function checkAchievements() {
 function migrateAchievements() {
   if (!save || !save.achievements) return;
   
+  // Инициализируем новые поля статистики, если их нет
+  if (!save.achievements.stats.spidersSquished) save.achievements.stats.spidersSquished = 0;
+  if (!save.achievements.stats.spidersWithBuff) save.achievements.stats.spidersWithBuff = 0;
+  if (!save.achievements.stats.spidersWithDebuff) save.achievements.stats.spidersWithDebuff = 0;
+  if (!save.achievements.stats.barmatunsCaught) save.achievements.stats.barmatunsCaught = 0;
+  if (!save.achievements.stats.barmatunsWithBuff) save.achievements.stats.barmatunsWithBuff = 0;
+  if (!save.achievements.stats.barmatunsWithDebuff) save.achievements.stats.barmatunsWithDebuff = 0;
+  if (!save.achievements.stats.kingBlessings) save.achievements.stats.kingBlessings = 0;
+  
   // Восстанавливаем статистику из текущего состояния игры
   // Время игры - если не было отслеживания, вычисляем из даты создания
   if (save.achievements.stats.totalPlayTime === 0 && save.meta && save.meta.created) {
@@ -4398,7 +4407,7 @@ function drawAchievementPixel(canvas, ach) {
 }
 
 function renderAchievements() {
-  const container = document.getElementById('achievements-list');
+  const container = document.getElementById('achievements-modal-list') || document.getElementById('achievements-list');
   if (!container) return;
   
   container.innerHTML = '';
@@ -6048,6 +6057,10 @@ function endKingMiniGame(outcome, info = {}) {
     save.points = save.points * 1.05;
     toast(`Success! The King rewarded you: +${totalLevelsAdded} levels to buildings (${openedCount} buildings), +${clickMaxAddable} to Click, +5% points.`, 'good');
     
+    // Track king blessing (successful game)
+    if (!save.achievements.stats.kingBlessings) save.achievements.stats.kingBlessings = 0;
+    save.achievements.stats.kingBlessings++;
+    
     // Воспроизводим звук выигрыша в мини-игру короля
     playSound('kingBuff');
     
@@ -6315,6 +6328,10 @@ if (spiderEl) {
         save.modifiers.spiderUntil = now() + 4000;
         toast('Spider blessing! All income x11 for 4s.', 'good');
         
+        // Track spider with buff
+        if (!save.achievements.stats.spidersWithBuff) save.achievements.stats.spidersWithBuff = 0;
+        save.achievements.stats.spidersWithBuff++;
+        
         // Воспроизводим звук баффа от паука
         playSound('spiderBuff');
       } else if (roll < 0.80) {
@@ -6322,10 +6339,20 @@ if (spiderEl) {
                 save.modifiers.spiderMult = 0.0001;
                 save.modifiers.spiderUntil = now() + 12000;
                 toast('Spider curse! All income x0.0001 for 12s.', 'bad');
+                
+                // Track spider with debuff
+                if (!save.achievements.stats.spidersWithDebuff) save.achievements.stats.spidersWithDebuff = 0;
+                save.achievements.stats.spidersWithDebuff++;
+                
                 // Воспроизводим звук дебафа от паука
                 playSound('debuff');
       } else {
         toast('Squished! No effect.', 'info');
+        
+        // Track squished spider
+        if (!save.achievements.stats.spidersSquished) save.achievements.stats.spidersSquished = 0;
+        save.achievements.stats.spidersSquished++;
+        
         // Воспроизводим звук раздавленного паука
         playSound('spiderSquish');
       }
@@ -6335,6 +6362,11 @@ if (spiderEl) {
         save.modifiers.spiderMult = 0.0001;
         save.modifiers.spiderUntil = now() + 36000;
         toast('Spider curse! All income x0.0001 for 36s.', 'bad');
+        
+        // Track spider with debuff
+        if (!save.achievements.stats.spidersWithDebuff) save.achievements.stats.spidersWithDebuff = 0;
+        save.achievements.stats.spidersWithDebuff++;
+        
         // Воспроизводим звук дебафа от паука
         playSound('debuff');
       } else if (roll < 0.50) {
@@ -6346,6 +6378,11 @@ if (spiderEl) {
         playSound('spiderBuff');
       } else {
         toast('Squished! No effect.', 'info');
+        
+        // Track squished spider
+        if (!save.achievements.stats.spidersSquished) save.achievements.stats.spidersSquished = 0;
+        save.achievements.stats.spidersSquished++;
+        
         // Воспроизводим звук раздавленного паука
         playSound('spiderSquish');
       }
@@ -6643,6 +6680,10 @@ if (angryBarmatunEl) {
       save.modifiers.angryBarmatunIncomeReduction = now() + 36000;
       toast('Angry Barmatun is furious! All income reduced by 50% for 36s.', 'bad');
       
+      // Track barmatun with debuff
+      if (!save.achievements.stats.barmatunsWithDebuff) save.achievements.stats.barmatunsWithDebuff = 0;
+      save.achievements.stats.barmatunsWithDebuff++;
+      
       // Воспроизводим звук дебафа от барматуна
       playSound('debuff');
     } else {
@@ -6652,9 +6693,17 @@ if (angryBarmatunEl) {
       save.modifiers.angryBarmatunMult = 1.0; // Reset, will be generated per click
       toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.001 to x100) for 18s.', 'good');
       
+      // Track barmatun with buff
+      if (!save.achievements.stats.barmatunsWithBuff) save.achievements.stats.barmatunsWithBuff = 0;
+      save.achievements.stats.barmatunsWithBuff++;
+      
       // Воспроизводим звук положительного баффа от барматуна
       playSound('barmatunBuff');
     }
+    
+    // Track caught barmatun
+    if (!save.achievements.stats.barmatunsCaught) save.achievements.stats.barmatunsCaught = 0;
+    save.achievements.stats.barmatunsCaught++;
 
     // Hide angry barmatun and stop movement
     angryBarmatunEl.classList.add('hidden');
@@ -7922,9 +7971,54 @@ async function saveToFirebase(userId, saveData) {
       data: saveData,
       lastUpdated: new Date().toISOString()
     }, { merge: true });
+    
+    // Update leaderboard
+    await updateLeaderboardEntry(userId, saveData);
   } catch (error) {
     console.error('Error saving to Firebase:', error);
     throw error;
+  }
+}
+
+// Update leaderboard entry in Firebase
+async function updateLeaderboardEntry(userId, saveData) {
+  try {
+    if (!window.firebaseDb || !saveData) return;
+    
+    const { doc, setDoc, Timestamp } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
+    const stats = saveData.achievements?.stats || {};
+    const buildings = saveData.buildings || [];
+    
+    // Calculate values for leaderboard
+    const overall = calculateOverallScore(saveData);
+    const points = saveData.statistics?.totalPointsEarned || 0;
+    const buildingsTotal = buildings.reduce((sum, b) => sum + b.level, 0);
+    const buildingsOwned = buildings.filter(b => b.level >= 1).length; // Only opened buildings
+    const clicks = stats.totalClicks || 0;
+    const achievements = Object.keys(saveData.achievements?.unlocked || {}).length || 0;
+    
+    const leaderboardData = {
+      username: saveData.meta?.username || 'Unknown',
+      overall: overall,
+      points: points,
+      buildings: buildingsTotal,
+      buildingsOwned: buildingsOwned, // Track opened buildings separately
+      clicks: clicks,
+      achievements: achievements,
+      spidersSquished: stats.spidersSquished || 0,
+      spidersWithBuff: stats.spidersWithBuff || 0,
+      spidersWithDebuff: stats.spidersWithDebuff || 0,
+      barmatunsCaught: stats.barmatunsCaught || 0,
+      barmatunsWithBuff: stats.barmatunsWithBuff || 0,
+      barmatunsWithDebuff: stats.barmatunsWithDebuff || 0,
+      destructions: stats.totalDestructions || 0,
+      kingBlessings: stats.kingBlessings || 0,
+      lastUpdate: Timestamp.now()
+    };
+    
+    await setDoc(doc(window.firebaseDb, "leaderboard", userId), leaderboardData, { merge: true });
+  } catch (error) {
+    console.error('Error updating leaderboard:', error);
   }
 }
 
@@ -8419,6 +8513,142 @@ if (localUploadBtn && localUploadInput) {
 
 
 // Инициализация обработчика кнопки статистики
+// Calculate overall score for ranking
+function calculateOverallScore(saveData) {
+  if (!saveData) return 0;
+  const points = saveData.statistics?.totalPointsEarned || 0;
+  const buildings = saveData.buildings?.reduce((sum, b) => sum + b.level, 0) || 0;
+  const clicks = saveData.achievements?.stats?.totalClicks || 0;
+  const achievements = Object.keys(saveData.achievements?.unlocked || {}).length || 0;
+  return points + buildings * 100 + clicks * 10 + achievements * 1000;
+}
+
+// Leaderboard categories mapping
+const leaderboardCategories = {
+  overall: { name: 'Overall Ranking', field: 'overall' },
+  points: { name: 'Total Points', field: 'points' },
+  buildings: { name: 'Building Levels', field: 'buildings' }, // Total levels of all buildings
+  clicks: { name: 'Total Clicks', field: 'clicks' },
+  achievements: { name: 'Achievements', field: 'achievements' },
+  spidersSquished: { name: 'Spiders Squished', field: 'spidersSquished' },
+  spidersWithBuff: { name: 'Spiders (Buff)', field: 'spidersWithBuff' },
+  spidersWithDebuff: { name: 'Spiders (Debuff)', field: 'spidersWithDebuff' },
+  barmatunsCaught: { name: 'Barmatuns Caught', field: 'barmatunsCaught' },
+  barmatunsWithBuff: { name: 'Barmatuns (Buff)', field: 'barmatunsWithBuff' },
+  barmatunsWithDebuff: { name: 'Barmatuns (Debuff)', field: 'barmatunsWithDebuff' },
+  destructions: { name: 'Destructions', field: 'destructions' },
+  kingBlessings: { name: 'King Blessings', field: 'kingBlessings' }
+};
+
+let currentTimeFilter = 'all';
+
+// Load leaderboard data from Firebase
+async function loadLeaderboard(category, timeFilter = 'all') {
+  if (!window.firebaseDb) {
+    console.warn('Firebase not initialized');
+    return [];
+  }
+  
+  try {
+    const { collection, query, orderBy, limit, getDocs, where, Timestamp } = await import('https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js');
+    const categoryData = leaderboardCategories[category];
+    if (!categoryData) return [];
+    
+    let q = query(collection(window.firebaseDb, 'leaderboard'), orderBy(categoryData.field, 'desc'), limit(100));
+    
+    // Apply time filter
+    if (timeFilter === 'week') {
+      const weekAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', weekAgo), orderBy('lastUpdate', 'desc'), orderBy(categoryData.field, 'desc'), limit(100));
+    } else if (timeFilter === 'month') {
+      const monthAgo = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', monthAgo), orderBy('lastUpdate', 'desc'), orderBy(categoryData.field, 'desc'), limit(100));
+    }
+    
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc, index) => ({
+      rank: index + 1,
+      username: doc.data().username || 'Unknown',
+      score: doc.data()[categoryData.field] || 0,
+      uid: doc.id
+    }));
+  } catch (error) {
+    console.error('Error loading leaderboard:', error);
+    return [];
+  }
+}
+
+// Render leaderboard table
+async function renderLeaderboard(category) {
+  const tbody = document.getElementById(`leaderboard-table-body-${category}`);
+  const playerPosition = document.getElementById(`leaderboard-player-position-${category}`);
+  
+  if (!tbody) return;
+  
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">Loading...</td></tr>';
+  playerPosition.innerHTML = '';
+  
+  const data = await loadLeaderboard(category, currentTimeFilter);
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No data available</td></tr>';
+    return;
+  }
+  
+  // Find player position
+  const currentUsername = save?.meta?.username || currentUser?.displayName || 'Unknown';
+  const playerData = data.find(p => p.username === currentUsername);
+  
+  if (playerData) {
+    // Format score based on category
+    let scoreText = fmt(playerData.score);
+    if (category === 'buildings') {
+      scoreText = Math.floor(playerData.score).toLocaleString();
+    } else if (category === 'clicks' || category === 'achievements' || 
+               category === 'spidersSquished' || category === 'spidersWithBuff' || 
+               category === 'spidersWithDebuff' || category === 'barmatunsCaught' ||
+               category === 'barmatunsWithBuff' || category === 'barmatunsWithDebuff' ||
+               category === 'destructions' || category === 'kingBlessings') {
+      scoreText = Math.floor(playerData.score).toLocaleString();
+    }
+    
+    playerPosition.innerHTML = `
+      <div class="leaderboard-player-info">
+        <span class="leaderboard-player-label">Your Position:</span>
+        <span class="leaderboard-player-rank">#${playerData.rank}</span>
+        <span class="leaderboard-player-score">${scoreText}</span>
+      </div>
+    `;
+  }
+  
+  // Render table
+  tbody.innerHTML = data.map(player => `
+    <tr class="${player.username === currentUsername ? 'leaderboard-player-row' : ''}">
+      <td>#${player.rank}</td>
+      <td>${player.username}</td>
+      <td>${fmt(player.score)}</td>
+    </tr>
+  `).join('');
+}
+
+// Render content for stats tabs
+function renderStatsTabContent(tabName) {
+  if (!save || !save.achievements) return;
+  
+  // For leaderboard tabs, load leaderboard data
+  if (leaderboardCategories[tabName]) {
+    renderLeaderboard(tabName);
+    return;
+  }
+  
+  // For statistics tab, render statistics
+  if (tabName === 'statistics') {
+    renderStatistics();
+    return;
+  }
+  
+}
+
 function initStatsButton() {
   const btn = document.getElementById('stats-btn');
   const modal = document.getElementById('stats-modal');
@@ -8457,6 +8687,40 @@ function initStatsButton() {
       closeStatsModal();
     }
   });
+  
+  // Tab switching
+  const tabs = document.querySelectorAll('.stats-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.dataset.tab;
+      
+      // Update active tab
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      // Update active content
+      const contents = document.querySelectorAll('.stats-tab-content');
+      contents.forEach(content => {
+        content.classList.remove('active');
+        if (content.id === `stats-tab-${tabName}`) {
+          content.classList.add('active');
+        }
+      });
+      
+      // Render content for the selected tab
+      renderStatsTabContent(tabName);
+    });
+  });
+  
+  // Initialize achievements button (Hall of Fame)
+  const achievementsBtn = document.getElementById('achievements-btn');
+  if (achievementsBtn) {
+    achievementsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openStatsModal();
+    });
+  }
 }
 
 // Вызываем инициализацию после загрузки DOM
@@ -9217,8 +9481,8 @@ function renderStatistics() {
     <div class="stat-section">
       <div class="stat-section-title">Buildings</div>
       <div class="stat-row">
-        <span class="stat-label">Total Buildings:</span>
-        <span class="stat-value">${save.buildings.length}</span>
+        <span class="stat-label">Buildings Owned:</span>
+        <span class="stat-value">${save.buildings.filter(b => b.level >= 1).length} / ${save.buildings.length}</span>
       </div>
       <div class="stat-row">
         <span class="stat-label">Total Building Levels:</span>
@@ -9286,25 +9550,18 @@ function openStatsModal() {
     };
   }
   
-  // КРИТИЧНО: Сохраняем реальную ширину grid ДО любых изменений layout
-  const gameColumns = document.querySelector('.game-columns');
-  if (gameColumns) {
-    const rect = gameColumns.getBoundingClientRect();
-    _savedGameColumnsWidthStats = rect.width;
-  }
-  
   try {
     renderStatistics();
+    renderAchievements();
+    
+    // Render initial tab content
+    const activeTab = document.querySelector('.stats-tab.active');
+    if (activeTab) {
+      renderStatsTabContent(activeTab.dataset.tab);
+    }
     
     // Пометка aria
     modal.setAttribute('aria-hidden', 'false');
-    
-    // Компенсируем ширину скроллбара
-    const scrollbarWidth = _getScrollbarWidth();
-    if (scrollbarWidth > 0) {
-      _savedBodyPaddingRight = document.body.style.paddingRight || '';
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
     
     // Добавляем класс для блокировки скролла
     document.body.classList.add('modal-open');
