@@ -1022,6 +1022,11 @@ const registerEmail = document.getElementById('register-email');
 const registerPassword = document.getElementById('register-password');
 const registerBtn = document.getElementById('register-btn');
 
+// Verify elements exist
+if (!registerEmail) console.warn('register-email element not found');
+if (!registerPassword) console.warn('register-password element not found');
+if (!registerBtn) console.warn('register-btn element not found');
+
 // Local save elements
 const localPanel = document.getElementById('local-panel');
 const localLoadBtn = document.getElementById('local-load-btn');
@@ -7494,6 +7499,9 @@ if (tabBtns && tabBtns.length > 0) {
 // Firebase authentication functions
 async function registerWithFirebase(email, password) {
   try {
+    if (!window.firebaseAuth) {
+      throw new Error('Firebase not initialized. Please refresh the page.');
+    }
     const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
     const auth = window.firebaseAuth;
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -7505,6 +7513,9 @@ async function registerWithFirebase(email, password) {
 
 async function loginWithFirebase(email, password) {
   try {
+    if (!window.firebaseAuth) {
+      throw new Error('Firebase not initialized. Please refresh the page.');
+    }
     const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
     const auth = window.firebaseAuth;
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -7516,6 +7527,9 @@ async function loginWithFirebase(email, password) {
 
 async function saveToFirebase(userId, saveData) {
   try {
+    if (!window.firebaseDb) {
+      throw new Error('Firebase not initialized.');
+    }
     const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
     const db = window.firebaseDb;
     await setDoc(doc(db, "saves", userId), {
@@ -7530,6 +7544,9 @@ async function saveToFirebase(userId, saveData) {
 
 async function loadFromFirebase(userId) {
   try {
+    if (!window.firebaseDb) {
+      throw new Error('Firebase not initialized.');
+    }
     const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
     const db = window.firebaseDb;
     const docRef = doc(db, "saves", userId);
@@ -7544,7 +7561,7 @@ async function loadFromFirebase(userId) {
   }
 }
 
-if (loginBtn) {
+if (loginBtn && loginUsername && loginPassword) {
 loginBtn.addEventListener('click', async () => {
   const email = loginUsername.value.trim();
   const p = loginPassword.value;
@@ -7624,7 +7641,7 @@ loginBtn.addEventListener('click', async () => {
 });
 }
 
-if (registerBtn) {
+if (registerBtn && registerEmail && registerPassword) {
 registerBtn.addEventListener('click', async () => {
   const email = registerEmail.value.trim();
   const p = registerPassword.value;
