@@ -827,7 +827,8 @@ function load() {
 async function saveNow() {
   if (!save || !currentUser) return;
   // Save to localStorage as backup
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: currentUser, data: save }));
+  save.lastTick = now();
+  localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
   // Save to Firebase if user has uid (online user)
   if (currentUser.uid) {
     // saveToFirebase now handles errors internally (quota, network, etc.)
@@ -839,8 +840,8 @@ function autosaveLoop() {
   setInterval(saveNow, AUTOSAVE_INTERVAL_MS);
 }
 
-// --- Autosave: надежный автосейв каждые 10 секунд ---
-const AUTOSAVE_INTERVAL_MS = 10000;
+// --- Autosave: надежный автосейв каждые 10 минут ---
+const AUTOSAVE_INTERVAL_MS = 30 * 60 * 1000; // 10 minutes
 let _autosaveTimer = null;
 let _firebaseQuotaExceeded = false;
 let _firebaseQuotaRetryTime = 0;
@@ -900,6 +901,14 @@ window.addEventListener('beforeunload', () => {
     if (!save || !currentUser) return;
     save.lastTick = now();
     localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
+    // Также сохраняем в Firebase принудительно при перезагрузке/закрытии
+    if (currentUser.uid) {
+      // Используем синхронный подход для beforeunload
+      // Пытаемся сохранить в Firebase, но не ждем завершения
+      saveToFirebase(currentUser.uid, save).catch(() => {
+        // Игнорируем ошибки при закрытии страницы
+      });
+    }
   } catch (e) {}
 });
 
@@ -1640,7 +1649,7 @@ function showAwayMessage(timeAwaySeconds, buildingEarnings, uberEarnings) {
 function checkOfflineEarnings(forceShow = false) {
   if (!save) return;
   
-  const TEN_MINUTES_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+  const TEN_MINUTES_MS = 30 * 60 * 1000; // 10 minutes in milliseconds
   const currentTime = now();
   const lastActivity = save.lastActivityTime || currentTime;
   const timeAwayMs = currentTime - lastActivity;
