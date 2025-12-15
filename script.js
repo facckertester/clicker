@@ -6,6 +6,18 @@ function hideTreasuryTooltip() {
   }
   _treasuryTooltipEl = null;
 }
+
+// Development logging functions
+const DEV_MODE = false; // Set to true to enable debug logging
+function devLog(...args) {
+  if (DEV_MODE) console.log(...args);
+}
+function devWarn(...args) {
+  if (DEV_MODE) console.warn(...args);
+}
+function devError(...args) {
+  if (DEV_MODE) console.error(...args);
+}
 /* Medieval Pixel Idle - core logic */
 
 // ======= Background Music System =======
@@ -818,22 +830,21 @@ async function saveNow() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: currentUser, data: save }));
   // Save to Firebase if user has uid (online user)
   if (currentUser.uid) {
-    try {
-      await saveToFirebase(currentUser.uid, save);
-    } catch (error) {
-      console.error('Failed to save to Firebase:', error);
-      // Continue silently - localStorage backup is saved
-    }
+    // saveToFirebase now handles errors internally (quota, network, etc.)
+    await saveToFirebase(currentUser.uid, save);
   }
 }
 
 function autosaveLoop() {
-  setInterval(saveNow, 1000);
+  setInterval(saveNow, AUTOSAVE_INTERVAL_MS);
 }
 
-// --- Autosave: надежный автосейв каждую секунду ---
-const AUTOSAVE_INTERVAL_MS = 1000;
+// --- Autosave: надежный автосейв каждые 10 секунд ---
+const AUTOSAVE_INTERVAL_MS = 10000;
 let _autosaveTimer = null;
+let _firebaseQuotaExceeded = false;
+let _firebaseQuotaRetryTime = 0;
+const FIREBASE_QUOTA_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes
 
 function _storageKeyForUser(user) {
   if (!user) return STORAGE_KEY;
@@ -851,7 +862,10 @@ function startAutosave() {
       localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
       // Also save to Firebase if online user
       if (currentUser.uid) {
-        saveToFirebase(currentUser.uid, save).catch(e => console.error('Firebase autosave failed', e));
+        saveToFirebase(currentUser.uid, save).catch(e => {
+          // Silently ignore Firebase errors (quota, network, etc.)
+          devLog('Firebase autosave skipped:', e?.code || e?.message);
+        });
       }
     } 
   } catch(e){}
@@ -862,7 +876,10 @@ function startAutosave() {
       localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
       // Also save to Firebase if online user
       if (currentUser.uid) {
-        saveToFirebase(currentUser.uid, save).catch(e => console.error('Firebase autosave failed', e));
+        saveToFirebase(currentUser.uid, save).catch(e => {
+          // Silently ignore Firebase errors (quota, network, etc.)
+          devLog('Firebase autosave skipped:', e?.code || e?.message);
+        });
       }
     } catch (e) {
       console.error('Autosave failed', e);
@@ -7963,8 +7980,22 @@ async function loginWithFirebase(email, password) {
 async function saveToFirebase(userId, saveData) {
   try {
     if (!window.firebaseDb) {
-      throw new Error('Firebase not initialized.');
+      // Firebase not initialized - silently skip (user might be offline or not logged in)
+      return;
     }
+    
+    // Check if we should skip Firebase save due to quota
+    const now = Date.now();
+    if (_firebaseQuotaExceeded && now < _firebaseQuotaRetryTime) {
+      // Skip Firebase save, but still save to localStorage
+      return;
+    }
+    
+    // Reset quota flag if retry time has passed
+    if (_firebaseQuotaExceeded && now >= _firebaseQuotaRetryTime) {
+      _firebaseQuotaExceeded = false;
+    }
+    
     const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
     const db = window.firebaseDb;
     await setDoc(doc(db, "saves", userId), {
@@ -7972,11 +8003,25 @@ async function saveToFirebase(userId, saveData) {
       lastUpdated: new Date().toISOString()
     }, { merge: true });
     
-    // Update leaderboard
-    await updateLeaderboardEntry(userId, saveData);
+    // Success - reset quota flag
+    _firebaseQuotaExceeded = false;
+    
+    // Update leaderboard (don't fail if this fails)
+    updateLeaderboardEntry(userId, saveData).catch(e => {
+      // Silently ignore leaderboard update errors (quota, network, etc.)
+      devLog('Leaderboard update failed:', e);
+    });
   } catch (error) {
-    console.error('Error saving to Firebase:', error);
-    throw error;
+    // Don't throw errors for quota exceeded or network issues
+    if (error.code === 'resource-exhausted' || error.code === 'unavailable' || error.code === 'deadline-exceeded') {
+      // Set flag to skip Firebase saves for a while
+      _firebaseQuotaExceeded = true;
+      _firebaseQuotaRetryTime = Date.now() + FIREBASE_QUOTA_RETRY_DELAY;
+      devLog('Firebase save skipped (quota/network issue):', error.code);
+      return;
+    }
+    // Only log other errors, don't throw
+    devError('Error saving to Firebase:', error);
   }
 }
 
@@ -8018,7 +8063,10 @@ async function updateLeaderboardEntry(userId, saveData) {
     
     await setDoc(doc(window.firebaseDb, "leaderboard", userId), leaderboardData, { merge: true });
   } catch (error) {
-    console.error('Error updating leaderboard:', error);
+    // Silently ignore quota and network errors
+    if (error.code !== 'resource-exhausted' && error.code !== 'unavailable' && error.code !== 'deadline-exceeded') {
+      devError('Error updating leaderboard:', error);
+    }
   }
 }
 
@@ -8545,35 +8593,53 @@ let currentTimeFilter = 'all';
 // Load leaderboard data from Firebase
 async function loadLeaderboard(category, timeFilter = 'all') {
   if (!window.firebaseDb) {
-    console.warn('Firebase not initialized');
+    devLog('Firebase not initialized for leaderboard');
     return [];
   }
   
   try {
     const { collection, query, orderBy, limit, getDocs, where, Timestamp } = await import('https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js');
     const categoryData = leaderboardCategories[category];
-    if (!categoryData) return [];
+    if (!categoryData) {
+      devWarn('Unknown leaderboard category:', category);
+      return [];
+    }
     
     let q = query(collection(window.firebaseDb, 'leaderboard'), orderBy(categoryData.field, 'desc'), limit(100));
     
     // Apply time filter
     if (timeFilter === 'week') {
       const weekAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', weekAgo), orderBy('lastUpdate', 'desc'), orderBy(categoryData.field, 'desc'), limit(100));
+      // Filter by time, then sort by category field
+      // Note: Firebase requires composite index for multiple orderBy, so we'll filter client-side if needed
+      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', weekAgo), orderBy(categoryData.field, 'desc'), limit(100));
     } else if (timeFilter === 'month') {
       const monthAgo = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', monthAgo), orderBy('lastUpdate', 'desc'), orderBy(categoryData.field, 'desc'), limit(100));
+      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', monthAgo), orderBy(categoryData.field, 'desc'), limit(100));
     }
     
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc, index) => ({
+    const data = snapshot.docs.map((doc, index) => ({
       rank: index + 1,
       username: doc.data().username || 'Unknown',
       score: doc.data()[categoryData.field] || 0,
       uid: doc.id
     }));
+    
+    devLog(`Loaded ${data.length} leaderboard entries for ${category} (${timeFilter})`);
+    return data;
   } catch (error) {
-    console.error('Error loading leaderboard:', error);
+    // Handle specific Firebase errors
+    if (error.code === 'failed-precondition') {
+      devWarn('Firebase index required for leaderboard query. Please create composite index in Firebase Console.');
+      console.warn('Firebase index required for leaderboard query');
+    } else if (error.code === 'resource-exhausted') {
+      devLog('Firebase quota exceeded, skipping leaderboard load');
+      // Silently skip - quota exceeded
+    } else {
+      devError('Error loading leaderboard:', error);
+      console.error('Error loading leaderboard:', error);
+    }
     return [];
   }
 }
@@ -8583,52 +8649,76 @@ async function renderLeaderboard(category) {
   const tbody = document.getElementById(`leaderboard-table-body-${category}`);
   const playerPosition = document.getElementById(`leaderboard-player-position-${category}`);
   
-  if (!tbody) return;
-  
-  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">Loading...</td></tr>';
-  playerPosition.innerHTML = '';
-  
-  const data = await loadLeaderboard(category, currentTimeFilter);
-  
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No data available</td></tr>';
+  if (!tbody) {
+    console.warn(`Leaderboard table body not found for category: ${category}`);
     return;
   }
   
-  // Find player position
-  const currentUsername = save?.meta?.username || currentUser?.displayName || 'Unknown';
-  const playerData = data.find(p => p.username === currentUsername);
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">Loading...</td></tr>';
+  if (playerPosition) playerPosition.innerHTML = '';
   
-  if (playerData) {
-    // Format score based on category
-    let scoreText = fmt(playerData.score);
-    if (category === 'buildings') {
-      scoreText = Math.floor(playerData.score).toLocaleString();
-    } else if (category === 'clicks' || category === 'achievements' || 
-               category === 'spidersSquished' || category === 'spidersWithBuff' || 
-               category === 'spidersWithDebuff' || category === 'barmatunsCaught' ||
-               category === 'barmatunsWithBuff' || category === 'barmatunsWithDebuff' ||
-               category === 'destructions' || category === 'kingBlessings') {
-      scoreText = Math.floor(playerData.score).toLocaleString();
+  try {
+    const data = await loadLeaderboard(category, currentTimeFilter);
+    
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No data available</td></tr>';
+      if (playerPosition) playerPosition.innerHTML = '';
+      return;
     }
     
-    playerPosition.innerHTML = `
-      <div class="leaderboard-player-info">
-        <span class="leaderboard-player-label">Your Position:</span>
-        <span class="leaderboard-player-rank">#${playerData.rank}</span>
-        <span class="leaderboard-player-score">${scoreText}</span>
-      </div>
+    // Find player position
+    const currentUsername = save?.meta?.username || currentUser?.displayName || 'Unknown';
+    const playerData = data.find(p => p.username === currentUsername);
+    
+    if (playerData && playerPosition) {
+      // Format score based on category
+      let scoreText = fmt(playerData.score);
+      if (category === 'buildings') {
+        scoreText = Math.floor(playerData.score).toLocaleString();
+      } else if (category === 'clicks' || category === 'achievements' || 
+                 category === 'spidersSquished' || category === 'spidersWithBuff' || 
+                 category === 'spidersWithDebuff' || category === 'barmatunsCaught' ||
+                 category === 'barmatunsWithBuff' || category === 'barmatunsWithDebuff' ||
+                 category === 'destructions' || category === 'kingBlessings') {
+        scoreText = Math.floor(playerData.score).toLocaleString();
+      }
+      
+      playerPosition.innerHTML = `
+        <div class="leaderboard-player-info">
+          <span class="leaderboard-player-label">Your Position:</span>
+          <span class="leaderboard-player-rank">#${playerData.rank}</span>
+          <span class="leaderboard-player-score">${scoreText}</span>
+        </div>
+      `;
+    }
+    
+    // Render table
+    tbody.innerHTML = data.map(player => {
+      // Format score based on category
+      let scoreText = fmt(player.score);
+      if (category === 'buildings') {
+        scoreText = Math.floor(player.score).toLocaleString();
+      } else if (category === 'clicks' || category === 'achievements' || 
+                 category === 'spidersSquished' || category === 'spidersWithBuff' || 
+                 category === 'spidersWithDebuff' || category === 'barmatunsCaught' ||
+                 category === 'barmatunsWithBuff' || category === 'barmatunsWithDebuff' ||
+                 category === 'destructions' || category === 'kingBlessings') {
+        scoreText = Math.floor(player.score).toLocaleString();
+      }
+      
+      return `
+      <tr class="${player.username === currentUsername ? 'leaderboard-player-row' : ''}">
+        <td>#${player.rank}</td>
+        <td>${player.username}</td>
+        <td>${scoreText}</td>
+      </tr>
     `;
+    }).join('');
+  } catch (error) {
+    console.error('Error rendering leaderboard:', error);
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: red;">Error loading leaderboard</td></tr>';
+    if (playerPosition) playerPosition.innerHTML = '';
   }
-  
-  // Render table
-  tbody.innerHTML = data.map(player => `
-    <tr class="${player.username === currentUsername ? 'leaderboard-player-row' : ''}">
-      <td>#${player.rank}</td>
-      <td>${player.username}</td>
-      <td>${fmt(player.score)}</td>
-    </tr>
-  `).join('');
 }
 
 // Render content for stats tabs
@@ -8721,6 +8811,31 @@ function initStatsButton() {
       openStatsModal();
     });
   }
+  
+  // Time filter buttons
+  const timeFilterBtns = document.querySelectorAll('.time-filter-btn');
+  timeFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const filter = btn.dataset.filter;
+      if (!filter) return;
+      
+      // Update active filter
+      timeFilterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Update current filter
+      currentTimeFilter = filter;
+      
+      // Re-render current leaderboard tab
+      const activeTab = document.querySelector('.stats-tab.active');
+      if (activeTab) {
+        const tabName = activeTab.dataset.tab;
+        if (leaderboardCategories[tabName]) {
+          renderLeaderboard(tabName);
+        }
+      }
+    });
+  });
 }
 
 // Вызываем инициализацию после загрузки DOM
@@ -9568,6 +9683,7 @@ function openStatsModal() {
     
     // Фиксируем ширину grid после того, как overflow: hidden применен
     requestAnimationFrame(() => {
+      const gameColumns = document.querySelector('.game-columns');
       if (gameColumns && _savedGameColumnsWidthStats !== null) {
         gameColumns.style.width = `${_savedGameColumnsWidthStats}px`;
         gameColumns.style.minWidth = `${_savedGameColumnsWidthStats}px`;
