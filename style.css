@@ -1372,10 +1372,10 @@ body.modal-open .game-columns {
   pointer-events: none;
 }
 
-/* Таймер внизу кнопки Клик */
+/* Таймер вверху кнопки Клик */
 .click-row #click-btn .click-timer {
   position: absolute;
-  bottom: 4px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px;

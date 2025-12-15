@@ -753,6 +753,22 @@ function ensureTreasury(saveObj) {
   if (saveObj.uber.max === undefined) {
     saveObj.uber.max = 19;
   }
+  
+  // Миграция: уменьшаем baseCost всех зданий в 2 раза (если еще не мигрировано)
+  // Проверяем, нужно ли мигрировать (если baseCost первого здания > 0.31, значит еще не мигрировано до /4)
+  if (saveObj.buildings && saveObj.buildings.length > 0 && saveObj.buildings[0].baseCost > 0.31) {
+    saveObj.buildings.forEach(b => {
+      if (b.baseCost) {
+        // Если baseCost > 0.62, значит еще старое значение, делим на 4
+        // Если baseCost > 0.31, значит уже было /2, делим еще на 2
+        if (b.baseCost > 0.62) {
+          b.baseCost = b.baseCost / 4;
+        } else {
+          b.baseCost = b.baseCost / 2;
+        }
+      }
+    });
+  }
 }
 
 
@@ -766,7 +782,7 @@ const buildingNames = [
 
 function initBuildings(saveObj) {
   // Base cost/income for first building
-  const baseCost = 1.2345; // Базовая цена (уменьшение применяется в buildingLevelCostAt для всех сохранений)
+  const baseCost = 1.2345 / 4; // Базовая цена уменьшена в 4 раза (2x2)
   const baseIncome = 0.00861; // Уменьшено на 30% (было 0.0123)
   const costStep = 1.015;   // "slightly more expensive"
   const incomeStep = 1.06; // "slightly more income"
@@ -1157,7 +1173,7 @@ function computeBulkCostForBlock(type, bulk, index = null) {
 // Level cost/income for Click
 function clickLevelCostAt(level) {
   // base upgrade price for click is 7.772 for first level (level 0->1)
-  const base = 0.0737 / 2; // Уменьшено в 2 раза
+  const base = 0.0737 / 4; // Уменьшено в 4 раза (2x2)
   // smooth price growth
   return base * Math.pow(1.055, level);
 }
@@ -1172,8 +1188,8 @@ function clickIncomeAt(level, upgradesCount) {
 // Building cost/income per level
 function buildingLevelCostAt(b, level) {
   // baseCost scales gently with level
-  // Уменьшаем цену в 2 раза для всех зданий (независимо от того, новое это сохранение или старое)
-  const baseCost = (b.baseCost / 2) * Math.pow(1.06, level);
+  // baseCost уже уменьшен в 2 раза при инициализации, поэтому просто используем его
+  const baseCost = b.baseCost * Math.pow(1.06, level);
   // Buff 6: Buildings can't break, but cost 2x more
   const act = save.treasury?.actions;
   const noBreakActive = act && act.noBreakUntil > now();
@@ -1193,13 +1209,13 @@ function uberCostAt(level) {
   // For uber building, use income at level 1 and apply similar ratio
   // But make it more reasonable - use cost proportional to income with a multiplier
   const incomeAtLevel1 = uberIncomeAt(1);
-  // Use a cost-to-income ratio similar to regular buildings, but adjusted for uber
-  // Regular building ratio is ~100, but for uber we'll use a higher multiplier
-  // Уменьшено в 100 раз
-  const costToIncomeRatio = 2; // Reduced from 200 to 2 (100x reduction)
-  const base = incomeAtLevel1 * costToIncomeRatio;
+  // Use a cost-to-income ratio similar to regular buildings
+  // Regular building ratio is ~100, so we use the same for balance
+  const costToIncomeRatio = 100; // Balanced to match regular buildings
+  const base = (incomeAtLevel1 * costToIncomeRatio) / 2; // Уменьшено в 2 раза
   
-  return base * Math.pow(1.35, level);
+  // Cost multiplier reduced from 1.35 to 1.19 to be closer to income growth (1.1782)
+  return base * Math.pow(1.19, level);
 }
 function uberIncomeAt(level) {
   // Calculate total income of all buildings at level 800 with 80 upgrades (3% each 10 levels)
@@ -1221,8 +1237,8 @@ function uberIncomeAt(level) {
   // Total income at level 800 with all upgrades
   const totalAt800 = sumBaseIncomes * levelMult * upgradeMult;
   
-  // Uber building base income = total income at level 800 / 2
-  const baseInc = totalAt800 / 2;
+  // Uber building base income = total income at level 800 (увеличено в 2 раза, убрано деление на 2)
+  const baseInc = totalAt800;
   
   // Прирост за уровень уменьшен на 20% (дважды по 10%)
   // Было: 1.22 (+22% за уровень), стало: 1.1782 (+17.82% за уровень, уменьшение на 20%)
@@ -3517,7 +3533,7 @@ function renderClick() {
   
   clickStatus.textContent = brokenActive ? 'Broken' : (goldenActive ? 'Golden' : 'Ready');
   
-  // Обратный таймер внизу кнопки
+  // Обратный таймер вверху кнопки
   let timerEl = clickBtn.querySelector('.click-timer');
   if (!timerEl) {
     timerEl = document.createElement('div');
@@ -5055,10 +5071,10 @@ function createClickParticles(event, value) {
   
   const rect = clickBtn.getBoundingClientRect();
   const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
+  const bottomY = rect.top + rect.height - 10; // Нижняя часть кнопки (10px от низа)
   
-  // Создаем 5-8 частиц
-  const particleCount = 5 + Math.floor(Math.random() * 4);
+  // Создаем 3 частицы
+  const particleCount = 3;
   const formattedValue = fmt(value);
   
   for (let i = 0; i < particleCount; i++) {
@@ -5066,14 +5082,14 @@ function createClickParticles(event, value) {
     particle.className = 'click-particle';
     particle.textContent = formattedValue;
     
-    // Случайное направление и скорость
-    const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
+    // Направление вверх с небольшим разбросом влево-вправо
+    const angle = Math.PI / 2 + (Math.random() - 0.5) * 0.8; // Вверх с разбросом ~45 градусов
     const distance = 30 + Math.random() * 40;
     const endX = centerX + Math.cos(angle) * distance;
-    const endY = centerY + Math.sin(angle) * distance;
+    const endY = bottomY + Math.sin(angle) * distance;
     
     particle.style.left = `${centerX}px`;
-    particle.style.top = `${centerY}px`;
+    particle.style.top = `${bottomY}px`;
     particle.style.setProperty('--end-x', `${endX}px`);
     particle.style.setProperty('--end-y', `${endY}px`);
     particle.style.setProperty('--delay', `${i * 0.05}s`);
