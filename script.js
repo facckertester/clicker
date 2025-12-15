@@ -736,6 +736,23 @@ function ensureTreasury(saveObj) {
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
+  
+  // Миграция для новых функций: убеждаемся, что bulk существует (для старых сохранений)
+  if (saveObj.bulk === undefined || saveObj.bulk === null) {
+    saveObj.bulk = 1;
+  }
+  
+  // Убеждаемся, что убер здание имеет все необходимые поля
+  if (!saveObj.uber) {
+    saveObj.uber = {
+      unlocked: false,
+      level: 0,
+      max: 19,
+    };
+  }
+  if (saveObj.uber.max === undefined) {
+    saveObj.uber.max = 19;
+  }
 }
 
 
@@ -4183,6 +4200,11 @@ function renderUber() {
     uberBuyBtn.classList.add('hidden');
     uberBuyBtn.setAttribute('aria-hidden', 'true');
     }
+    // Показываем стоимость покупки даже если не разблокировано
+    const bulk = save.bulk || 1;
+    const bulkCost = computeBulkCostForBlock('uber', bulk);
+    const bulkText = bulk === 1 ? '' : ` (x${bulk})`;
+    uberCostEl.textContent = `${fmt(bulkCost.totalCost)}${bulkText}`;
     // Draw pixel citadel даже если не разблокировано
     drawCitadelPixel(document.getElementById('uber-pixel'));
     return; // Не показываем остальную информацию, если не разблокировано
@@ -4205,6 +4227,8 @@ function renderUber() {
       uberBuyBtn.classList.add('hidden');
       uberBuyBtn.setAttribute('aria-hidden', 'true');
     }
+    // Показываем стоимость (0, так как достигнут максимум)
+    uberCostEl.textContent = '0.0000';
     // Обновляем состояние кнопок завершения игры и убер мода
     updateEndgameButtons();
   } else {
