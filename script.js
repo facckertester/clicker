@@ -6,18 +6,6 @@ function hideTreasuryTooltip() {
   }
   _treasuryTooltipEl = null;
 }
-
-// Development logging functions
-const DEV_MODE = false; // Set to true to enable debug logging
-function devLog(...args) {
-  if (DEV_MODE) console.log(...args);
-}
-function devWarn(...args) {
-  if (DEV_MODE) console.warn(...args);
-}
-function devError(...args) {
-  if (DEV_MODE) console.error(...args);
-}
 /* Medieval Pixel Idle - core logic */
 
 // ======= Background Music System =======
@@ -572,7 +560,6 @@ function toast(msg, type = 'info') {
 // ======= Auth & Save =======
 const STORAGE_KEY = 'mpi_save_v1';
 let save = null;
-let currentUser = null;
 
 function newSave(username) {
   return {
@@ -820,68 +807,44 @@ function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // Support both old format (with user) and new format (data only)
+    if (parsed.data) {
+      return parsed.data;
+    }
+    return parsed;
   } catch(e) { return null; }
 }
 
 async function saveNow() {
-  if (!save || !currentUser) return;
-  // Save to localStorage as backup
+  if (!save) return;
+  // Save to localStorage
   save.lastTick = now();
-  localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
-  // Save to Firebase if user has uid (online user)
-  if (currentUser.uid) {
-    // saveToFirebase now handles errors internally (quota, network, etc.)
-    await saveToFirebase(currentUser.uid, save);
-  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: save }));
 }
 
 function autosaveLoop() {
-  setInterval(saveNow, AUTOSAVE_INTERVAL_MS);
+  setInterval(saveNow, 1000);
 }
 
-// --- Autosave: надежный автосейв каждые 10 минут ---
-const AUTOSAVE_INTERVAL_MS = 30 * 60 * 1000; // 10 minutes
+// --- Autosave: надежный автосейв каждую секунду ---
+const AUTOSAVE_INTERVAL_MS = 1000;
 let _autosaveTimer = null;
-let _firebaseQuotaExceeded = false;
-let _firebaseQuotaRetryTime = 0;
-const FIREBASE_QUOTA_RETRY_DELAY = 5 * 60 * 1000; // 5 minutes
-
-function _storageKeyForUser(user) {
-  if (!user) return STORAGE_KEY;
-  // Use uid for Firebase users, username for local users
-  const identifier = user.uid || user.username || 'local';
-  return `${STORAGE_KEY}::${identifier}`;
-}
 
 function startAutosave() {
   if (_autosaveTimer) return;
   // Сохраняем сразу при старте
   try { 
-    if (save && currentUser) { 
+    if (save) { 
       save.lastTick = now(); 
-      localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
-      // Also save to Firebase if online user
-      if (currentUser.uid) {
-        saveToFirebase(currentUser.uid, save).catch(e => {
-          // Silently ignore Firebase errors (quota, network, etc.)
-          devLog('Firebase autosave skipped:', e?.code || e?.message);
-        });
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: save }));
     } 
   } catch(e){}
   _autosaveTimer = setInterval(() => {
     try {
-      if (!save || !currentUser) return;
+      if (!save) return;
       save.lastTick = now();
-      localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
-      // Also save to Firebase if online user
-      if (currentUser.uid) {
-        saveToFirebase(currentUser.uid, save).catch(e => {
-          // Silently ignore Firebase errors (quota, network, etc.)
-          devLog('Firebase autosave skipped:', e?.code || e?.message);
-        });
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: save }));
     } catch (e) {
       console.error('Autosave failed', e);
     }
@@ -898,17 +861,11 @@ function stopAutosave() {
 // Сохраняем при закрытии вкладки/перезагрузке
 window.addEventListener('beforeunload', () => {
   try {
-    if (!save || !currentUser) return;
+    if (!save) return;
     save.lastTick = now();
-    localStorage.setItem(_storageKeyForUser(currentUser), JSON.stringify({ user: currentUser, data: save }));
-    // Также сохраняем в Firebase принудительно при перезагрузке/закрытии
-    if (currentUser.uid) {
-      // Используем синхронный подход для beforeunload
-      // Пытаемся сохранить в Firebase, но не ждем завершения
-      saveToFirebase(currentUser.uid, save).catch(() => {
-        // Игнорируем ошибки при закрытии страницы
-      });
-    }
+    // Update lastActivityTime when leaving/closing the page
+    save.lastActivityTime = now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: save }));
   } catch (e) {}
 });
 
@@ -919,6 +876,10 @@ document.addEventListener('visibilitychange', () => {
     // Сохраняем время ухода в сон для проверки при возврате
     if (save) {
       save.lastVisibilityChange = now();
+      // Update lastActivityTime when tab becomes hidden
+      save.lastActivityTime = now();
+      // Save immediately to preserve the timestamp
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: save }));
     }
   } else if (document.visibilityState === 'visible' && save) {
     // Check for offline earnings when page becomes visible again
@@ -990,7 +951,6 @@ function startCountdownLoop() {
 startCountdownLoop();
 
 // ======= UI Elements =======
-const authScreen = document.getElementById('auth-screen');
 const gameScreen = document.getElementById('game-screen');
 const usernameDisplay = document.getElementById('username-display');
 const pointsEl = document.getElementById('points');
@@ -1045,7 +1005,6 @@ const spiderEl = document.getElementById('spider');
 const angryBarmatunEl = document.getElementById('angry-barmatun');
 const elfArcherEl = document.getElementById('elf-archer');
 
-const logoutBtn = document.getElementById('logout-btn');
 const statsBtn = document.getElementById('stats-btn');
 
 ensureTreasury(save || {});
@@ -1068,31 +1027,6 @@ const debugUnlockBtn = document.getElementById('debug-unlock-btn');
 const debugLock = document.getElementById('debug-lock');
 const debugTools = document.getElementById('debug-tools');
 
-// Auth controls
-const loginPanel = document.getElementById('login-panel');
-const registerPanel = document.getElementById('register-panel');
-const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
-
-const loginUsername = document.getElementById('login-username');
-const loginPassword = document.getElementById('login-password');
-const loginBtn = document.getElementById('login-btn');
-
-const registerEmail = document.getElementById('register-email');
-const registerPassword = document.getElementById('register-password');
-const registerBtn = document.getElementById('register-btn');
-
-// Field error/hint elements
-const loginEmailError = document.getElementById('login-email-error');
-const loginPasswordError = document.getElementById('login-password-error');
-const registerEmailError = document.getElementById('register-email-error');
-const registerPasswordError = document.getElementById('register-password-error');
-const registerEmailHint = document.getElementById('register-email-hint');
-const registerPasswordHint = document.getElementById('register-password-hint');
-
-// Verify elements exist
-if (!registerEmail) console.warn('register-email element not found');
-if (!registerPassword) console.warn('register-password element not found');
-if (!registerBtn) console.warn('register-btn element not found');
 
 // Local save elements
 const localPanel = document.getElementById('local-panel');
@@ -1445,15 +1379,6 @@ function checkAchievements() {
 function migrateAchievements() {
   if (!save || !save.achievements) return;
   
-  // Инициализируем новые поля статистики, если их нет
-  if (!save.achievements.stats.spidersSquished) save.achievements.stats.spidersSquished = 0;
-  if (!save.achievements.stats.spidersWithBuff) save.achievements.stats.spidersWithBuff = 0;
-  if (!save.achievements.stats.spidersWithDebuff) save.achievements.stats.spidersWithDebuff = 0;
-  if (!save.achievements.stats.barmatunsCaught) save.achievements.stats.barmatunsCaught = 0;
-  if (!save.achievements.stats.barmatunsWithBuff) save.achievements.stats.barmatunsWithBuff = 0;
-  if (!save.achievements.stats.barmatunsWithDebuff) save.achievements.stats.barmatunsWithDebuff = 0;
-  if (!save.achievements.stats.kingBlessings) save.achievements.stats.kingBlessings = 0;
-  
   // Восстанавливаем статистику из текущего состояния игры
   // Время игры - если не было отслеживания, вычисляем из даты создания
   if (save.achievements.stats.totalPlayTime === 0 && save.meta && save.meta.created) {
@@ -1629,36 +1554,60 @@ function formatTimeAway(seconds) {
   return parts.join(' ');
 }
 
-// Show away message with earnings
+// Show away message with earnings in modal
 function showAwayMessage(timeAwaySeconds, buildingEarnings, uberEarnings) {
   const timeStr = formatTimeAway(timeAwaySeconds);
   const buildingEarningsStr = fmt(buildingEarnings);
   const uberEarningsStr = fmt(uberEarnings);
   
-  let message = `You were away: ${timeStr}\n`;
-  message += `During this time your buildings earned: ${buildingEarningsStr}`;
+  const modal = document.getElementById('offline-earnings-modal');
+  const body = document.getElementById('offline-earnings-body');
+  
+  if (!modal || !body) return;
+  
+  let html = `<p><strong>You were away:</strong> ${timeStr}</p>`;
+  html += `<p><strong>During this time your buildings earned:</strong> ${buildingEarningsStr}</p>`;
   if (uberEarnings > 0) {
-    message += `\nUber building earned: ${uberEarningsStr}`;
+    html += `<p><strong>Uber building earned:</strong> ${uberEarningsStr}</p>`;
   }
   
-  toast(message, 'good');
+  body.innerHTML = html;
+  modal.setAttribute('aria-hidden', 'false');
+  modal.classList.remove('hidden');
+  // Block body scroll when modal is open
+  document.body.classList.add('modal-open');
 }
 
 // Check and process offline earnings
-// forceShow: if true, show message regardless of time away (used on authorization)
-function checkOfflineEarnings(forceShow = false) {
+// Always show modal on page reload if time away > 0
+// Note: lastActivityTime is updated in beforeunload, not here
+function checkOfflineEarnings() {
   if (!save) return;
   
-  const TEN_MINUTES_MS = 30 * 60 * 1000; // 10 minutes in milliseconds
   const currentTime = now();
-  const lastActivity = save.lastActivityTime || currentTime;
+  // Only check if lastActivityTime was already set (not first load)
+  if (!save.lastActivityTime) {
+    // First load - set activity time but don't show modal
+    save.lastActivityTime = currentTime;
+    return;
+  }
+  
+  const lastActivity = save.lastActivityTime;
   const timeAwayMs = currentTime - lastActivity;
   
-  // Show message if away for more than 10 minutes, OR if forceShow is true (and time away > 0)
-  const shouldShow = forceShow ? (timeAwayMs > 0) : (timeAwayMs >= TEN_MINUTES_MS);
+  // Minimum threshold: 3 minutes (180000 ms)
+  const MIN_AWAY_TIME_MS = 3 * 60 * 1000; // 3 minutes
+  // Maximum offline time: 99999 minutes
+  const MAX_OFFLINE_TIME_SECONDS = 99999 * 60; // 99999 minutes in seconds
   
-  if (shouldShow) {
-    const timeAwaySeconds = timeAwayMs / 1000;
+  // Show message if time away > 3 minutes (on page reload)
+  if (timeAwayMs > MIN_AWAY_TIME_MS) {
+    let timeAwaySeconds = timeAwayMs / 1000;
+    
+    // Cap the time at maximum offline time
+    if (timeAwaySeconds > MAX_OFFLINE_TIME_SECONDS) {
+      timeAwaySeconds = MAX_OFFLINE_TIME_SECONDS;
+    }
     
     // Calculate offline earnings
     const buildingEarnings = calculateBuildingOfflineEarnings(timeAwaySeconds);
@@ -1670,12 +1619,13 @@ function checkOfflineEarnings(forceShow = false) {
       addPoints(totalEarnings);
     }
     
-    // Show message
-    showAwayMessage(timeAwaySeconds, buildingEarnings, uberEarnings);
+    // Show modal with a small delay to ensure DOM is ready
+    setTimeout(() => {
+      showAwayMessage(timeAwaySeconds, buildingEarnings, uberEarnings);
+    }, 100);
   }
   
-  // Update last activity time
-  save.lastActivityTime = currentTime;
+  // Don't update lastActivityTime here - it will be updated when user clicks OK or on beforeunload
 }
 
 function canBuyNextBuilding(i) {
@@ -3832,6 +3782,7 @@ function computeBulkCostForClick(bulk) {
 // Building sort state
 // 0 = default (original order), 1 = level desc, 2 = level asc, 3 = income desc, 4 = income asc
 let buildingSortMode = 0;
+let sortButtonInitialized = false;
 const SORT_MODES = [
   { name: 'Default', sortFn: null },
   { name: 'Level ↓', sortFn: (a, b) => b.level - a.level },
@@ -4433,7 +4384,7 @@ function drawAchievementPixel(canvas, ach) {
 }
 
 function renderAchievements() {
-  const container = document.getElementById('achievements-modal-list') || document.getElementById('achievements-list');
+  const container = document.getElementById('achievements-list');
   if (!container) return;
   
   container.innerHTML = '';
@@ -5406,9 +5357,6 @@ clickBtn.addEventListener('click', (event) => {
 
   const ts = now();
   
-  // Check for offline earnings on first click after inactivity
-  checkOfflineEarnings();
-  
   // Streak logic - разрыв стрика при паузе более 1 секунды
   if (ts - save.streak.lastClickTs <= 1000) {
     save.streak.count += 1;
@@ -6083,10 +6031,6 @@ function endKingMiniGame(outcome, info = {}) {
     save.points = save.points * 1.05;
     toast(`Success! The King rewarded you: +${totalLevelsAdded} levels to buildings (${openedCount} buildings), +${clickMaxAddable} to Click, +5% points.`, 'good');
     
-    // Track king blessing (successful game)
-    if (!save.achievements.stats.kingBlessings) save.achievements.stats.kingBlessings = 0;
-    save.achievements.stats.kingBlessings++;
-    
     // Воспроизводим звук выигрыша в мини-игру короля
     playSound('kingBuff');
     
@@ -6354,10 +6298,6 @@ if (spiderEl) {
         save.modifiers.spiderUntil = now() + 4000;
         toast('Spider blessing! All income x11 for 4s.', 'good');
         
-        // Track spider with buff
-        if (!save.achievements.stats.spidersWithBuff) save.achievements.stats.spidersWithBuff = 0;
-        save.achievements.stats.spidersWithBuff++;
-        
         // Воспроизводим звук баффа от паука
         playSound('spiderBuff');
       } else if (roll < 0.80) {
@@ -6365,20 +6305,10 @@ if (spiderEl) {
                 save.modifiers.spiderMult = 0.0001;
                 save.modifiers.spiderUntil = now() + 12000;
                 toast('Spider curse! All income x0.0001 for 12s.', 'bad');
-                
-                // Track spider with debuff
-                if (!save.achievements.stats.spidersWithDebuff) save.achievements.stats.spidersWithDebuff = 0;
-                save.achievements.stats.spidersWithDebuff++;
-                
                 // Воспроизводим звук дебафа от паука
                 playSound('debuff');
       } else {
         toast('Squished! No effect.', 'info');
-        
-        // Track squished spider
-        if (!save.achievements.stats.spidersSquished) save.achievements.stats.spidersSquished = 0;
-        save.achievements.stats.spidersSquished++;
-        
         // Воспроизводим звук раздавленного паука
         playSound('spiderSquish');
       }
@@ -6388,11 +6318,6 @@ if (spiderEl) {
         save.modifiers.spiderMult = 0.0001;
         save.modifiers.spiderUntil = now() + 36000;
         toast('Spider curse! All income x0.0001 for 36s.', 'bad');
-        
-        // Track spider with debuff
-        if (!save.achievements.stats.spidersWithDebuff) save.achievements.stats.spidersWithDebuff = 0;
-        save.achievements.stats.spidersWithDebuff++;
-        
         // Воспроизводим звук дебафа от паука
         playSound('debuff');
       } else if (roll < 0.50) {
@@ -6404,11 +6329,6 @@ if (spiderEl) {
         playSound('spiderBuff');
       } else {
         toast('Squished! No effect.', 'info');
-        
-        // Track squished spider
-        if (!save.achievements.stats.spidersSquished) save.achievements.stats.spidersSquished = 0;
-        save.achievements.stats.spidersSquished++;
-        
         // Воспроизводим звук раздавленного паука
         playSound('spiderSquish');
       }
@@ -6706,10 +6626,6 @@ if (angryBarmatunEl) {
       save.modifiers.angryBarmatunIncomeReduction = now() + 36000;
       toast('Angry Barmatun is furious! All income reduced by 50% for 36s.', 'bad');
       
-      // Track barmatun with debuff
-      if (!save.achievements.stats.barmatunsWithDebuff) save.achievements.stats.barmatunsWithDebuff = 0;
-      save.achievements.stats.barmatunsWithDebuff++;
-      
       // Воспроизводим звук дебафа от барматуна
       playSound('debuff');
     } else {
@@ -6719,17 +6635,9 @@ if (angryBarmatunEl) {
       save.modifiers.angryBarmatunMult = 1.0; // Reset, will be generated per click
       toast('Angry Barmatun grants his wrath! Each click gets a random multiplier (x0.001 to x100) for 18s.', 'good');
       
-      // Track barmatun with buff
-      if (!save.achievements.stats.barmatunsWithBuff) save.achievements.stats.barmatunsWithBuff = 0;
-      save.achievements.stats.barmatunsWithBuff++;
-      
       // Воспроизводим звук положительного баффа от барматуна
       playSound('barmatunBuff');
     }
-    
-    // Track caught barmatun
-    if (!save.achievements.stats.barmatunsCaught) save.achievements.stats.barmatunsCaught = 0;
-    save.achievements.stats.barmatunsCaught++;
 
     // Hide angry barmatun and stop movement
     angryBarmatunEl.classList.add('hidden');
@@ -7548,7 +7456,6 @@ endgameBtn.addEventListener('click', () => {
       const username = save ? save.meta.username : 'Player';
       save = newSave(username);
       initBuildings(save);
-      currentUser = { username, password: '' }; // Сохраняем пользователя для автологина
       toast('Game completely reset.', 'info');
       updateEndgameButtons(); // Скрываем кнопки после сброса
   renderAll();
@@ -7827,13 +7734,12 @@ function drawCitadelPixel(el) {
   el.appendChild(canvas);
 }
 
-// ======= Auth logic =======
+// ======= Game logic =======
 function showGame() {
-  authScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
-  // Display username from save or currentUser
-  const displayName = save.meta?.username || currentUser?.username || currentUser?.email?.split('@')[0] || 'Player';
-  usernameDisplay.textContent = displayName;
+  // Display username from save
+  const displayName = save.meta?.username || 'Player';
+  if (usernameDisplay) usernameDisplay.textContent = displayName;
   // Инициализируем bulk, если его нет
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;
@@ -7870,27 +7776,21 @@ function showGame() {
     });
   }
 }
-function showAuth() {
-  gameScreen.classList.add('hidden');
-  authScreen.classList.remove('hidden');
-}
+// Offline earnings modal handler
+const offlineEarningsModal = document.getElementById('offline-earnings-modal');
+const offlineEarningsOkBtn = document.getElementById('offline-earnings-ok');
 
-// Tab switching logic
-if (tabBtns && tabBtns.length > 0) {
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      // Remove active class from all tabs and panels
-      tabBtns.forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.auth-panel').forEach(p => p.classList.add('hidden'));
-      // Add active class to clicked tab
-      btn.classList.add('active');
-      // Show corresponding panel
-      const panel = document.getElementById(`${tab}-panel`);
-      if (panel) panel.classList.remove('hidden');
-      // Clear validation errors when switching tabs
-      clearValidationErrors();
-    });
+if (offlineEarningsOkBtn) {
+  offlineEarningsOkBtn.addEventListener('click', () => {
+    if (offlineEarningsModal) {
+      offlineEarningsModal.classList.add('hidden');
+      offlineEarningsModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      // Update lastActivityTime when user closes the modal
+      if (save) {
+        save.lastActivityTime = now();
+      }
+    }
   });
 }
 
@@ -7921,30 +7821,6 @@ function clearFieldError(field, errorElement) {
   }
 }
 
-function clearValidationErrors() {
-  // Clear login errors
-  if (loginUsername) loginUsername.classList.remove('error', 'valid');
-  if (loginPassword) loginPassword.classList.remove('error', 'valid');
-  if (loginEmailError) {
-    loginEmailError.textContent = '';
-    loginEmailError.classList.remove('show');
-  }
-  if (loginPasswordError) {
-    loginPasswordError.textContent = '';
-    loginPasswordError.classList.remove('show');
-  }
-  // Clear register errors
-  if (registerEmail) registerEmail.classList.remove('error', 'valid');
-  if (registerPassword) registerPassword.classList.remove('error', 'valid');
-  if (registerEmailError) {
-    registerEmailError.textContent = '';
-    registerEmailError.classList.remove('show');
-  }
-  if (registerPasswordError) {
-    registerPasswordError.textContent = '';
-    registerPasswordError.classList.remove('show');
-  }
-}
 
 function validateEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -7957,447 +7833,7 @@ function validatePassword(password) {
   return { valid: true, message: '' };
 }
 
-// Firebase authentication functions
-async function registerWithFirebase(email, password) {
-  try {
-    if (!window.firebaseAuth) {
-      throw new Error('Firebase not initialized. Please refresh the page.');
-    }
-    const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
-    const auth = window.firebaseAuth;
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (error) {
-    throw error;
-  }
-}
 
-async function loginWithFirebase(email, password) {
-  try {
-    if (!window.firebaseAuth) {
-      throw new Error('Firebase not initialized. Please refresh the page.');
-    }
-    const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
-    const auth = window.firebaseAuth;
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (error) {
-    throw error;
-  }
-}
-
-async function saveToFirebase(userId, saveData) {
-  try {
-    if (!window.firebaseDb) {
-      // Firebase not initialized - silently skip (user might be offline or not logged in)
-      return;
-    }
-    
-    // Check if we should skip Firebase save due to quota
-    const now = Date.now();
-    if (_firebaseQuotaExceeded && now < _firebaseQuotaRetryTime) {
-      // Skip Firebase save, but still save to localStorage
-      return;
-    }
-    
-    // Reset quota flag if retry time has passed
-    if (_firebaseQuotaExceeded && now >= _firebaseQuotaRetryTime) {
-      _firebaseQuotaExceeded = false;
-    }
-    
-    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
-    const db = window.firebaseDb;
-    await setDoc(doc(db, "saves", userId), {
-      data: saveData,
-      lastUpdated: new Date().toISOString()
-    }, { merge: true });
-    
-    // Success - reset quota flag
-    _firebaseQuotaExceeded = false;
-    
-    // Update leaderboard (don't fail if this fails)
-    updateLeaderboardEntry(userId, saveData).catch(e => {
-      // Silently ignore leaderboard update errors (quota, network, etc.)
-      devLog('Leaderboard update failed:', e);
-    });
-  } catch (error) {
-    // Don't throw errors for quota exceeded or network issues
-    if (error.code === 'resource-exhausted' || error.code === 'unavailable' || error.code === 'deadline-exceeded') {
-      // Set flag to skip Firebase saves for a while
-      _firebaseQuotaExceeded = true;
-      _firebaseQuotaRetryTime = Date.now() + FIREBASE_QUOTA_RETRY_DELAY;
-      devLog('Firebase save skipped (quota/network issue):', error.code);
-      return;
-    }
-    // Only log other errors, don't throw
-    devError('Error saving to Firebase:', error);
-  }
-}
-
-// Update leaderboard entry in Firebase
-async function updateLeaderboardEntry(userId, saveData) {
-  try {
-    if (!window.firebaseDb || !saveData) return;
-    
-    const { doc, setDoc, Timestamp } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
-    const stats = saveData.achievements?.stats || {};
-    const buildings = saveData.buildings || [];
-    
-    // Calculate values for leaderboard
-    const overall = calculateOverallScore(saveData);
-    const points = saveData.statistics?.totalPointsEarned || 0;
-    const buildingsTotal = buildings.reduce((sum, b) => sum + b.level, 0);
-    const buildingsOwned = buildings.filter(b => b.level >= 1).length; // Only opened buildings
-    const clicks = stats.totalClicks || 0;
-    const achievements = Object.keys(saveData.achievements?.unlocked || {}).length || 0;
-    
-    const leaderboardData = {
-      username: saveData.meta?.username || 'Unknown',
-      overall: overall,
-      points: points,
-      buildings: buildingsTotal,
-      buildingsOwned: buildingsOwned, // Track opened buildings separately
-      clicks: clicks,
-      achievements: achievements,
-      spidersSquished: stats.spidersSquished || 0,
-      spidersWithBuff: stats.spidersWithBuff || 0,
-      spidersWithDebuff: stats.spidersWithDebuff || 0,
-      barmatunsCaught: stats.barmatunsCaught || 0,
-      barmatunsWithBuff: stats.barmatunsWithBuff || 0,
-      barmatunsWithDebuff: stats.barmatunsWithDebuff || 0,
-      destructions: stats.totalDestructions || 0,
-      kingBlessings: stats.kingBlessings || 0,
-      lastUpdate: Timestamp.now()
-    };
-    
-    await setDoc(doc(window.firebaseDb, "leaderboard", userId), leaderboardData, { merge: true });
-  } catch (error) {
-    // Silently ignore quota and network errors
-    if (error.code !== 'resource-exhausted' && error.code !== 'unavailable' && error.code !== 'deadline-exceeded') {
-      devError('Error updating leaderboard:', error);
-    }
-  }
-}
-
-async function loadFromFirebase(userId) {
-  try {
-    if (!window.firebaseDb) {
-      throw new Error('Firebase not initialized.');
-    }
-    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js");
-    const db = window.firebaseDb;
-    const docRef = doc(db, "saves", userId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return docSnap.data().data;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error loading from Firebase:', error);
-    throw error;
-  }
-}
-
-if (loginBtn && loginUsername && loginPassword) {
-  // Real-time validation for login
-  if (loginUsername) {
-    loginUsername.addEventListener('blur', () => {
-      const email = loginUsername.value.trim();
-      if (email && !validateEmail(email)) {
-        showFieldError(loginUsername, loginEmailError, 'Please enter a valid email address');
-      } else if (email) {
-        clearFieldError(loginUsername, loginEmailError);
-      }
-    });
-    loginUsername.addEventListener('input', () => {
-      if (loginUsername.value.trim()) {
-        clearFieldError(loginUsername, loginEmailError);
-      }
-    });
-  }
-
-loginBtn.addEventListener('click', async () => {
-  const email = loginUsername.value.trim();
-  const p = loginPassword.value;
-  
-  // Clear previous errors
-  clearValidationErrors();
-  
-  // Validate inputs
-  let hasErrors = false;
-  if (!email) {
-    showFieldError(loginUsername, loginEmailError, 'Email is required');
-    hasErrors = true;
-  } else if (!validateEmail(email)) {
-    showFieldError(loginUsername, loginEmailError, 'Please enter a valid email address');
-    hasErrors = true;
-  }
-  
-  if (!p) {
-    showFieldError(loginPassword, loginPasswordError, 'Password is required');
-    hasErrors = true;
-  }
-  
-  if (hasErrors) {
-    toast('Please fix the errors above', 'warn');
-    return;
-  }
-
-  try {
-    const firebaseUser = await loginWithFirebase(email, p);
-    // Load save from Firebase
-    const firebaseSave = await loadFromFirebase(firebaseUser.uid);
-    
-    if (firebaseSave) {
-      save = firebaseSave;
-      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username: firebaseUser.email.split('@')[0] };
-    } else {
-      // Create new save if none exists
-      const username = firebaseUser.email.split('@')[0];
-      save = newSave(username);
-      initBuildings(save);
-      await saveToFirebase(firebaseUser.uid, save);
-      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username };
-    }
-  // If buildings missing (first run), init
-  if (!save.buildings || save.buildings.length === 0) initBuildings(save);
-  // Инициализируем достижения, если их нет в старом сохранении
-  if (!save.achievements) {
-    save.achievements = {
-      unlocked: {},
-      stats: {
-        totalClicks: 0,
-        totalPlayTime: 0,
-        totalDestructions: 0,
-        firstBuildingBought: false,
-      }
-    };
-  }
-  // Инициализируем bulk, если его нет (для старых сохранений)
-  if (save.bulk === undefined || save.bulk === null) {
-    save.bulk = 1;
-  }
-  // Нормализуем bulk при загрузке (может быть строкой из localStorage)
-  if (save.bulk !== 'max') {
-    const parsed = parseInt(save.bulk, 10);
-    save.bulk = isNaN(parsed) ? 1 : parsed;
-  }
-  // Мигрируем streak.multiplier для старых сохранений
-  if (!save.streak) {
-    save.streak = { count: 0, lastClickTs: 0, multiplier: 1.0 };
-  } else if (save.streak.multiplier === undefined) {
-    save.streak.multiplier = 1.0;
-  }
-  // Мигрируем старые сохранения: восстанавливаем статистику и разблокируем достижения
-  migrateAchievements();
-  // Мигрируем uber.max: если не в убер моде и не в убер мод (1881), устанавливаем 19
-  if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
-    save.uber.max = 19;
-  }
-  // Initialize lastActivityTime if missing
-  if (!save.lastActivityTime) {
-    save.lastActivityTime = now();
-  }
-  // Check for offline earnings on login - always show message if time away > 0
-  checkOfflineEarnings(true);
-    startAutosave();
-    clearValidationErrors(); // Clear any validation errors on success
-  showGame();
-  } catch (error) {
-    console.error('Login error:', error);
-    let errorMsg = '';
-    let fieldToHighlight = null;
-    let errorElement = null;
-    
-    if (error.code === 'auth/user-not-found') {
-      errorMsg = 'No account found with this email address. Please check your email or register a new account.';
-      fieldToHighlight = loginUsername;
-      errorElement = loginEmailError;
-    } else if (error.code === 'auth/wrong-password') {
-      errorMsg = 'Incorrect password. Please try again or reset your password.';
-      fieldToHighlight = loginPassword;
-      errorElement = loginPasswordError;
-    } else if (error.code === 'auth/invalid-email') {
-      errorMsg = 'Invalid email format. Please enter a valid email address.';
-      fieldToHighlight = loginUsername;
-      errorElement = loginEmailError;
-    } else if (error.code === 'auth/invalid-credential') {
-      errorMsg = 'Invalid email or password. Please check your credentials and try again.';
-      fieldToHighlight = loginPassword;
-      errorElement = loginPasswordError;
-    } else if (error.code === 'auth/too-many-requests') {
-      errorMsg = 'Too many failed login attempts. Please try again later.';
-    } else if (error.code === 'auth/network-request-failed') {
-      errorMsg = 'Network error. Please check your internet connection and try again.';
-    } else {
-      errorMsg = error.message || 'Login failed. Please try again.';
-    }
-    
-    if (fieldToHighlight && errorElement) {
-      showFieldError(fieldToHighlight, errorElement, errorMsg);
-    }
-    toast(errorMsg || 'Login failed. Please try again.', 'bad');
-  }
-});
-}
-
-if (registerBtn && registerEmail && registerPassword) {
-  // Real-time validation for registration
-  if (registerEmail) {
-    registerEmail.addEventListener('blur', () => {
-      const email = registerEmail.value.trim();
-      if (email && !validateEmail(email)) {
-        showFieldError(registerEmail, registerEmailError, 'Please enter a valid email address');
-      } else if (email) {
-        showFieldValid(registerEmail, registerEmailError);
-      }
-    });
-    registerEmail.addEventListener('input', () => {
-      if (registerEmail.value.trim()) {
-        clearFieldError(registerEmail, registerEmailError);
-      }
-    });
-  }
-  
-  if (registerPassword) {
-    registerPassword.addEventListener('input', () => {
-  const p = registerPassword.value;
-      // Update hint with character count
-      if (registerPasswordHint) {
-        if (p.length > 0 && p.length < 6) {
-          registerPasswordHint.textContent = `Minimum 6 characters required (${p.length}/6)`;
-          registerPasswordHint.style.color = '#cc4444';
-        } else if (p.length >= 6) {
-          registerPasswordHint.textContent = 'Password is valid ✓';
-          registerPasswordHint.style.color = '#44cc44';
-        } else {
-          registerPasswordHint.textContent = 'Minimum 6 characters required';
-          registerPasswordHint.style.color = 'var(--muted)';
-        }
-      }
-      // Show/hide errors
-      if (p.length > 0 && p.length < 6) {
-        showFieldError(registerPassword, registerPasswordError, `Password too short. ${6 - p.length} more character${6 - p.length > 1 ? 's' : ''} needed.`);
-      } else if (p.length >= 6) {
-        showFieldValid(registerPassword, registerPasswordError);
-      } else {
-        clearFieldError(registerPassword, registerPasswordError);
-      }
-    });
-    registerPassword.addEventListener('blur', () => {
-      const p = registerPassword.value;
-      if (p && p.length < 6) {
-        showFieldError(registerPassword, registerPasswordError, 'Password must be at least 6 characters');
-      }
-    });
-  }
-
-registerBtn.addEventListener('click', async () => {
-  const email = registerEmail.value.trim();
-  const p = registerPassword.value;
-  
-  // Clear previous errors
-  clearValidationErrors();
-  
-  // Validate inputs
-  let hasErrors = false;
-  if (!email) {
-    showFieldError(registerEmail, registerEmailError, 'Email is required');
-    hasErrors = true;
-  } else if (!validateEmail(email)) {
-    showFieldError(registerEmail, registerEmailError, 'Please enter a valid email address');
-    hasErrors = true;
-  }
-  
-  const passwordValidation = validatePassword(p);
-  if (!passwordValidation.valid) {
-    showFieldError(registerPassword, registerPasswordError, passwordValidation.message);
-    hasErrors = true;
-  }
-  
-  if (hasErrors) {
-    toast('Please fix the errors above', 'warn');
-    return;
-  }
-
-  try {
-    const firebaseUser = await registerWithFirebase(email, p);
-    const username = email.split('@')[0];
-    save = newSave(username);
-  initBuildings(save);
-  // Инициализируем достижения (уже есть в newSave, но на всякий случай)
-  if (!save.achievements) {
-    save.achievements = {
-      unlocked: {},
-      stats: {
-        totalClicks: 0,
-        totalPlayTime: 0,
-        totalDestructions: 0,
-        firstBuildingBought: false,
-      }
-    };
-  }
-    // Save to Firebase
-    await saveToFirebase(firebaseUser.uid, save);
-    currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, username };
-    clearValidationErrors(); // Clear any validation errors on success
-    toast('Account created successfully!', 'good');
-    startAutosave();
-  showGame();
-  } catch (error) {
-    console.error('Registration error:', error);
-    let errorMsg = '';
-    let fieldToHighlight = null;
-    let errorElement = null;
-    
-    if (error.code === 'auth/email-already-in-use') {
-      errorMsg = 'This email is already registered. Please use a different email or try logging in.';
-      fieldToHighlight = registerEmail;
-      errorElement = registerEmailError;
-    } else if (error.code === 'auth/invalid-email') {
-      errorMsg = 'Invalid email format. Please enter a valid email address (e.g., user@example.com).';
-      fieldToHighlight = registerEmail;
-      errorElement = registerEmailError;
-    } else if (error.code === 'auth/weak-password') {
-      errorMsg = 'Password is too weak. Please use at least 6 characters.';
-      fieldToHighlight = registerPassword;
-      errorElement = registerPasswordError;
-    } else if (error.code === 'auth/operation-not-allowed') {
-      errorMsg = 'Registration is currently disabled. Please contact support.';
-    } else if (error.code === 'auth/network-request-failed') {
-      errorMsg = 'Network error. Please check your internet connection and try again.';
-    } else {
-      errorMsg = error.message || 'Registration failed. Please try again.';
-    }
-    
-    if (fieldToHighlight && errorElement) {
-      showFieldError(fieldToHighlight, errorElement, errorMsg);
-    }
-    toast(errorMsg || 'Registration failed. Please try again.', 'bad');
-  }
-});
-}
-
-if (logoutBtn) {
-logoutBtn.addEventListener('click', async () => {
-  await saveNow();
-  // Sign out from Firebase if logged in
-  if (currentUser && currentUser.uid) {
-    try {
-      const { signOut } = await import("https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js");
-      const auth = window.firebaseAuth;
-      await signOut(auth);
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  }
-  currentUser = null;
-  save = null;
-  stopAutosave();
-  toast('Logged out.', 'info');
-  showAuth();
-});
-}
 
 // Local save handlers
 if (localLoadBtn) {
@@ -8407,8 +7843,11 @@ if (localLoadBtn) {
       toast('No local save found.', 'warn');
       return;
     }
-    save = stored.data;
-    currentUser = stored.user || { username: save.meta?.username || 'Local Player' };
+    save = stored.data || stored; // Support both formats
+    if (!save) {
+      toast('Invalid save file.', 'warn');
+      return;
+    }
     
     // If buildings missing, init
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
@@ -8447,7 +7886,7 @@ if (localLoadBtn) {
     if (!save.lastActivityTime) {
       save.lastActivityTime = now();
     }
-    checkOfflineEarnings(true);
+    checkOfflineEarnings();
     startAutosave();
     toast('Local save loaded.', 'good');
     showGame();
@@ -8461,7 +7900,6 @@ if (localDownloadBtn) {
       return;
     }
     const saveData = {
-      user: currentUser,
       data: save,
       exported: new Date().toISOString()
     };
@@ -8494,30 +7932,11 @@ if (localUploadBtn && localUploadInput) {
           return;
         }
         
-        // If user is logged in to Firebase, upload the save
-        if (currentUser && currentUser.uid) {
-          try {
-            await saveToFirebase(currentUser.uid, saveData.data);
-            save = saveData.data;
-            if (saveData.user) {
-              currentUser = { ...currentUser, ...saveData.user };
-            }
-            toast('Save uploaded to cloud successfully!', 'good');
-            startAutosave();
-            showGame();
-          } catch (error) {
-            console.error('Upload error:', error);
-            toast('Failed to upload to cloud. Loading locally...', 'warn');
-            // Fall through to local load
-          }
-        } else {
-          // Just load locally
-          save = saveData.data;
-          if (saveData.user) {
-            currentUser = saveData.user;
-          } else {
-            currentUser = { username: save.meta?.username || 'Local Player' };
-          }
+        // Load save
+        save = saveData.data || saveData;
+        if (!save) {
+          toast('Invalid save file format.', 'bad');
+          return;
         }
         
         // Initialize missing data
@@ -8552,7 +7971,7 @@ if (localUploadBtn && localUploadInput) {
         if (!save.lastActivityTime) {
           save.lastActivityTime = now();
         }
-        checkOfflineEarnings(true);
+        checkOfflineEarnings();
         startAutosave();
         toast('Save file loaded successfully!', 'good');
         showGame();
@@ -8570,184 +7989,6 @@ if (localUploadBtn && localUploadInput) {
 
 
 // Инициализация обработчика кнопки статистики
-// Calculate overall score for ranking
-function calculateOverallScore(saveData) {
-  if (!saveData) return 0;
-  const points = saveData.statistics?.totalPointsEarned || 0;
-  const buildings = saveData.buildings?.reduce((sum, b) => sum + b.level, 0) || 0;
-  const clicks = saveData.achievements?.stats?.totalClicks || 0;
-  const achievements = Object.keys(saveData.achievements?.unlocked || {}).length || 0;
-  return points + buildings * 100 + clicks * 10 + achievements * 1000;
-}
-
-// Leaderboard categories mapping
-const leaderboardCategories = {
-  overall: { name: 'Overall Ranking', field: 'overall' },
-  points: { name: 'Total Points', field: 'points' },
-  buildings: { name: 'Building Levels', field: 'buildings' }, // Total levels of all buildings
-  clicks: { name: 'Total Clicks', field: 'clicks' },
-  achievements: { name: 'Achievements', field: 'achievements' },
-  spidersSquished: { name: 'Spiders Squished', field: 'spidersSquished' },
-  spidersWithBuff: { name: 'Spiders (Buff)', field: 'spidersWithBuff' },
-  spidersWithDebuff: { name: 'Spiders (Debuff)', field: 'spidersWithDebuff' },
-  barmatunsCaught: { name: 'Barmatuns Caught', field: 'barmatunsCaught' },
-  barmatunsWithBuff: { name: 'Barmatuns (Buff)', field: 'barmatunsWithBuff' },
-  barmatunsWithDebuff: { name: 'Barmatuns (Debuff)', field: 'barmatunsWithDebuff' },
-  destructions: { name: 'Destructions', field: 'destructions' },
-  kingBlessings: { name: 'King Blessings', field: 'kingBlessings' }
-};
-
-let currentTimeFilter = 'all';
-
-// Load leaderboard data from Firebase
-async function loadLeaderboard(category, timeFilter = 'all') {
-  if (!window.firebaseDb) {
-    devLog('Firebase not initialized for leaderboard');
-    return [];
-  }
-  
-  try {
-    const { collection, query, orderBy, limit, getDocs, where, Timestamp } = await import('https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js');
-    const categoryData = leaderboardCategories[category];
-    if (!categoryData) {
-      devWarn('Unknown leaderboard category:', category);
-      return [];
-    }
-    
-    let q = query(collection(window.firebaseDb, 'leaderboard'), orderBy(categoryData.field, 'desc'), limit(100));
-    
-    // Apply time filter
-    if (timeFilter === 'week') {
-      const weekAgo = Timestamp.fromDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-      // Filter by time, then sort by category field
-      // Note: Firebase requires composite index for multiple orderBy, so we'll filter client-side if needed
-      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', weekAgo), orderBy(categoryData.field, 'desc'), limit(100));
-    } else if (timeFilter === 'month') {
-      const monthAgo = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-      q = query(collection(window.firebaseDb, 'leaderboard'), where('lastUpdate', '>=', monthAgo), orderBy(categoryData.field, 'desc'), limit(100));
-    }
-    
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map((doc, index) => ({
-      rank: index + 1,
-      username: doc.data().username || 'Unknown',
-      score: doc.data()[categoryData.field] || 0,
-      uid: doc.id
-    }));
-    
-    devLog(`Loaded ${data.length} leaderboard entries for ${category} (${timeFilter})`);
-    return data;
-  } catch (error) {
-    // Handle specific Firebase errors
-    if (error.code === 'failed-precondition') {
-      devWarn('Firebase index required for leaderboard query. Please create composite index in Firebase Console.');
-      console.warn('Firebase index required for leaderboard query');
-    } else if (error.code === 'resource-exhausted') {
-      devLog('Firebase quota exceeded, skipping leaderboard load');
-      // Silently skip - quota exceeded
-    } else {
-      devError('Error loading leaderboard:', error);
-      console.error('Error loading leaderboard:', error);
-    }
-    return [];
-  }
-}
-
-// Render leaderboard table
-async function renderLeaderboard(category) {
-  const tbody = document.getElementById(`leaderboard-table-body-${category}`);
-  const playerPosition = document.getElementById(`leaderboard-player-position-${category}`);
-  
-  if (!tbody) {
-    console.warn(`Leaderboard table body not found for category: ${category}`);
-    return;
-  }
-  
-  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">Loading...</td></tr>';
-  if (playerPosition) playerPosition.innerHTML = '';
-  
-  try {
-    const data = await loadLeaderboard(category, currentTimeFilter);
-    
-    if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No data available</td></tr>';
-      if (playerPosition) playerPosition.innerHTML = '';
-      return;
-    }
-    
-    // Find player position
-    const currentUsername = save?.meta?.username || currentUser?.displayName || 'Unknown';
-    const playerData = data.find(p => p.username === currentUsername);
-    
-    if (playerData && playerPosition) {
-      // Format score based on category
-      let scoreText = fmt(playerData.score);
-      if (category === 'buildings') {
-        scoreText = Math.floor(playerData.score).toLocaleString();
-      } else if (category === 'clicks' || category === 'achievements' || 
-                 category === 'spidersSquished' || category === 'spidersWithBuff' || 
-                 category === 'spidersWithDebuff' || category === 'barmatunsCaught' ||
-                 category === 'barmatunsWithBuff' || category === 'barmatunsWithDebuff' ||
-                 category === 'destructions' || category === 'kingBlessings') {
-        scoreText = Math.floor(playerData.score).toLocaleString();
-      }
-      
-      playerPosition.innerHTML = `
-        <div class="leaderboard-player-info">
-          <span class="leaderboard-player-label">Your Position:</span>
-          <span class="leaderboard-player-rank">#${playerData.rank}</span>
-          <span class="leaderboard-player-score">${scoreText}</span>
-        </div>
-      `;
-    }
-    
-    // Render table
-    tbody.innerHTML = data.map(player => {
-      // Format score based on category
-      let scoreText = fmt(player.score);
-      if (category === 'buildings') {
-        scoreText = Math.floor(player.score).toLocaleString();
-      } else if (category === 'clicks' || category === 'achievements' || 
-                 category === 'spidersSquished' || category === 'spidersWithBuff' || 
-                 category === 'spidersWithDebuff' || category === 'barmatunsCaught' ||
-                 category === 'barmatunsWithBuff' || category === 'barmatunsWithDebuff' ||
-                 category === 'destructions' || category === 'kingBlessings') {
-        scoreText = Math.floor(player.score).toLocaleString();
-      }
-      
-      return `
-      <tr class="${player.username === currentUsername ? 'leaderboard-player-row' : ''}">
-        <td>#${player.rank}</td>
-        <td>${player.username}</td>
-        <td>${scoreText}</td>
-      </tr>
-    `;
-    }).join('');
-  } catch (error) {
-    console.error('Error rendering leaderboard:', error);
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: red;">Error loading leaderboard</td></tr>';
-    if (playerPosition) playerPosition.innerHTML = '';
-  }
-}
-
-// Render content for stats tabs
-function renderStatsTabContent(tabName) {
-  if (!save || !save.achievements) return;
-  
-  // For leaderboard tabs, load leaderboard data
-  if (leaderboardCategories[tabName]) {
-    renderLeaderboard(tabName);
-    return;
-  }
-  
-  // For statistics tab, render statistics
-  if (tabName === 'statistics') {
-    renderStatistics();
-    return;
-  }
-  
-}
-
 function initStatsButton() {
   const btn = document.getElementById('stats-btn');
   const modal = document.getElementById('stats-modal');
@@ -8786,65 +8027,6 @@ function initStatsButton() {
       closeStatsModal();
     }
   });
-  
-  // Tab switching
-  const tabs = document.querySelectorAll('.stats-tab');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabName = tab.dataset.tab;
-      
-      // Update active tab
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      
-      // Update active content
-      const contents = document.querySelectorAll('.stats-tab-content');
-      contents.forEach(content => {
-        content.classList.remove('active');
-        if (content.id === `stats-tab-${tabName}`) {
-          content.classList.add('active');
-        }
-      });
-      
-      // Render content for the selected tab
-      renderStatsTabContent(tabName);
-    });
-  });
-  
-  // Initialize achievements button (Hall of Fame)
-  const achievementsBtn = document.getElementById('achievements-btn');
-  if (achievementsBtn) {
-    achievementsBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openStatsModal();
-    });
-  }
-  
-  // Time filter buttons
-  const timeFilterBtns = document.querySelectorAll('.time-filter-btn');
-  timeFilterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const filter = btn.dataset.filter;
-      if (!filter) return;
-      
-      // Update active filter
-      timeFilterBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      // Update current filter
-      currentTimeFilter = filter;
-      
-      // Re-render current leaderboard tab
-      const activeTab = document.querySelector('.stats-tab.active');
-      if (activeTab) {
-        const tabName = activeTab.dataset.tab;
-        if (leaderboardCategories[tabName]) {
-          renderLeaderboard(tabName);
-        }
-      }
-    });
-  });
 }
 
 // Вызываем инициализацию после загрузки DOM
@@ -8868,22 +8050,6 @@ statsModal.addEventListener('click', (ev) => {
 }
 
 // Talent event handlers removed
-
-// Tab switching
-tabBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    tabBtns.forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const tab = btn.dataset.tab;
-    if (tab === 'login') {
-      loginPanel.classList.remove('hidden');
-      registerPanel.classList.add('hidden');
-    } else {
-      registerPanel.classList.remove('hidden');
-      loginPanel.classList.add('hidden');
-    }
-  });
-});
 
 // ======= Debug panel =======
 debugOpen.addEventListener('click', () => debugModal.classList.remove('hidden'));
@@ -9422,10 +8588,8 @@ document.addEventListener('keydown', (e) => {
 // ======= Boot =======
 (function boot() {
   const stored = load();
-  if (stored && stored.user && stored.data) {
-    // Keep saved for quick login
-    currentUser = stored.user;
-    save = stored.data;
+  if (stored) {
+    save = stored;
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
     ensureTreasury(save);
     // Инициализируем достижения, если их нет
@@ -9462,9 +8626,13 @@ document.addEventListener('keydown', (e) => {
     if (save.uber && save.uber.max !== 9999 && save.uber.max !== 19 && save.uber.max !== 1881) {
       save.uber.max = 19;
     }
-    // Show auth; user can log in. Or auto-login? Keep manual per request.
+  } else {
+    // Create new save if none exists
+    save = newSave('Player');
+    initBuildings(save);
+    ensureTreasury(save);
   }
-  autosaveLoop();
+  startAutosave();
 // ... после загрузки save и первого рендера
 // Рендерим достижения всегда, даже если игра не загружена
 renderAchievements();
@@ -9494,13 +8662,12 @@ if (save) {
     updateSeason();
   }
   if (save) {
-    // Initialize lastActivityTime if missing
-    if (!save.lastActivityTime) {
-      save.lastActivityTime = now();
-    }
     // Check for offline earnings on page load
+    // This will set lastActivityTime if missing, or show modal if time away > 0
     checkOfflineEarnings();
     renderAll();
+    // Show game immediately
+    showGame();
     // Блокируем контекстное меню (ПКМ) на игровом экране при автозагрузке
     if (gameScreen) {
       gameScreen.addEventListener('contextmenu', (e) => {
@@ -9605,8 +8772,8 @@ function renderStatistics() {
     <div class="stat-section">
       <div class="stat-section-title">Buildings</div>
       <div class="stat-row">
-        <span class="stat-label">Buildings Owned:</span>
-        <span class="stat-value">${save.buildings.filter(b => b.level >= 1).length} / ${save.buildings.length}</span>
+        <span class="stat-label">Total Buildings:</span>
+        <span class="stat-value">${save.buildings.length}</span>
       </div>
       <div class="stat-row">
         <span class="stat-label">Total Building Levels:</span>
@@ -9674,25 +8841,31 @@ function openStatsModal() {
     };
   }
   
+  // КРИТИЧНО: Сохраняем реальную ширину grid ДО любых изменений layout
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    _savedGameColumnsWidthStats = rect.width;
+  }
+  
   try {
     renderStatistics();
-    renderAchievements();
-    
-    // Render initial tab content
-    const activeTab = document.querySelector('.stats-tab.active');
-    if (activeTab) {
-      renderStatsTabContent(activeTab.dataset.tab);
-    }
     
     // Пометка aria
     modal.setAttribute('aria-hidden', 'false');
+    
+    // Компенсируем ширину скроллбара
+    const scrollbarWidth = _getScrollbarWidth();
+    if (scrollbarWidth > 0) {
+      _savedBodyPaddingRight = document.body.style.paddingRight || '';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
     
     // Добавляем класс для блокировки скролла
     document.body.classList.add('modal-open');
     
     // Фиксируем ширину grid после того, как overflow: hidden применен
     requestAnimationFrame(() => {
-      const gameColumns = document.querySelector('.game-columns');
       if (gameColumns && _savedGameColumnsWidthStats !== null) {
         gameColumns.style.width = `${_savedGameColumnsWidthStats}px`;
         gameColumns.style.minWidth = `${_savedGameColumnsWidthStats}px`;
@@ -9946,8 +9119,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ======= Sort Event Handlers =======
-let sortButtonInitialized = false;
-
 function initSortButton() {
   const btn = document.getElementById('sort-buildings-btn');
   if (!btn || sortButtonInitialized) return;
