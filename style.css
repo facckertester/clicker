@@ -1059,7 +1059,7 @@ body.modal-open .game-columns {
   border: 3px solid #d4af37;
   cursor: var(--pointer-cursor);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 .click-row #click-btn:hover:not(:disabled) {
   border-color: #ffd700;
@@ -1404,8 +1404,11 @@ body.modal-open .game-columns {
   border:1px solid var(--border);
 }
 
-/* Пиксельные иконки для зданий (canvas) */
+/* Пиксельные иконки для зданий (canvas и img) */
 .building-pixel {
+  width: 64px;
+  height: 64px;
+  display: block;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -1443,8 +1446,9 @@ body.modal-open .game-columns {
 /* larger building cards on wide screens */
 @media (min-width:1100px){
   .building-card{min-height:86px;padding:14px}
-  .building-pixel{width:80px;height:80px}
+  .building-pixel{width:90px;height:90px}
   .building-name{font-size:1.4rem}
+  .uber-pixel{width:90px;height:90px}
 }
 
 /* ---------- UBER FOOTER (PoE стиль) ---------- */
@@ -1465,9 +1469,18 @@ body.modal-open .game-columns {
   min-height:86px;
 }
 .uber-pixel { 
-  width:80px;height:80px;border-radius:var(--radius);
+  width:64px;height:64px;border-radius:var(--radius);
   background:rgba(42, 42, 42, 0.8);
   border:1px solid var(--border);
+}
+
+.uber-pixel img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  display: block;
 }
 .uber-actions { 
   display:flex;
@@ -1484,7 +1497,7 @@ body.modal-open .game-columns {
   border: 1px solid var(--border);
 }
 
-/* Ensure Uber pixel matches building-pixel sizes (64px default, 80px at ≥1100px) */
+/* Ensure Uber pixel matches building-pixel sizes (64px default, 90px at ≥1100px) */
 #uber-card .uber-pixel {
   width: 64px;
   height: 64px;
@@ -1620,13 +1633,28 @@ body.modal-open .game-columns {
   pointer-events:auto;
 }
 
-.spider canvas {
+.spider canvas,
+.spider img {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   display: block;
+}
+
+/* Свечение вокруг паука - коричневатое */
+#spider img {
+  filter: drop-shadow(0 0 8px rgba(139, 90, 43, 0.8)) 
+          drop-shadow(0 0 12px rgba(139, 90, 43, 0.6))
+          drop-shadow(0 0 16px rgba(139, 90, 43, 0.4));
+}
+
+/* Свечение вокруг барматуна - красное */
+#angry-barmatun img {
+  filter: drop-shadow(0 0 8px rgba(200, 0, 0, 0.8)) 
+          drop-shadow(0 0 12px rgba(200, 0, 0, 0.6))
+          drop-shadow(0 0 16px rgba(200, 0, 0, 0.4));
 }
 
 .elf-archer {
@@ -1646,7 +1674,8 @@ body.modal-open .game-columns {
   pointer-events: auto;
 }
 
-.elf-archer canvas {
+.elf-archer canvas,
+.elf-archer img {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
@@ -1773,13 +1802,21 @@ input, textarea, select { cursor: text; }
 /* visible state */
 .king.show{ display:flex; }
 
-.king canvas {
+.king canvas,
+.king img {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   display: block;
+}
+
+/* Свечение вокруг короля - бежевое */
+#king img {
+  filter: drop-shadow(0 0 8px rgba(245, 222, 179, 0.8)) 
+          drop-shadow(0 0 12px rgba(245, 222, 179, 0.6))
+          drop-shadow(0 0 16px rgba(245, 222, 179, 0.4));
 }
 
 /* Crown token style used inside the mini-game arena (detailed, high-contrast) */
@@ -2087,27 +2124,39 @@ input, textarea, select { cursor: text; }
 /* Анимации удалены */
 
 /* ======= Click Particles ======= */
-.click-particle {
+/* Эффект пульсации контура кнопки при клике */
+.click-pulse-wave {
   position: fixed;
   pointer-events: none;
   z-index: 10000;
-  font-family: var(--mono-font);
-  font-weight: bold;
-  font-size: 16px;
-  color: #c8aa6e;
-  text-shadow: 
-    0 0 10px rgba(255, 215, 0, 1),
-    0 0 20px rgba(255, 215, 0, 0.8),
-    0 0 30px rgba(255, 215, 0, 0.6),
-    2px 2px 6px rgba(0, 0, 0, 1),
-    -1px -1px 2px rgba(0, 0, 0, 0.8);
-  transform: translate(-50%, -50%);
-  animation: particleFloat 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-  user-select: none;
-  letter-spacing: 1px;
+  border: 3px solid rgba(212, 176, 128, 0);
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  transform-origin: center center;
+  animation: clickPulseWave 0.4s ease-out forwards;
 }
 
-/* Анимации удалены */
+@keyframes clickPulseWave {
+  0% {
+    border-color: rgba(212, 176, 128, 0);
+    border-width: 3px;
+    transform: scale(1);
+    opacity: 1;
+  }
+  15% {
+    border-color: rgba(212, 176, 128, 1);
+    border-width: 3px;
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    border-color: rgba(212, 176, 128, 0);
+    border-width: 2px;
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
 
 /* ======= Season Themes ======= */
 body.season-spring {
