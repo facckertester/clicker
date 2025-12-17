@@ -3178,4 +3178,80 @@ body.season-winter .achievement-item {
   }
 }
 
+/* ========== CUSTOM SCROLLBARS ========== */
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 15px; /* В 1.5 раза тоньше стандартного (обычно ~15px) */
+  height: 15px; /* Для горизонтальных скроллбаров */
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(26, 26, 26, 0.8);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(212, 176, 128, 0.6), rgba(184, 144, 96, 0.6));
+  border-radius: var(--radius);
+  border: 2px solid rgba(26, 26, 26, 0.8);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(240, 208, 160, 0.8), rgba(212, 176, 128, 0.8));
+  border-color: var(--border-orange);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, rgba(184, 144, 96, 0.8), rgba(139, 90, 43, 0.8));
+}
+
+::-webkit-scrollbar-corner {
+  background: rgba(26, 26, 26, 0.8);
+  border-radius: var(--radius);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thick; /* auto | thin | none | thick - делает скроллбар толще */
+  scrollbar-color: rgba(212, 176, 128, 0.6) rgba(26, 26, 26, 0.8);
+}
+
+/* Дополнительные стили для скроллируемых контейнеров */
+.buildings-list,
+.notice-board,
+.effects-board,
+.achievements-list,
+.modal-body,
+#stats-modal .modal-body,
+#updates-modal .modal-body,
+#confirm-modal .modal-body {
+  scrollbar-width: thick;
+  scrollbar-color: rgba(212, 176, 128, 0.6) rgba(26, 26, 26, 0.8);
+}
+
+/* Специфичные стили для модальных окон в Webkit */
+#stats-modal .modal-body::-webkit-scrollbar,
+#updates-modal .modal-body::-webkit-scrollbar,
+#confirm-modal .modal-body::-webkit-scrollbar {
+  width: 22px;
+}
+
+/* Улучшенные стили для скроллбаров в списках */
+.buildings-list::-webkit-scrollbar-thumb,
+.notice-board::-webkit-scrollbar-thumb,
+.effects-board::-webkit-scrollbar-thumb,
+.achievements-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(212, 176, 128, 0.7), rgba(184, 144, 96, 0.7));
+}
+
+.buildings-list::-webkit-scrollbar-thumb:hover,
+.notice-board::-webkit-scrollbar-thumb:hover,
+.effects-board::-webkit-scrollbar-thumb:hover,
+.achievements-list::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(240, 208, 160, 0.9), rgba(212, 176, 128, 0.9));
+}
+
 /* Конец файла: все элементы сохранены на своих местах, но визуально переработаны под AoE2 */

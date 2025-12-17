@@ -2083,6 +2083,7 @@ let _cachedPPCText = null;
 let _cachedPoints = null;
 let _cachedPPSValue = null;
 let _cachedPPCValue = null;
+let _lastTreasuryPctForColor = null;
 
 function renderTopStats() {
   if (!save) return;
@@ -2147,42 +2148,48 @@ function renderTopStats() {
     }
     
     // Изменяем цвет текста в зависимости от того, находится ли за ним заполненная часть шкалы
-    // Оптимизация: кэшируем элементы и обновляем только при изменении процента
-    const overlayEl = treasuryValueEl.closest('.treasury-overlay');
-    const progressEl = treasuryFillEl.closest('.treasury-progress');
-    if (overlayEl && progressEl) {
-      // Кэшируем getBoundingClientRect - вызываем только раз в кадре
-      const progressRect = progressEl.getBoundingClientRect();
-      const progressWidth = progressRect.width;
-      const fillWidth = (progressWidth * pct) / 100;
-      
-      const labelEl = overlayEl.querySelector('.treasury-label');
-      const amountEl = overlayEl.querySelector('.treasury-amount');
-      const regenEl = overlayEl.querySelector('.treasury-regen');
-      
-      // Проверяем каждый элемент (оптимизация: кэшируем вычисления)
-      if (labelEl) {
-        const labelRect = labelEl.getBoundingClientRect();
-        const labelCenterX = labelRect.left + labelRect.width / 2 - progressRect.left;
-        const newColor = labelCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
-        if (labelEl.style.color !== newColor) {
-          labelEl.style.color = newColor;
+    // Оптимизация: обновляем цвета только если процент изменился значительно (более 2%)
+    const lastPct = _lastTreasuryPctForColor || 0;
+    const pctChanged = Math.abs(pct - lastPct) > 2;
+    
+    if (pctChanged) {
+      _lastTreasuryPctForColor = pct;
+      const overlayEl = treasuryValueEl.closest('.treasury-overlay');
+      const progressEl = treasuryFillEl.closest('.treasury-progress');
+      if (overlayEl && progressEl) {
+        // Кэшируем getBoundingClientRect - вызываем только раз в кадре
+        const progressRect = progressEl.getBoundingClientRect();
+        const progressWidth = progressRect.width;
+        const fillWidth = (progressWidth * pct) / 100;
+        
+        const labelEl = overlayEl.querySelector('.treasury-label');
+        const amountEl = overlayEl.querySelector('.treasury-amount');
+        const regenEl = overlayEl.querySelector('.treasury-regen');
+        
+        // Проверяем каждый элемент (оптимизация: кэшируем вычисления)
+        if (labelEl) {
+          const labelRect = labelEl.getBoundingClientRect();
+          const labelCenterX = labelRect.left + labelRect.width / 2 - progressRect.left;
+          const newColor = labelCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+          if (labelEl.style.color !== newColor) {
+            labelEl.style.color = newColor;
+          }
         }
-      }
-      if (amountEl) {
-        const amountRect = amountEl.getBoundingClientRect();
-        const amountCenterX = amountRect.left + amountRect.width / 2 - progressRect.left;
-        const newColor = amountCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
-        if (amountEl.style.color !== newColor) {
-          amountEl.style.color = newColor;
+        if (amountEl) {
+          const amountRect = amountEl.getBoundingClientRect();
+          const amountCenterX = amountRect.left + amountRect.width / 2 - progressRect.left;
+          const newColor = amountCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+          if (amountEl.style.color !== newColor) {
+            amountEl.style.color = newColor;
+          }
         }
-      }
-      if (regenEl) {
-        const regenRect = regenEl.getBoundingClientRect();
-        const regenCenterX = regenRect.left + regenRect.width / 2 - progressRect.left;
-        const newColor = regenCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
-        if (regenEl.style.color !== newColor) {
-          regenEl.style.color = newColor;
+        if (regenEl) {
+          const regenRect = regenEl.getBoundingClientRect();
+          const regenCenterX = regenRect.left + regenRect.width / 2 - progressRect.left;
+          const newColor = regenCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+          if (regenEl.style.color !== newColor) {
+            regenEl.style.color = newColor;
+          }
         }
       }
     }
@@ -5039,6 +5046,9 @@ function updateButtonStates() {
 function _updateButtonStatesInternal() {
   if (!save) return;
 
+  // Кэшируем now() для всех проверок - оптимизация производительности
+  const tNow = now();
+
   // Check if buttons should be hidden (level >= 1000 and not in Uber Mode)
   const isInUberMode = save.uber && save.uber.max !== 19;
   const clickShouldHide = save.click.level >= 1000 && !isInUberMode;
@@ -5124,7 +5134,7 @@ function _updateButtonStatesInternal() {
         }
         const nextCost = computeBulkCostForBuilding(i, save.bulk);
         if (buyBtn && !buyBtn.classList.contains('hidden')) {
-          buyBtn.disabled = (now() < b.blockedUntil) || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
+          buyBtn.disabled = (tNow < b.blockedUntil) || !canBuyNextBuilding(i) || (save.points < nextCost.totalCost);
         }
       }
     }
