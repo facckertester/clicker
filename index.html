@@ -181,10 +181,10 @@
 
         <div class="userbox">
           <span id="username-display"></span>
-          <div class="music-control-container">
-            <button id="sound-toggle-btn" class="btn tiny" title="Music settings">🔊</button>
-            <div id="music-menu" class="music-menu hidden">
-              <div class="music-menu-header">Audio Settings</div>
+          <div class="settings-control-container">
+            <button id="settings-toggle-btn" class="btn tiny" title="Settings">⚙️</button>
+            <div id="settings-menu" class="settings-menu hidden">
+              <div class="settings-menu-header">Settings</div>
               <div class="volume-control-group">
                 <div class="volume-control-label">Music Volume</div>
                 <input type="range" id="music-volume-slider" min="0" max="100" value="50" class="volume-slider">
@@ -194,6 +194,16 @@
                 <div class="volume-control-label">Sound Effects Volume</div>
                 <input type="range" id="sound-effects-volume-slider" min="0" max="100" value="50" class="volume-slider">
                 <div class="music-volume-value"><span id="sound-effects-volume-display">50</span>%</div>
+              </div>
+              <div class="volume-control-group" style="margin-top: 16px;">
+                <div class="volume-control-label">Opacity</div>
+                <input type="range" id="opacity-slider" min="0" max="100" value="0" class="volume-slider">
+                <div class="music-volume-value"><span id="opacity-display">0</span>%</div>
+              </div>
+              <div class="volume-control-group" style="margin-top: 16px;">
+                <div class="volume-control-label">Seasonal Theme</div>
+                <input type="checkbox" id="seasonal-theme-checkbox" checked style="flex: 0; width: 40px; height: 40px; margin: 0; cursor: pointer; accent-color: var(--poe-orange);">
+                <div class="music-volume-value" style="min-width: auto;"></div>
               </div>
             </div>
           </div>
@@ -240,10 +250,10 @@
               <button class="btn tiny bulk" data-bulk="10">x10</button>
             </div>
 
-            <!-- right column: Buy and Upgrade (Buy to the right of Click, Upgrade under Buy) -->
+            <!-- right column: Buy and UP (Buy to the right of Click, UP under Buy) -->
             <div class="quick-actions">
               <button id="click-buy" class="btn primary">Buy "Click" level</button>
-              <button id="click-seg-upgrade" class="btn small mt-6 seg-upgrade-btn hidden">Upgrade</button>
+              <button id="click-seg-upgrade" class="btn small mt-6 seg-upgrade-btn hidden">UP</button>
             </div>
           </div>
 
@@ -295,7 +305,10 @@
 
   <!-- Achievements section -->
   <div class="achievements-container">
-    <h3 class="achievements-title">Achievements</h3>
+    <div class="achievements-header">
+      <h3 class="achievements-title">Achievements</h3>
+      <span id="achievements-count" class="achievements-count">0</span>
+    </div>
     <div id="achievements-list" class="achievements-list"></div>
   </div>
 </section>
@@ -315,7 +328,7 @@
 
   </div>
 
-<!-- Updates button (fixed top-left) -->
+<!-- Updates button (fixed top-right) -->
 <button id="updates-btn" aria-haspopup="dialog" aria-controls="updates-modal" title="Updates">Updates</button>
 
 <!-- Updates modal -->

@@ -576,7 +576,7 @@ function newSave(username) {
       goldenMult: 1.5,
       upgradeBonus: 0, // cumulative 3% bonuses applied count
     },
-    bulk: 1, // 1,10,50,100,'max'
+    bulk: 1, // 1,10
     buildings: [], // filled later
     uber: {
       unlocked: false,
@@ -959,7 +959,6 @@ function _updateBuildingCountdowns() {
   }
 }
 
-
 function startCountdownLoop() {
   if (_countdownInterval) return;
   _countdownInterval = setInterval(() => {
@@ -1157,14 +1156,15 @@ function clickLevelCostAt(level) {
   // base upgrade price for click is 7.772 for first level (level 0->1)
   const base = 0.0737 / 4; // Уменьшено в 4 раза (2x2)
   // smooth price growth
-  return base * Math.pow(1.055, level);
+  // Множитель изменен с 1.055 на 1.05 для снижения прироста цены
+  return base * Math.pow(1.05, level);
 }
 function clickIncomeAt(level, upgradesCount) {
   const basePpc = save.ppcBase;
   const upgradeMult = Math.pow(1.03, upgradesCount || 0);
   // Smooth per-level ppc growth (gentle) - reduced by 2x, прирост уменьшен на 20% (дважды по 10%)
-  // Было: 1.024695 (+2.4695% за уровень), стало: 1.02000295 (+2.000295% за уровень, уменьшение на 20%)
-  return basePpc * Math.pow(1.02000295, level) * upgradeMult;
+  // Было: 1.024695 (+2.4695% за уровень), стало: 1.02222951 (+2.222951% за уровень)
+  return basePpc * Math.pow(1.02222951, level) * upgradeMult;
 }
 
 // Building cost/income per level
@@ -1364,14 +1364,14 @@ const ACHIEVEMENTS = [
   { id: 'click_level_1000', type: 'click_level', value: 1000, reward: 0.005, name: 'Click Lv1000', icon: '👆' },
   
   // Click Upgrade Bonuses
-  { id: 'click_upgrade_1', type: 'click_upgrade', value: 1, reward: 0.005, name: '1 Click Upgrade', icon: '⚡' },
-  { id: 'click_upgrade_5', type: 'click_upgrade', value: 5, reward: 0.005, name: '5 Click Upgrades', icon: '⚡' },
-  { id: 'click_upgrade_10', type: 'click_upgrade', value: 10, reward: 0.005, name: '10 Click Upgrades', icon: '⚡' },
-  { id: 'click_upgrade_25', type: 'click_upgrade', value: 25, reward: 0.005, name: '25 Click Upgrades', icon: '⚡' },
-  { id: 'click_upgrade_50', type: 'click_upgrade', value: 50, reward: 0.005, name: '50 Click Upgrades', icon: '⚡' },
-  { id: 'click_upgrade_100', type: 'click_upgrade', value: 100, reward: 0.005, name: '100 Click Upgrades', icon: '⚡' },
-  { id: 'click_upgrade_250', type: 'click_upgrade', value: 250, reward: 0.005, name: '250 Click Upgrades', icon: '⚡' },
-  { id: 'click_upgrade_500', type: 'click_upgrade', value: 500, reward: 0.005, name: '500 Click Upgrades', icon: '⚡' },
+  { id: 'click_upgrade_1', type: 'click_upgrade', value: 1, reward: 0.005, name: '1 Click UP', icon: '⚡' },
+  { id: 'click_upgrade_5', type: 'click_upgrade', value: 5, reward: 0.005, name: '5 Click UPs', icon: '⚡' },
+  { id: 'click_upgrade_10', type: 'click_upgrade', value: 10, reward: 0.005, name: '10 Click UPs', icon: '⚡' },
+  { id: 'click_upgrade_25', type: 'click_upgrade', value: 25, reward: 0.005, name: '25 Click UPs', icon: '⚡' },
+  { id: 'click_upgrade_50', type: 'click_upgrade', value: 50, reward: 0.005, name: '50 Click UPs', icon: '⚡' },
+  { id: 'click_upgrade_100', type: 'click_upgrade', value: 100, reward: 0.005, name: '100 Click UPs', icon: '⚡' },
+  { id: 'click_upgrade_250', type: 'click_upgrade', value: 250, reward: 0.005, name: '250 Click UPs', icon: '⚡' },
+  { id: 'click_upgrade_500', type: 'click_upgrade', value: 500, reward: 0.005, name: '500 Click UPs', icon: '⚡' },
   
   // Points Earned milestones
   { id: 'points_earned_1k', type: 'points_earned', value: 1000, reward: 0.005, name: '1K Points Earned', icon: '💰' },
@@ -1526,17 +1526,17 @@ const ACHIEVEMENTS = [
   { id: 'streak_mult_1_30', type: 'streak_multiplier', value: 1.30, reward: 0.005, name: '1.30x Streak', icon: '⚡' },
   
   // Building Segment Upgrades
-  { id: 'segment_upgrades_1', type: 'segment_upgrades', value: 1, reward: 0.005, name: '1 Segment Upgrade', icon: '🔧' },
-  { id: 'segment_upgrades_5', type: 'segment_upgrades', value: 5, reward: 0.005, name: '5 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_10', type: 'segment_upgrades', value: 10, reward: 0.005, name: '10 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_25', type: 'segment_upgrades', value: 25, reward: 0.005, name: '25 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_50', type: 'segment_upgrades', value: 50, reward: 0.005, name: '50 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_100', type: 'segment_upgrades', value: 100, reward: 0.005, name: '100 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_250', type: 'segment_upgrades', value: 250, reward: 0.005, name: '250 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_500', type: 'segment_upgrades', value: 500, reward: 0.005, name: '500 Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_1000', type: 'segment_upgrades', value: 1000, reward: 0.005, name: '1K Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_2500', type: 'segment_upgrades', value: 2500, reward: 0.005, name: '2.5K Segment Upgrades', icon: '🔧' },
-  { id: 'segment_upgrades_5000', type: 'segment_upgrades', value: 5000, reward: 0.005, name: '5K Segment Upgrades', icon: '🔧' },
+  { id: 'segment_upgrades_1', type: 'segment_upgrades', value: 1, reward: 0.005, name: '1 Segment UP', icon: '🔧' },
+  { id: 'segment_upgrades_5', type: 'segment_upgrades', value: 5, reward: 0.005, name: '5 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_10', type: 'segment_upgrades', value: 10, reward: 0.005, name: '10 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_25', type: 'segment_upgrades', value: 25, reward: 0.005, name: '25 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_50', type: 'segment_upgrades', value: 50, reward: 0.005, name: '50 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_100', type: 'segment_upgrades', value: 100, reward: 0.005, name: '100 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_250', type: 'segment_upgrades', value: 250, reward: 0.005, name: '250 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_500', type: 'segment_upgrades', value: 500, reward: 0.005, name: '500 Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_1000', type: 'segment_upgrades', value: 1000, reward: 0.005, name: '1K Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_2500', type: 'segment_upgrades', value: 2500, reward: 0.005, name: '2.5K Segment UPs', icon: '🔧' },
+  { id: 'segment_upgrades_5000', type: 'segment_upgrades', value: 5000, reward: 0.005, name: '5K Segment UPs', icon: '🔧' },
   
   // Golden Click Activations
   { id: 'golden_clicks_1', type: 'golden_clicks', value: 1, reward: 0.005, name: '1 Golden Click', icon: '✨' },
@@ -2223,10 +2223,18 @@ function reduceAllRepairs(percent) {
 function breakRandomBuildings(count, durationMs) {
   const opened = save.buildings.map((b, i) => ({b,i})).filter(x => x.b.level > 0);
   if (opened.length === 0) return;
+  const tNow = now();
+  const repairTimeMult = save.modifiers.repairTimeMult || 1;
   for (let k=0;k<count;k++){
     const pickIdx = Math.floor(Math.random()*opened.length);
     const {b} = opened[pickIdx];
-    b.blockedUntil = Math.max(b.blockedUntil || 0, now() + durationMs * (save.modifiers.repairTimeMult || 1));
+    const newDurationMs = durationMs * repairTimeMult;
+    // Если здание уже сломано, прибавляем время к оставшемуся
+    if (b.blockedUntil > tNow) {
+      b.blockedUntil = b.blockedUntil + newDurationMs;
+    } else {
+      b.blockedUntil = tNow + newDurationMs;
+    }
   }
 }
 
@@ -2280,6 +2288,9 @@ function applyClickMadness(durationMs) {
 
 function applyProfitWithoutTax(durationMs) {
   save.treasury.actions.profitWithoutTaxUntil = now() + durationMs;
+  // Обновляем отслеживание сразу при активации
+  _lastProfitWithoutTaxUntil = save.treasury.actions.profitWithoutTaxUntil;
+  _wasProfitWithoutTaxActive = true; // Баф только что активирован
 }
 
 function renderTreasuryActions() {
@@ -2515,9 +2526,12 @@ function renderTreasuryActions() {
       if (!ready) { toast('On cooldown.', 'warn'); return; }
       if (!spendTreasury(200)) { toast('Not enough treasury.', 'warn'); return; }
       applyProfitWithoutTax(32000);
-      breakRandomBuildings(5, 936000);
+      // Здания будут сломаны по окончании бафа, а не сразу
       act.taxFreeCd = now() + 32000;
       act.profitWithoutTaxUntil = now() + 32000;
+      // Обновляем отслеживание сразу при активации (на случай если applyProfitWithoutTax не обновил)
+      _lastProfitWithoutTaxUntil = act.profitWithoutTaxUntil;
+      _wasProfitWithoutTaxActive = true; // Баф только что активирован
       toast('Profit without taxes activated.', 'good');
       renderTreasuryActions();
     }, cdUntil, false, profitUntil);
@@ -2833,7 +2847,7 @@ function renderTreasuryActions() {
           }
         }
         
-        upgradeLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">Upgrade to Level  ${nextLevelNum}</div>`;
+        upgradeLine.innerHTML = `<div style="color:#d4b24a;font-weight:bold;margin-bottom:4px;">UP to Level  ${nextLevelNum}</div>`;
         upgradeBody.appendChild(upgradeLine);
         
         // Для Lazy Click upgradeCost - это breakDuration в миллисекундах
@@ -2842,12 +2856,12 @@ function renderTreasuryActions() {
           const breakSec = btn.desc.upgradeCost / 1000;
           const costLine = document.createElement('div');
           costLine.className = 'tooltip-stat';
-          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span> <span class="tooltip-stat-value">Break Click button for ${breakSec}s</span>`;
+          costLine.innerHTML = `<span class="tooltip-stat-label">UP Cost:</span> <span class="tooltip-stat-value">Break Click button for ${breakSec}s</span>`;
           upgradeBody.appendChild(costLine);
         } else {
           const costLine = document.createElement('div');
           costLine.className = 'tooltip-stat';
-          costLine.innerHTML = `<span class="tooltip-stat-label">Upgrade Cost:</span> <span class="tooltip-stat-value">${fmt(btn.desc.upgradeCost)} Points</span>`;
+          costLine.innerHTML = `<span class="tooltip-stat-label">UP Cost:</span> <span class="tooltip-stat-value">${fmt(btn.desc.upgradeCost)} Points</span>`;
           upgradeBody.appendChild(costLine);
         }
         
@@ -2869,7 +2883,7 @@ function renderTreasuryActions() {
             const effectLine = document.createElement('div');
             effectLine.className = 'tooltip-stat';
             effectLine.style.marginTop = '8px';
-            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span> <span class="tooltip-stat-value">Performs ${nextLevelData.clicks} passive clicks with x${nextLevelData.multiplier} multiplier over ${nextLevelData.durationMs/1000} seconds.</span>`;
+            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after UP:</span> <span class="tooltip-stat-value">Performs ${nextLevelData.clicks} passive clicks with x${nextLevelData.multiplier} multiplier over ${nextLevelData.durationMs/1000} seconds.</span>`;
             upgradeBody.appendChild(effectLine);
             
             // Показываем стоимость использования после прокачки
@@ -2899,7 +2913,7 @@ function renderTreasuryActions() {
             const effectLine = document.createElement('div');
             effectLine.className = 'tooltip-stat';
             effectLine.style.marginTop = '8px';
-            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after upgrade:</span> <span class="tooltip-stat-value">Accelerate all building repairs by ${Math.round(nextLevelData.percent*100)}% of original time.</span>`;
+            effectLine.innerHTML = `<span class="tooltip-stat-label">Effect after UP:</span> <span class="tooltip-stat-value">Accelerate all building repairs by ${Math.round(nextLevelData.percent*100)}% of original time.</span>`;
             upgradeBody.appendChild(effectLine);
             
             // Показываем стоимость использования после прокачки
@@ -3573,8 +3587,14 @@ function updateBuildingLevels(forceImmediate = false) {
   const nowTs = now();
   // Обновляем уровни раз в 300мс для лучшей производительности (было 100мс)
   // Но если forceImmediate = true, обновляем немедленно
+  // Также обновляем немедленно при изменении bulk (проверяем через флаг)
   if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 300)) return;
   _lastBuildingLevelsUpdate = nowTs;
+  
+  // Сбрасываем кэш модификаторов при принудительном обновлении, чтобы пересчитать все
+  if (forceImmediate) {
+    _cachedModifiers = null;
+  }
   
   // Кэшируем модификаторы на 100мс (они меняются реже чем обновления уровней)
   if (!_cachedModifiers || (nowTs - _lastModifiersUpdate > 100)) {
@@ -3597,6 +3617,9 @@ function updateBuildingLevels(forceImmediate = false) {
     const buildingIndex = parseInt(card.dataset.buildingIndex);
     if (isNaN(buildingIndex) || buildingIndex >= save.buildings.length) return;
     
+    // Пропускаем невидимые карточки (скрытые через display: none)
+    if (card.style.display === 'none') return;
+    
     const b = save.buildings[buildingIndex];
     const i = buildingIndex;
     
@@ -3611,7 +3634,7 @@ function updateBuildingLevels(forceImmediate = false) {
     // Элемент 1: Level
     const lvlEl = metaElements[1];
     if (lvlEl) {
-      const newLevelText = `<strong>Level:</strong> ${b.level} / ${b.max}`;
+      const newLevelText = `<strong>Level:</strong> <strong>${b.level}</strong> <strong>/</strong> <strong>${b.max}</strong>`;
       if (lvlEl.innerHTML !== newLevelText) {
         lvlEl.innerHTML = newLevelText;
       }
@@ -3630,7 +3653,7 @@ function updateBuildingLevels(forceImmediate = false) {
         const nextLevelBaseIncome = buildingIncomeAt(buildingObj, 1, buildingObj.upgradeBonus);
         const nextLevelRealIncome = nextLevelBaseIncome * mods.spiderMult * mods.achievementMult * mods.taxMult * mods.passiveBoostMult * mods.angryBarmatunIncomeReduction * mods.kingDebuffMult;
         const incomeIncrease = nextLevelRealIncome * Math.min(bulk, buildingObj.max);
-        const newIncomeText = `<strong>Income/sec:</strong> 0.0000 <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
+        const newIncomeText = `<strong>Income/sec:</strong> <strong>0.0000</strong> <span style="color: var(--muted);"><strong>(+</strong><strong>${fmt(incomeIncrease)}</strong><strong>)</strong></span>`;
       if (incEl.innerHTML !== newIncomeText) {
         incEl.innerHTML = newIncomeText;
         }
@@ -3663,7 +3686,7 @@ function updateBuildingLevels(forceImmediate = false) {
           incomeIncrease = incomeIncreasePerLevel * bulk;
         }
         
-        const newIncomeText = `<strong>Income/sec:</strong> ${fmt(realIncome)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
+        const newIncomeText = `<strong>Income/sec:</strong> <strong>${fmt(realIncome)}</strong> <span style="color: var(--muted);"><strong>(+</strong><strong>${fmt(incomeIncrease)}</strong><strong>)</strong></span>`;
         if (incEl.innerHTML !== newIncomeText) {
           incEl.innerHTML = newIncomeText;
         }
@@ -3688,14 +3711,13 @@ function updateBuildingLevels(forceImmediate = false) {
             if (noBreakActive) {
               upgradeCost *= 7;
             }
-        newCostText = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+        newCostText = `<strong>Next Cost:</strong> <strong>${fmt(upgradeCost)}</strong> <strong>(UP)</strong>`;
       } else {
-        newCostText = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+        newCostText = `<strong>Next Cost:</strong> <strong>${fmt(nextCost.totalCost)}</strong> <strong>(${save.bulk === 'max' ? 'max' : 'x'+save.bulk})</strong>`;
       }
       
-      if (costEl.innerHTML !== newCostText) {
-        costEl.innerHTML = newCostText;
-      }
+      // Всегда обновляем цену, чтобы она менялась при изменении bulk
+      costEl.innerHTML = newCostText;
     }
     
     
@@ -3710,7 +3732,7 @@ function updateBuildingLevels(forceImmediate = false) {
       allButtons.forEach(btn => {
         if (btn.textContent.includes('Buy')) {
           buyBtn = btn;
-        } else if (btn.textContent.includes('Upgrade')) {
+        } else if (btn.textContent.includes('UP')) {
           segBtn = btn;
         }
       });
@@ -3746,7 +3768,7 @@ function updateBuildingLevels(forceImmediate = false) {
             }
             const newText = `Upgrade\n(${fmt(prevCost)})`;
             if (segBtn.textContent !== newText.replace('\n', ' ')) {
-              segBtn.innerHTML = `Upgrade<br>(${fmt(prevCost)})`;
+              segBtn.innerHTML = `UP<br>(${fmt(prevCost)})`;
             }
             segBtn.disabled = save.points < prevCost;
             
@@ -3790,7 +3812,7 @@ function updateBuildingLevels(forceImmediate = false) {
                 if (noBreakActive) {
                   upgradeCost *= 7;
                 }
-                costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+                costEl.innerHTML = `<strong>Next Cost:</strong> <strong>${fmt(upgradeCost)}</strong> <strong>(UP)</strong>`;
               }
             }
           } else {
@@ -3834,7 +3856,27 @@ function updateBuildingLevels(forceImmediate = false) {
               const costEl = metaElements[3];
               if (costEl) {
                 const nextCost = computeBulkCostForBuilding(i, save.bulk);
-                costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+                const seg = segmentIndex(b.level);
+                const within = withinSegment(b.level);
+                const prevSegBought = seg === 0 ? true : !!b.segUpgrades[seg-1];
+                const needUpgrade = within === 0 && seg > 0 && !prevSegBought;
+                
+                let newCostText;
+                if (needUpgrade) {
+                  let upgradeCost = (b.pendingSegmentCost[seg-1] || 0) * 0.77;
+                  // Buff 6: Master Builder - upgrades cost 7x more
+                  const act = save.treasury?.actions;
+                  const noBreakActive = act && act.noBreakUntil > now();
+                  if (noBreakActive) {
+                    upgradeCost *= 7;
+                  }
+                  newCostText = `<strong>Next Cost:</strong> <strong>${fmt(upgradeCost)}</strong> <strong>(UP)</strong>`;
+                } else {
+                  // Пересчитываем цену с учетом текущего bulk
+                  const nextCostForDisplay = computeBulkCostForBuilding(i, save.bulk);
+                  newCostText = `<strong>Next Cost:</strong> <strong>${fmt(nextCostForDisplay.totalCost)}</strong> <strong>(${save.bulk === 'max' ? 'max' : 'x'+save.bulk})</strong>`;
+                }
+                costEl.innerHTML = newCostText;
               }
             }
           }
@@ -3842,15 +3884,39 @@ function updateBuildingLevels(forceImmediate = false) {
       }
     }
     
-    // Обновляем note элемент с временем блокировки (только обновляем существующие)
-    const note = card.querySelector('.building-note.building-downnote');
-    if (note && nowTs < b.blockedUntil) {
-      note.dataset.blockedUntil = String(b.blockedUntil);
-      const remain = Math.ceil((b.blockedUntil - nowTs) / 1000);
-      note.textContent = `Under repair: ${remain}s`;
-    } else if (note && nowTs >= b.blockedUntil) {
-      // Время истекло - удаляем note (startCountdownLoop тоже это делает, но на всякий случай)
-      note.remove();
+    // Обновляем или создаем note элемент с временем блокировки
+    if (nowTs < b.blockedUntil) {
+      // Здание сломано - нужно показать таймер
+      let note = card.querySelector('.building-note.building-downnote');
+      if (!note) {
+        // Создаем новый таймер, если его нет
+        // Ищем divider или action-slot, чтобы вставить note перед ними
+        const divider = card.querySelector('.building-card-divider');
+        const actionSlot = card.querySelector('.building-action-slot');
+        const insertBefore = divider || actionSlot;
+        
+        if (insertBefore) {
+          note = document.createElement('div');
+          note.className = 'building-note building-downnote';
+          insertBefore.parentNode.insertBefore(note, insertBefore);
+        } else {
+          // Если нет divider и action-slot, добавляем в конец карточки
+          note = document.createElement('div');
+          note.className = 'building-note building-downnote';
+          card.appendChild(note);
+        }
+      }
+      if (note) {
+        note.dataset.blockedUntil = String(b.blockedUntil);
+        const remain = Math.ceil((b.blockedUntil - nowTs) / 1000);
+        note.textContent = `Under repair: ${remain}s`;
+      }
+    } else {
+      // Время истекло - удаляем note если есть
+      const note = card.querySelector('.building-note.building-downnote');
+      if (note) {
+        note.remove();
+      }
     }
   });
   
@@ -4072,18 +4138,18 @@ function renderClick() {
         }
         // Элемент 2: Next Cost - обновляем стоимость апгрейда
         if (metaElements[2]) {
-          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (upgrade)`;
+          metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)} (UP)`;
           // Также обновляем отдельный HTML элемент если он существует
           if (clickCostEl) clickCostEl.textContent = fmt(upgradeCost);
         }
       }
-      if (clickSegInfo) clickSegInfo.textContent = 'Segment upgrade required to progress';
+      if (clickSegInfo) clickSegInfo.textContent = 'Segment UP required to progress';
       clickBuyBtn.classList.add('hidden');
       clickBuyBtn.setAttribute('aria-hidden', 'true');
 
       clickSegBtn.classList.remove('hidden');
       clickSegBtn.removeAttribute('aria-hidden');
-      clickSegBtn.innerHTML = `Upgrade<br>(${fmt(upgradeCost)})`;
+      clickSegBtn.innerHTML = `UP<br>(${fmt(upgradeCost)})`;
       clickSegBtn.disabled = save.points < upgradeCost;
       // Убираем primary класс когда disabled, чтобы кнопка была серой (как у зданий)
       if (clickSegBtn.disabled) {
@@ -4188,6 +4254,11 @@ function getSortedBuildings() {
 
 // Кэш для отслеживания состояния зданий (для оптимизации рендеринга)
 let _lastBuildingsState = null;
+
+// Виртуальный скроллинг - отслеживание видимых зданий
+let _buildingsObserver = null;
+let _visibleBuildings = new Set(); // Индексы видимых зданий
+const BUILDING_CARD_ESTIMATED_HEIGHT = 150; // Примерная высота карточки здания
 let _lastSortMode = -1;
 
 function renderBuildings() {
@@ -4265,7 +4336,7 @@ function renderBuildings() {
     nameEl.className = 'building-name';
     nameEl.textContent = b.name;
     const lvlEl = document.createElement('div');
-    lvlEl.innerHTML = `<strong>Level:</strong> ${b.level} / ${b.max}`;
+    lvlEl.innerHTML = `<strong>Level:</strong> <strong>${b.level}</strong> <strong>/</strong> <strong>${b.max}</strong>`;
     const incEl = document.createElement('div');
     // Calculate base income
     const baseIncome = buildingIncomeAt(b, b.level, b.upgradeBonus);
@@ -4286,7 +4357,7 @@ function renderBuildings() {
     const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
     const incomeIncreasePerLevel = nextLevelRealIncome - realIncome;
     const incomeIncrease = incomeIncreasePerLevel * bulk;
-    incEl.innerHTML = `<strong>Income/sec:</strong> ${fmt(realIncome)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
+    incEl.innerHTML = `<strong>Income/sec:</strong> <strong>${fmt(realIncome)}</strong> <span style="color: var(--muted);"><strong>(+</strong><strong>${fmt(incomeIncrease)}</strong><strong>)</strong></span>`;
     const nextCost = computeBulkCostForBuilding(originalIndex, save.bulk);
     const seg = segmentIndex(b.level);
     const within = withinSegment(b.level);
@@ -4303,10 +4374,10 @@ function renderBuildings() {
             if (noBreakActive) {
               upgradeCost *= 7;
             }
-      costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(upgradeCost)}`;
+      costEl.innerHTML = `<strong>Next Cost:</strong> <strong>${fmt(upgradeCost)}</strong>`;
     } else {
       // Показываем обычную стоимость покупки
-      costEl.innerHTML = `<strong>Next Cost:</strong> ${fmt(nextCost.totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
+      costEl.innerHTML = `<strong>Next Cost:</strong> <strong>${fmt(nextCost.totalCost)}</strong> <strong>(${save.bulk === 'max' ? 'max' : 'x'+save.bulk})</strong>`;
     }
     
     info.appendChild(nameEl);
@@ -4333,7 +4404,7 @@ function renderBuildings() {
       if (noBreakActive) {
         prevCost *= 2;
       }
-      segBtn.innerHTML = `Upgrade<br>(${fmt(prevCost)})`;
+      segBtn.innerHTML = `UP<br>(${fmt(prevCost)})`;
       segBtn.disabled = save.points < prevCost;
       
       // Удаляем старый обработчик если есть
@@ -4424,9 +4495,34 @@ function renderBuildings() {
   // Добавляем все карточки одним операцией (оптимизация DOM)
   buildingsList.innerHTML = '';
   buildingsList.appendChild(fragment);
+  
+  // После добавления в DOM, проверяем видимость и скрываем невидимые, затем подключаем observer
+  if (_buildingsObserver) {
+    requestAnimationFrame(() => {
+      const cards = buildingsList.querySelectorAll('.building-card');
+      const containerRect = buildingsList.getBoundingClientRect();
+      
+      cards.forEach(card => {
+        const cardRect = card.getBoundingClientRect();
+        const isVisible = cardRect.bottom >= containerRect.top - 300 && 
+                         cardRect.top <= containerRect.bottom + 300;
+        
+        if (!isVisible) {
+          card.style.display = 'none';
+        } else {
+          const buildingIndex = parseInt(card.dataset.buildingIndex);
+          if (!isNaN(buildingIndex)) {
+            _visibleBuildings.add(buildingIndex);
+          }
+        }
+        // Подключаем observer для всех карточек
+        _buildingsObserver.observe(card);
+      });
+    });
+  }
 }
 
-function triggerUpgradeEffect(targetEl, text = 'Upgrade!') {
+function triggerUpgradeEffect(targetEl, text = 'UP!') {
   if (!targetEl) return;
   targetEl.classList.add('upgrade-flash');
   setTimeout(() => targetEl.classList.remove('upgrade-flash'), 400);
@@ -4446,7 +4542,7 @@ function triggerUpgradeEffect(targetEl, text = 'Upgrade!') {
   });
 }
 
-function triggerBuildingUpgradeEffect(index, text = 'Upgrade!') {
+function triggerBuildingUpgradeEffect(index, text = 'UP!') {
   if (!buildingsList) return;
   const card = buildingsList.querySelector(`[data-building-index="${index}"]`);
   triggerUpgradeEffect(card, text);
@@ -4784,6 +4880,14 @@ function renderAchievements() {
     }
   });
   
+  // Обновляем счетчик открытых достижений
+  const countElement = document.getElementById('achievements-count');
+  if (countElement) {
+    const unlockedCount = achievements ? Object.keys(achievements.unlocked || {}).length : 0;
+    const totalCount = ACHIEVEMENTS.length;
+    countElement.textContent = `${unlockedCount} / ${totalCount}`;
+  }
+  
   // Сортируем: сначала полученные, потом неполученные
   const sorted = [...unlocked, ...locked];
   
@@ -4819,7 +4923,39 @@ function renderAchievements() {
 }
 
 // ======= Season Functions =======
+// Seasonal theme management
+const SEASONAL_THEME_KEY = 'mpi_seasonal_theme';
+let seasonalThemeEnabled = true; // По умолчанию включено
+
+// Opacity management (объявлено здесь, так как используется в updateSeason)
+const OPACITY_KEY = 'mpi_opacity';
+let opacity = 0; // Default 0% (стартовая прозрачность из CSS)
+let opacityChanged = false; // Флаг, что прозрачность была изменена пользователем
+
+function loadSeasonalTheme() {
+  const stored = localStorage.getItem(SEASONAL_THEME_KEY);
+  if (stored !== null) {
+    seasonalThemeEnabled = stored === 'true';
+  }
+  return seasonalThemeEnabled;
+}
+
+function saveSeasonalTheme() {
+  localStorage.setItem(SEASONAL_THEME_KEY, String(seasonalThemeEnabled));
+}
+
 function updateSeason() {
+  // Проверяем, включена ли сезонная тема
+  if (!seasonalThemeEnabled) {
+    // Если отключена, удаляем все сезонные классы
+    document.body.classList.remove('season-spring', 'season-summer', 'season-autumn', 'season-winter');
+    // Применяем прозрачность заново, так как сезон отключен
+    if (opacityChanged) {
+      applyOpacity();
+    }
+    return;
+  }
+  
   // Применяем сезон даже если save еще не загружен
   const month = new Date().getMonth(); // 0-11
   let season = null;
@@ -4849,6 +4985,11 @@ function updateSeason() {
   document.body.classList.remove('season-spring', 'season-summer', 'season-autumn', 'season-winter');
   if (season) {
     document.body.classList.add(`season-${season}`);
+  }
+  
+  // Применяем прозрачность заново, так как сезон изменился
+  if (opacityChanged) {
+    applyOpacity();
   }
 }
 
@@ -5099,7 +5240,7 @@ function _updateButtonStatesInternal() {
     const allBtns = actionSlot.querySelectorAll('.btn');
     // Ищем кнопки по тексту
     const buyBtn = Array.from(allBtns).find(btn => btn.textContent.includes('Buy'));
-    const segBtn = Array.from(allBtns).find(btn => btn.textContent.includes('Upgrade'));
+    const segBtn = Array.from(allBtns).find(btn => btn.textContent.includes('UP'));
     
     // Check if buttons should be hidden (level >= 1000 and not in Uber Mode)
     const buildingShouldHide = b.level >= 1000 && !isInUberMode;
@@ -5417,7 +5558,7 @@ function buyBuildingSegUpgrade(i, segIndex) {
   }
   b.segUpgrades[segIndex] = true;
   b.upgradeBonus += 1;
-    toast(`${b.name} segment upgraded: +3% income.`, 'good');
+    toast(`${b.name} segment UP: +3% income.`, 'good');
   triggerBuildingUpgradeEffect(i, 'Upgrade!');
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
@@ -5977,7 +6118,10 @@ bulkButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     save.bulk = btn.dataset.bulk === 'max' ? 'max' : parseInt(btn.dataset.bulk, 10);
     updateBulkButtons();
+    renderClick(); // Обновляем Click сразу
     renderAll();
+    // Принудительно обновляем цены зданий при изменении bulk
+    updateBuildingLevels(true);
   });
 });
 
@@ -7583,6 +7727,8 @@ if (elfArcherEl) {
 
 // ======= Ticker =======
 let _lastAchievementCheck = 0;
+let _lastProfitWithoutTaxUntil = 0; // Отслеживаем окончание бафа Profit Without Tax
+let _wasProfitWithoutTaxActive = false; // Флаг активности бафа в предыдущем тике
 function tick() {
   if (!save) return;
   const t = now();
@@ -7663,6 +7809,22 @@ function tick() {
         }
       }
     }
+    
+    // Profit Without Tax: ломаем здания по окончании бафа
+    const currentProfitUntil = act.profitWithoutTaxUntil || 0;
+    const isActive = currentProfitUntil > t; // Активно сейчас
+    
+    // Проверяем момент перехода: если в предыдущем тике баф был активен (_wasProfitWithoutTaxActive),
+    // а сейчас не активен (!isActive), значит баф только что закончился
+    if (_wasProfitWithoutTaxActive && !isActive) {
+      // Баф только что закончился - ломаем здания
+      breakRandomBuildings(5, 936000);
+      // Обновляем UI чтобы показать таймеры сразу
+      renderAll();
+    }
+    
+    // Обновляем флаг активности для следующего тика (ВАЖНО: после проверки!)
+    _wasProfitWithoutTaxActive = isActive;
 
     // Buff 3: Fast Repair - ускоряет восстановление зданий в 2 раза
     const fastRepairActive = act && act.fastRepairUntil > t;
@@ -9216,6 +9378,12 @@ document.addEventListener('keydown', (e) => {
 renderAchievements();
 if (save) {
   ensureTreasury(save);
+  // Инициализируем _lastProfitWithoutTaxUntil и флаг активности при загрузке игры
+  if (save.treasury && save.treasury.actions) {
+    const profitUntil = save.treasury.actions.profitWithoutTaxUntil || 0;
+    _lastProfitWithoutTaxUntil = profitUntil;
+    _wasProfitWithoutTaxActive = profitUntil > now();
+  }
   // Убеждаемся, что bulk инициализирован
   if (save.bulk === undefined || save.bulk === null) {
     save.bulk = 1;
@@ -9248,6 +9416,8 @@ if (save) {
       }
     }
     // Определяем и применяем сезон
+    // Загружаем настройку сезонной темы перед обновлением сезона
+    loadSeasonalTheme();
     updateSeason();
   }
   if (save) {
@@ -9321,7 +9491,8 @@ function renderStatistics() {
   const achievements = save.achievements;
   const currentPPS = totalPPS();
   const currentPPC = totalPPC();
-  const sessionTime = now() - stats.sessionStartTime;
+  const sessionStartTime = save.statistics && save.statistics.sessionStartTime ? save.statistics.sessionStartTime : now();
+  const sessionTime = now() - sessionStartTime;
   const totalPlayTime = achievements ? achievements.stats.totalPlayTime : 0;
   
   // Calculate additional statistics
@@ -9389,7 +9560,7 @@ function renderStatistics() {
         <span class="stat-value">${save.click.level} / ${save.click.max}</span>
       </div>
       <div class="stat-row">
-        <span class="stat-label">Click Upgrade Bonuses:</span>
+        <span class="stat-label">Click UP Bonuses:</span>
         <span class="stat-value">${clickUpgradeBonus} (+${clickUpgradePercent}%)</span>
       </div>
       <div class="stat-row">
@@ -9863,48 +10034,326 @@ function initSortButton() {
 }
 
 // Music control menu
-const musicMenu = document.getElementById('music-menu');
 const musicVolumeSlider = document.getElementById('music-volume-slider');
 const musicVolumeDisplay = document.getElementById('music-volume-display');
 const soundEffectsVolumeSlider = document.getElementById('sound-effects-volume-slider');
 const soundEffectsVolumeDisplay = document.getElementById('sound-effects-volume-display');
+const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+const settingsMenu = document.getElementById('settings-menu');
+const opacitySlider = document.getElementById('opacity-slider');
+const opacityDisplay = document.getElementById('opacity-display');
 
+// Opacity management (переменные объявлены выше в секции Season Functions)
+
+function loadOpacity() {
+  const stored = localStorage.getItem(OPACITY_KEY);
+  if (stored !== null) {
+    const val = parseInt(stored, 10);
+    if (!isNaN(val) && val >= 0 && val <= 100) {
+      opacity = val;
+      // Если значение не равно 0, применяем сохраненную прозрачность
+      if (opacity > 0) {
+        opacityChanged = true;
+      }
+      return true; // Возвращаем true, если значение было загружено
+    }
+  }
+  // Если прозрачность не была сохранена, используем значения по умолчанию из CSS (0%)
+  return false;
+}
+
+function saveOpacity() {
+  localStorage.setItem(OPACITY_KEY, String(opacity));
+}
+
+function applyOpacity() {
+  if (!document.body) return; // Защита от выполнения до загрузки DOM
+  if (!opacityChanged) {
+    // Если прозрачность не была изменена, удаляем все динамические стили
+    const existingStyle = document.getElementById('dynamic-opacity-styles');
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+    return;
+  }
+  
+  // Шкала от 0% до 100%:
+  // 0% = стартовая прозрачность (0.85 для основных, 0.8 для панелей)
+  // 100% = полностью непрозрачно (1.0)
+  // Интерполируем между этими значениями
+  const minOpacity = 0.85; // Стартовая прозрачность для основных элементов
+  const minPanelOpacity = 0.8; // Стартовая прозрачность для панелей
+  const maxOpacity = 1.0; // Максимальная (полностью непрозрачно)
+  
+  // Интерполяция: progress = opacity / 100 (от 0 до 1)
+  const progress = opacity / 100; // От 0 до 1
+  // При opacity = 0%: progress = 0, результат = minOpacity
+  // При opacity = 100%: progress = 1, результат = maxOpacity (1.0) - полностью непрозрачно
+  const bgOpacity = Math.min(minOpacity + (maxOpacity - minOpacity) * progress, 1.0);
+  const panelOpacity = Math.min(minPanelOpacity + (maxOpacity - minPanelOpacity) * progress, 1.0);
+  
+  // Гарантируем, что при значении 100% все становится полностью непрозрачным
+  const finalBgOpacity = opacity === 100 ? 1.0 : bgOpacity;
+  const finalPanelOpacity = opacity === 100 ? 1.0 : panelOpacity;
+  
+  // Проверяем, есть ли сезонные эффекты
+  const hasSeason = document.body.classList.contains('season-spring') || 
+                    document.body.classList.contains('season-summer') ||
+                    document.body.classList.contains('season-autumn') ||
+                    document.body.classList.contains('season-winter');
+  
+  // Обновляем стили для основных элементов
+  let style = document.getElementById('dynamic-opacity-styles');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'dynamic-opacity-styles';
+    document.head.appendChild(style);
+  }
+  
+  if (hasSeason) {
+    // Если есть сезонные эффекты, изменяем альфа-канал в градиентах
+    // Зима: linear-gradient(180deg, rgba(176, 224, 230, 0.05) 0%, rgba(59, 58, 54, 0.95) 100%)
+    // Весна: linear-gradient(180deg, rgba(144, 238, 144, 0.05) 0%, rgba(59, 58, 54, 0.95) 100%)
+    // Лето: linear-gradient(180deg, rgba(255, 215, 0, 0.08) 0%, rgba(59, 58, 54, 0.95) 100%)
+    // Осень: linear-gradient(180deg, rgba(210, 105, 30, 0.06) 0%, rgba(59, 58, 54, 0.95) 100%)
+    // Изменяем только последний rgba (0.95) на нужную прозрачность
+    // Интерполируем от 0.95 (при opacity=0%) до 1.0 (при opacity=100%)
+    const seasonMinOpacity = 0.95;
+    const seasonMaxOpacity = 1.0;
+    const seasonProgress = opacity / 100; // От 0 до 1
+    // При opacity = 100%: seasonProgress = 1, seasonEndOpacity = 1.0 (полностью непрозрачно)
+    const seasonEndOpacity = opacity === 100 ? 1.0 : Math.min(seasonMinOpacity + (seasonMaxOpacity - seasonMinOpacity) * seasonProgress, 1.0);
+    
+    // При значении 100% делаем весь градиент полностью непрозрачным (оба значения = 1.0)
+    // Для начала градиента: интерполируем от 0.05 до 1.0
+    const seasonStartMinOpacity = 0.05;
+    const seasonStartMaxOpacity = 1.0;
+    const seasonStartProgress = opacity / 100; // От 0 до 1
+    const seasonStartOpacity = opacity === 100 ? 1.0 : Math.min(seasonStartMinOpacity + (seasonStartMaxOpacity - seasonStartMinOpacity) * seasonStartProgress, 1.0);
+    
+    // При значении 100% оба значения градиента должны быть 1.0
+    const finalSeasonStartOpacity = opacity === 100 ? 1.0 : seasonStartOpacity;
+    const finalSeasonEndOpacity = opacity === 100 ? 1.0 : seasonEndOpacity;
+    
+    style.textContent = `
+      body.season-spring .auth-card,
+      body.season-spring .game-title,
+      body.season-spring .stats-bar,
+      body.season-spring .panel,
+      body.season-spring .click-area,
+      body.season-spring .building-card,
+      body.season-spring .achievements-container,
+      body.season-spring #uber-card,
+      body.season-spring .uber-building-card,
+      body.season-spring .notice-board,
+      body.season-spring .effects-board { 
+        background: linear-gradient(180deg, rgba(144, 238, 144, ${finalSeasonStartOpacity}) 0%, rgba(59, 58, 54, ${finalSeasonEndOpacity}) 100%) !important; 
+      }
+      body.season-summer .auth-card,
+      body.season-summer .game-title,
+      body.season-summer .stats-bar,
+      body.season-summer .panel,
+      body.season-summer .click-area,
+      body.season-summer .building-card,
+      body.season-summer .achievements-container,
+      body.season-summer #uber-card,
+      body.season-summer .uber-building-card,
+      body.season-summer .notice-board,
+      body.season-summer .effects-board { 
+        background: linear-gradient(180deg, rgba(255, 215, 0, ${finalSeasonStartOpacity}) 0%, rgba(59, 58, 54, ${finalSeasonEndOpacity}) 100%) !important; 
+      }
+      body.season-autumn .auth-card,
+      body.season-autumn .game-title,
+      body.season-autumn .stats-bar,
+      body.season-autumn .panel,
+      body.season-autumn .click-area,
+      body.season-autumn .building-card,
+      body.season-autumn .achievements-container,
+      body.season-autumn #uber-card,
+      body.season-autumn .uber-building-card,
+      body.season-autumn .notice-board,
+      body.season-autumn .effects-board { 
+        background: linear-gradient(180deg, rgba(210, 105, 30, ${finalSeasonStartOpacity}) 0%, rgba(59, 58, 54, ${finalSeasonEndOpacity}) 100%) !important; 
+      }
+      body.season-winter .auth-card,
+      body.season-winter .game-title,
+      body.season-winter .stats-bar,
+      body.season-winter .panel,
+      body.season-winter .click-area,
+      body.season-winter .building-card,
+      body.season-winter .achievements-container,
+      body.season-winter #uber-card,
+      body.season-winter .uber-building-card,
+      body.season-winter .notice-board,
+      body.season-winter .effects-board { 
+        background: linear-gradient(180deg, rgba(176, 224, 230, ${finalSeasonStartOpacity}) 0%, rgba(59, 58, 54, ${finalSeasonEndOpacity}) 100%) !important; 
+      }
+      .btn.secondary { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .btn.icon { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .click-row #click-btn { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .building-pixel { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .uber-pixel { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .btn { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .btn.primary { background: rgba(58, 42, 26, ${finalPanelOpacity}) !important; }
+    `;
+  } else {
+    // Если нет сезонных эффектов, применяем через background
+    style.textContent = `
+      .auth-card { background: rgba(26, 26, 26, ${finalBgOpacity}) !important; }
+      .game-title { background: rgba(26, 26, 26, ${finalBgOpacity}) !important; }
+      .stats-bar { background: rgba(26, 26, 26, ${finalBgOpacity}) !important; }
+      .panel { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .click-area { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .building-card { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .achievements-container { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      #uber-card { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .uber-building-card { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .notice-board { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .effects-board { background: rgba(26, 26, 26, ${finalPanelOpacity}) !important; }
+      .btn.secondary { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .btn.icon { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .click-row #click-btn { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .building-pixel { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .uber-pixel { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .btn { background: rgba(42, 42, 42, ${finalPanelOpacity}) !important; }
+      .btn.primary { background: rgba(58, 42, 26, ${finalPanelOpacity}) !important; }
+    `;
+  }
+}
+
+function setOpacity(value) {
+  opacity = Math.max(0, Math.min(100, value)); // От 0% до 100%
+  opacityChanged = true; // Отмечаем, что прозрачность изменена
+  saveOpacity();
+  applyOpacity();
+  if (opacityDisplay) {
+    opacityDisplay.textContent = opacity;
+  }
+  if (opacitySlider) {
+    opacitySlider.value = opacity;
+  }
+}
+
+// Инициализация настроек - выполняется после загрузки DOM
+function initSettingsMenu() {
+  // Перепроверяем элементы, так как они могут быть еще не загружены
+  const btn = document.getElementById('settings-toggle-btn');
+  const menu = document.getElementById('settings-menu');
+  const musicSlider = document.getElementById('music-volume-slider');
+  const musicDisplay = document.getElementById('music-volume-display');
+  const soundSlider = document.getElementById('sound-effects-volume-slider');
+  const soundDisplay = document.getElementById('sound-effects-volume-display');
+  const opSlider = document.getElementById('opacity-slider');
+  const opDisplay = document.getElementById('opacity-display');
+  
+  if (!btn || !menu) {
+    // Элементы еще не загружены, попробуем позже
+    setTimeout(initSettingsMenu, 100);
+    return;
+  }
+  
+  try {
+    // Загружаем значение прозрачности
+    const opacityLoaded = loadOpacity();
+    
+    // Если прозрачность была загружена и не равна 0, применяем её
+    if (opacityLoaded && opacity > 0) {
+      // Небольшая задержка, чтобы DOM был полностью готов
+      setTimeout(() => {
+        applyOpacity();
+      }, 100);
+    } else {
+      // Если прозрачность не была сохранена или равна 0, удаляем динамические стили
+      const existingOpacityStyle = document.getElementById('dynamic-opacity-styles');
+      if (existingOpacityStyle) {
+        existingOpacityStyle.remove();
+      }
+      opacityChanged = false;
+    }
+    
+    // Обновляем отображения
+    if (musicDisplay) musicDisplay.textContent = musicVolume;
+    if (musicSlider) musicSlider.value = musicVolume;
+    if (soundDisplay) soundDisplay.textContent = soundEffectsVolume;
+    if (soundSlider) soundSlider.value = soundEffectsVolume;
+    if (opDisplay) opDisplay.textContent = opacity;
+    if (opSlider) opSlider.value = opacity;
+    
+    // Toggle menu on button click
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+    });
+    
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+    
+    // Music volume slider handler
+    if (musicSlider) {
+      musicSlider.addEventListener('input', (e) => {
+        const newVolume = parseInt(e.target.value, 10);
+        setMusicVolume(newVolume);
+        if (musicDisplay) musicDisplay.textContent = newVolume;
+      });
+    }
+    
+    // Sound effects volume slider handler
+    if (soundSlider) {
+      soundSlider.addEventListener('input', (e) => {
+        const newVolume = parseInt(e.target.value, 10);
+        soundEffectsVolume = Math.max(0, Math.min(100, newVolume));
+        saveSoundEffectsVolume();
+        updateSoundEffectsVolume();
+        if (soundDisplay) soundDisplay.textContent = newVolume;
+      });
+    }
+    
+    // Opacity slider handler
+    if (opSlider) {
+      opSlider.addEventListener('input', (e) => {
+        const newOpacity = parseInt(e.target.value, 10);
+        setOpacity(newOpacity);
+      });
+    }
+    
+    // Seasonal theme checkbox handler
+    const seasonalCheckbox = document.getElementById('seasonal-theme-checkbox');
+    if (seasonalCheckbox) {
+      // Загружаем сохраненное значение
+      loadSeasonalTheme();
+      seasonalCheckbox.checked = seasonalThemeEnabled;
+      
+      seasonalCheckbox.addEventListener('change', (e) => {
+        seasonalThemeEnabled = e.target.checked;
+        saveSeasonalTheme();
+        updateSeason(); // Обновляем сезон (включить/выключить)
+      });
+    }
+  } catch (e) {
+    console.error('Error initializing settings menu:', e);
+  }
+}
+
+// Запускаем инициализацию настроек после загрузки DOM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initSettingsMenu);
+} else {
+  setTimeout(initSettingsMenu, 100);
+}
+
+// Backward compatibility for old sound-toggle-btn
 if (soundToggleBtn) {
   function updateMusicButtonIcon() {
     soundToggleBtn.textContent = musicVolume > 0 ? '🔊' : '🔇';
     soundToggleBtn.title = 'Audio settings';
   }
   
-  function updateMusicVolumeDisplay() {
-    if (musicVolumeDisplay) {
-      musicVolumeDisplay.textContent = musicVolume;
-    }
-    if (musicVolumeSlider) {
-      musicVolumeSlider.value = musicVolume;
-    }
-  }
-  
-  function updateSoundEffectsVolumeDisplay() {
-    if (soundEffectsVolumeDisplay) {
-      soundEffectsVolumeDisplay.textContent = soundEffectsVolume;
-    }
-    if (soundEffectsVolumeSlider) {
-      soundEffectsVolumeSlider.value = soundEffectsVolume;
-    }
-  }
-  
-  function setSoundEffectsVolume(volume) {
-    soundEffectsVolume = Math.max(0, Math.min(100, volume));
-    saveSoundEffectsVolume();
-    updateSoundEffectsVolume();
-    updateSoundEffectsVolumeDisplay();
-  }
-  
   updateMusicButtonIcon();
-  updateMusicVolumeDisplay();
-  updateSoundEffectsVolumeDisplay();
   
-  // Toggle menu on button click
   soundToggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (musicMenu) {
@@ -9912,28 +10361,17 @@ if (soundToggleBtn) {
     }
   });
   
-  // Close menu when clicking outside
   document.addEventListener('click', (e) => {
     if (musicMenu && !musicMenu.contains(e.target) && !soundToggleBtn.contains(e.target)) {
       musicMenu.classList.add('hidden');
     }
   });
   
-  // Music volume slider handler
   if (musicVolumeSlider) {
     musicVolumeSlider.addEventListener('input', (e) => {
       const newVolume = parseInt(e.target.value, 10);
       setMusicVolume(newVolume);
       updateMusicButtonIcon();
-      updateMusicVolumeDisplay();
-    });
-  }
-  
-  // Sound effects volume slider handler
-  if (soundEffectsVolumeSlider) {
-    soundEffectsVolumeSlider.addEventListener('input', (e) => {
-      const newVolume = parseInt(e.target.value, 10);
-      setSoundEffectsVolume(newVolume);
     });
   }
 }
@@ -9969,8 +10407,8 @@ const hints = {
     text: 'Purchase levels for your Click button to increase points per click. Higher levels cost more but provide better income. Use bulk buttons (x1, x10) to buy multiple levels at once.'
   },
   'click-seg-upgrade': {
-    title: 'Click Upgrade',
-    text: 'Upgrade your Click button to gain +3% income bonus! Upgrades are available every 10 levels. Each upgrade permanently increases your click income. Upgrade costs 77% of previous segment cost.'
+    title: 'Click UP',
+    text: 'UP your Click button to gain +3% income bonus! UPs are available every 10 levels. Each UP permanently increases your click income. UP costs 77% of previous segment cost.'
   },
   'sort-buildings-btn': {
     title: 'Sort Buildings',
@@ -9982,7 +10420,7 @@ const hints = {
   },
   'buildings-list': {
     title: 'Buildings',
-    text: 'Buildings generate passive income every second! Buy levels to increase income. Buildings can break during construction - use repair actions to fix them faster. Each building has segment upgrades every 10 levels.'
+    text: 'Buildings generate passive income every second! Buy levels to increase income. Buildings can break during construction - use repair actions to fix them faster. Each building has segment UPs every 10 levels.'
   },
   'uber-card': {
     title: 'Citadel (Uber Building)',
@@ -9994,7 +10432,7 @@ const hints = {
   },
   'bulk-buttons': {
     title: 'Bulk Purchase',
-    text: 'Use bulk buttons (x1, x10, x50, x100, max) to buy multiple levels at once. This saves time and can be more efficient. Higher bulk options unlock as you progress.'
+    text: 'Use bulk buttons (x1, x10) to buy multiple levels at once. This saves time and can be more efficient.'
   }
 };
 
