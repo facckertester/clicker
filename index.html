@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Medieval Pixel Idle</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="style.css"/>
   
@@ -92,15 +92,7 @@
   /* Ensure click-area remains usable and not stretched */
   .click-area { width:100%; }
 
-  /* Responsive: stack columns on small screens */
-  @media (max-width: 980px) {
-    .game-columns { 
-      grid-template-columns: 1fr; 
-      width: 100%;         /* на мобильных используем ширину контейнера */
-      padding: 16px;       /* чуть меньше внутренний отступ */
-    }
-    #buildings-list { max-height: 40vh; }
-  }
+  /* Responsive: stack columns on small screens - handled by main CSS file */
 
 
 

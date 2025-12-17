@@ -1228,8 +1228,8 @@ body.modal-open .game-columns {
 }
 #click-buy { justify-self: end; min-width: 140px; }
 
-/* Responsive adjustments */
-@media (max-width: 980px) {
+/* Responsive adjustments - tablets */
+@media (max-width: 980px) and (min-width: 769px) {
   .click-area { grid-template-rows: auto auto; }
   .click-row { grid-template-columns: 1fr auto; }
   .click-row #click-btn { width: 140px; height: 56px; }
@@ -1687,7 +1687,8 @@ body.modal-open .game-columns {
 /* /* Анимации удалены */
 
 /* On small screens reduce travel and size */
-@media (max-width:980px){
+/* Tablet adjustments - overridden by mobile styles below */
+@media (max-width:980px) and (min-width: 769px){
   .game-columns{grid-template-columns:1fr}
   .panel{min-height:auto}
   .stats-bar{flex-wrap:wrap;gap:12px;padding:10px}
@@ -2759,6 +2760,422 @@ body.season-winter .achievement-item {
   font-size: 36px;
   color: #ff0000;
   text-shadow: 0 0 15px rgba(255, 0, 0, 0.9), 0 0 30px rgba(255, 0, 0, 0.7), 0 0 45px rgba(255, 0, 0, 0.5);
+}
+
+/* ========== MOBILE ADAPTATION ========== */
+
+/* Base mobile styles (applies to all mobile devices) */
+@media (max-width: 768px) {
+  /* Root font size adjustment for mobile */
+  html {
+    font-size: clamp(12px, 2.5vw, 16px);
+  }
+
+  /* Reduce padding and gaps */
+  .page {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .game-columns {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  /* Treasury bar - stack vertically on mobile */
+  .treasury-row {
+    padding: 8px 12px;
+  }
+
+  .treasury-overlay {
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+  }
+
+  .treasury-amount {
+    font-size: 1rem !important;
+  }
+
+  .treasury-regen {
+    font-size: 0.75rem !important;
+  }
+
+  /* Stats bar - stack on mobile */
+  .stats-bar {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .stat {
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+  }
+
+  /* Buttons - increase size for touch */
+  .btn {
+    min-height: 44px !important; /* Minimum touch target size */
+    padding: 12px 16px;
+    font-size: 1rem;
+  }
+
+  .btn.small {
+    min-height: 40px !important;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+
+  .btn.tiny {
+    min-height: 36px !important;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+
+  /* Click area - full width, stack elements */
+  .click-area {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .click-row {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .click-row #click-btn {
+    width: 100% !important;
+    min-height: 60px !important;
+    font-size: 1.2rem;
+  }
+
+  .click-middle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bulk-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .bulk-buttons .btn {
+    flex: 1;
+    max-width: 120px;
+  }
+
+  .quick-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .quick-actions .btn {
+    width: 100%;
+  }
+
+  /* Building cards - full width on mobile */
+  .building-card {
+    width: 100%;
+    padding: 12px;
+    min-height: auto;
+  }
+
+  .building-pixel {
+    width: 56px;
+    height: 56px;
+  }
+
+  .building-name {
+    font-size: 1.1rem;
+  }
+
+  .building-meta {
+    font-size: 0.85rem;
+  }
+
+  .building-actions {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .building-actions .btn {
+    width: 100%;
+  }
+
+  /* Uber building */
+  #uber-card {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .uber-pixel {
+    width: 56px;
+    height: 56px;
+  }
+
+  /* Buildings list - single column */
+  .buildings-list {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Sort button */
+  .sort-button-container {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .sort-button-container .btn {
+    width: 100%;
+  }
+
+  /* Notifications */
+  .notice-board {
+    padding: 10px;
+    max-height: 30vh;
+  }
+
+  .notice-board h3 {
+    font-size: 1rem;
+    margin-bottom: 8px;
+  }
+
+  /* Modals - full screen on mobile */
+  #updates-modal .modal-card,
+  #confirm-modal .modal-card,
+  #stats-modal .modal-card,
+  #casino-modal .modal-card,
+  #king-modal .modal-card,
+  #offline-earnings-modal .modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #updates-modal,
+  #confirm-modal,
+  #stats-modal,
+  #casino-modal,
+  #king-modal,
+  #offline-earnings-modal {
+    padding: 0;
+  }
+
+  .modal-header {
+    padding: 16px;
+    font-size: 1.1rem;
+  }
+
+  .modal-body {
+    padding: 16px;
+    font-size: 0.9rem;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  .modal-close {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+
+  /* Game screen padding */
+  #game-screen {
+    padding: 12px;
+    gap: 12px;
+    min-height: 100vh;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Header */
+  .game-header {
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .game-title {
+    font-size: 1.1rem;
+    padding: 6px 10px;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .header-actions .btn {
+    min-width: auto;
+    flex: 1;
+  }
+
+  /* Achievements */
+  .achievements-container {
+    padding: 12px;
+  }
+
+  .achievements-title {
+    font-size: 1rem;
+    margin-bottom: 8px;
+  }
+
+  .achievement-item {
+    padding: 8px;
+    font-size: 0.85rem;
+  }
+
+  /* Special events positioning */
+  .spider,
+  #spider,
+  #angry-barmatun,
+  #elf-archer,
+  #king {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Click pulse wave - smaller on mobile */
+  .click-pulse-wave {
+    border-width: 2px;
+  }
+}
+
+/* Small mobile devices (phones in portrait) */
+@media (max-width: 480px) {
+  html {
+    font-size: clamp(11px, 3vw, 14px);
+  }
+
+  .game-columns {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .click-row #click-btn {
+    min-height: 56px !important;
+    font-size: 1.1rem;
+  }
+
+  .building-pixel,
+  .uber-pixel {
+    width: 48px;
+    height: 48px;
+  }
+
+  .building-name {
+    font-size: 1rem;
+  }
+
+  .building-meta {
+    font-size: 0.8rem;
+  }
+
+  .treasury-amount {
+    font-size: 0.9rem !important;
+  }
+
+  .stat-value {
+    font-size: 1rem;
+  }
+
+  .modal-header h3 {
+    font-size: 1rem;
+  }
+
+  .modal-body {
+    font-size: 0.85rem;
+  }
+}
+
+/* Landscape mobile orientation */
+@media (max-width: 768px) and (orientation: landscape) {
+  .game-columns {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .col-right {
+    grid-column: 1 / -1;
+  }
+
+  #buildings-list {
+    max-height: 40vh;
+  }
+
+  .notice-board {
+    max-height: 25vh;
+  }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+  /* Remove hover effects on touch devices */
+  .btn:hover:not(:disabled) {
+    border-color: var(--border);
+    background: rgba(42, 42, 42, 0.8);
+  }
+
+  .btn.primary:hover:not(:disabled) {
+    border-color: var(--border-orange);
+    background: rgba(58, 42, 26, 0.85);
+  }
+
+  /* Increase touch targets */
+  .btn {
+    min-height: 44px;
+  }
+
+  /* Better tap highlight */
+  * {
+    -webkit-tap-highlight-color: rgba(212, 176, 128, 0.3);
+  }
+}
+
+/* Prevent text size adjustment on iOS */
+@media screen and (max-width: 768px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
 }
 
 /* Конец файла: все элементы сохранены на своих местах, но визуально переработаны под AoE2 */

@@ -3557,14 +3557,33 @@ function updateTreasuryActions() {
 
 // Обновление уровней зданий в реальном времени (без пересоздания карточек)
 let _lastBuildingLevelsUpdate = 0;
+let _cachedModifiers = null;
+let _lastModifiersUpdate = 0;
+
 function updateBuildingLevels(forceImmediate = false) {
   if (!buildingsList || !save) return;
   
   const nowTs = now();
-  // Обновляем уровни раз в 100мс для максимально быстрого отклика
+  // Обновляем уровни раз в 300мс для лучшей производительности (было 100мс)
   // Но если forceImmediate = true, обновляем немедленно
-  if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 100)) return;
+  if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 300)) return;
   _lastBuildingLevelsUpdate = nowTs;
+  
+  // Кэшируем модификаторы на 100мс (они меняются реже чем обновления уровней)
+  if (!_cachedModifiers || (nowTs - _lastModifiersUpdate > 100)) {
+    const tNow = now();
+    _cachedModifiers = {
+      spiderMult: save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0,
+      achievementMult: getAchievementBonus(),
+      taxMult: save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0,
+      passiveBoostMult: (save.treasury?.actions && save.treasury.actions.passiveBoostUntil > tNow && save.treasury.actions.passiveBoostLevel > 0) 
+        ? (1 + (save.treasury.actions.passiveBoostLevel / 100)) : 1.0,
+      angryBarmatunIncomeReduction: save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0,
+      kingDebuffMult: save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0,
+      tNow: tNow
+    };
+    _lastModifiersUpdate = nowTs;
+  }
   
   const cards = buildingsList.querySelectorAll('.building-card');
   cards.forEach((card) => {
@@ -3599,17 +3618,10 @@ function updateBuildingLevels(forceImmediate = false) {
       
       // Если уровень 0, показываем 0.0000, в скобках прирост при прокачке
       if (buildingObj.level < 1) {
-        const tNow = now();
-        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
-        const achievementMult = getAchievementBonus();
-        const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
-        const act = save.treasury?.actions;
-        const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
-        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
-        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+        const mods = _cachedModifiers;
         const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
         const nextLevelBaseIncome = buildingIncomeAt(buildingObj, 1, buildingObj.upgradeBonus);
-        const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+        const nextLevelRealIncome = nextLevelBaseIncome * mods.spiderMult * mods.achievementMult * mods.taxMult * mods.passiveBoostMult * mods.angryBarmatunIncomeReduction * mods.kingDebuffMult;
         const incomeIncrease = nextLevelRealIncome * Math.min(bulk, buildingObj.max);
         const newIncomeText = `<strong>Income/sec:</strong> 0.0000 <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
       if (incEl.innerHTML !== newIncomeText) {
@@ -3617,16 +3629,9 @@ function updateBuildingLevels(forceImmediate = false) {
         }
       } else {
         const baseIncome = buildingIncomeAt(buildingObj, buildingObj.level, buildingObj.upgradeBonus);
-        // Apply all modifiers to get real income
-        const tNow = now();
-        const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
-        const achievementMult = getAchievementBonus();
-        const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
-        const act = save.treasury?.actions;
-        const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
-        const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
-        const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
-        const realIncome = baseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+        // Apply all modifiers to get real income - используем кэшированные модификаторы
+        const mods = _cachedModifiers;
+        const realIncome = baseIncome * mods.spiderMult * mods.achievementMult * mods.taxMult * mods.passiveBoostMult * mods.angryBarmatunIncomeReduction * mods.kingDebuffMult;
         
         // Проверяем, нужен ли апгрейд
         const seg = segmentIndex(buildingObj.level);
@@ -3637,14 +3642,16 @@ function updateBuildingLevels(forceImmediate = false) {
         let incomeIncrease = 0;
         if (needUpgrade) {
           // Если нужен апгрейд, показываем прирост от апгрейда (+3%)
+          const mods = _cachedModifiers;
           const baseIncomeAfterUpgrade = buildingIncomeAt(buildingObj, buildingObj.level, buildingObj.upgradeBonus + 1);
-          const realIncomeAfterUpgrade = baseIncomeAfterUpgrade * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          const realIncomeAfterUpgrade = baseIncomeAfterUpgrade * mods.spiderMult * mods.achievementMult * mods.taxMult * mods.passiveBoostMult * mods.angryBarmatunIncomeReduction * mods.kingDebuffMult;
           incomeIncrease = realIncomeAfterUpgrade - realIncome;
         } else {
           // Calculate income increase for next level (considering bulk)
+          const mods = _cachedModifiers;
           const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
           const nextLevelBaseIncome = buildingIncomeAt(buildingObj, buildingObj.level + 1, buildingObj.upgradeBonus);
-          const nextLevelRealIncome = nextLevelBaseIncome * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          const nextLevelRealIncome = nextLevelBaseIncome * mods.spiderMult * mods.achievementMult * mods.taxMult * mods.passiveBoostMult * mods.angryBarmatunIncomeReduction * mods.kingDebuffMult;
           const incomeIncreasePerLevel = nextLevelRealIncome - realIncome;
           incomeIncrease = incomeIncreasePerLevel * bulk;
         }
@@ -5013,8 +5020,8 @@ function updateButtonStates() {
   if (!save) return;
   
   const nowTs = now();
-  // Обновляем не чаще чем раз в 100мс для плавности
-  if (nowTs - _lastButtonStatesUpdate < 100) {
+  // Обновляем не чаще чем раз в 200мс для лучшей производительности (было 100мс)
+  if (nowTs - _lastButtonStatesUpdate < 200) {
     if (!_debounceButtonStatesTimeout) {
       _debounceButtonStatesTimeout = requestAnimationFrame(() => {
         _updateButtonStatesInternal();
@@ -7729,10 +7736,10 @@ function tick() {
   _cachedPPC = null;
   debouncedRenderTopStats();
   debouncedRenderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
-  renderEffects();
+  renderEffects(); // Теперь с дебаунсингом внутри
   updateTreasuryActions(); // Оптимизированное обновление - только данные, без пересоздания DOM
-  updateBuildingLevels(); // Обновляем уровни зданий в реальном времени
-  // Обновляем состояние кнопок (disabled/enabled) в зависимости от поинтов
+  updateBuildingLevels(); // Обновляем уровни зданий в реальном времени (с дебаунсингом внутри)
+  // Обновляем состояние кнопок (disabled/enabled) в зависимости от поинтов (с дебаунсингом внутри)
   updateButtonStates();
   
   // Update Passive Boost button description in real-time if active
@@ -7754,7 +7761,7 @@ function tick() {
 
   // Render some parts less often
 }
-setInterval(tick, 100); // 10x per second for smoothness
+setInterval(tick, 200); // 5x per second - оптимизировано для производительности (было 100ms = 10x/sec)
 
 // ======= Endgame & caps =======
 function checkUberUnlock() {
@@ -8710,27 +8717,78 @@ function addEffect(type, durationMs, mult=1.0) {
   save.modifiers.activeEffects.push({ type, until, mult });
 }
 
-// Рендер панели эффектов
+// Рендер панели эффектов - оптимизированная версия с дебаунсингом и кэшированием
+let _lastEffectsState = '';
+let _lastEffectsUpdate = 0;
+let _effectsDebounceTimeout = null;
+
 function renderEffects() {
+  const nowTs = now();
+  // Обновляем не чаще чем раз в 500мс для производительности
+  if (nowTs - _lastEffectsUpdate < 500) {
+    if (!_effectsDebounceTimeout) {
+      _effectsDebounceTimeout = requestAnimationFrame(() => {
+        _renderEffectsInternal();
+        _lastEffectsUpdate = now();
+        _effectsDebounceTimeout = null;
+      });
+    }
+    return;
+  }
+  
+  _renderEffectsInternal();
+  _lastEffectsUpdate = nowTs;
+}
+
+function _renderEffectsInternal() {
   const list = document.getElementById('effects-list');
   if (!list) {
-    // Элемент не найден - возможно, игра еще не загружена или элемент не существует
     return;
   }
   
   if (!save || !save.modifiers) {
-    list.innerHTML = '';
+    if (list.children.length > 0) {
+      list.innerHTML = '';
+    }
     return;
   }
   
-  list.innerHTML = '';
+  // Убираем просроченные эффекты
+  const tNow = now();
+  save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > tNow);
   
   if (!save.modifiers.activeEffects || save.modifiers.activeEffects.length === 0) {
+    if (list.children.length > 0) {
+      list.innerHTML = '';
+    }
+    _lastEffectsState = '';
     return;
   }
 
-  // Убираем просроченные эффекты
-  save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > now());
+  // Создаем строку состояния для сравнения
+  const currentState = save.modifiers.activeEffects.map(e => 
+    `${e.type}:${Math.floor((e.until - tNow) / 1000)}`
+  ).join('|');
+
+  // Если состояние не изменилось, обновляем только таймеры
+  if (_lastEffectsState === currentState && list.children.length === save.modifiers.activeEffects.length) {
+    // Обновляем только текст с оставшимся временем
+    const items = Array.from(list.children);
+    save.modifiers.activeEffects.forEach((e, idx) => {
+      if (items[idx]) {
+        const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
+        const newText = `${e.type} — ${secondsLeft}s left`;
+        if (items[idx].textContent !== newText) {
+          items[idx].textContent = newText;
+        }
+      }
+    });
+    return;
+  }
+
+  // Состояние изменилось - пересоздаем список
+  _lastEffectsState = currentState;
+  list.innerHTML = '';
 
   save.modifiers.activeEffects.forEach(e => {
     const item = document.createElement('div');
@@ -8742,7 +8800,7 @@ function renderEffects() {
         : 'effect-info'
     );
 
-    const secondsLeft = ((e.until - now())/1000).toFixed(1);
+    const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
     item.textContent = `${e.type} — ${secondsLeft}s left`;
     list.appendChild(item);
   });
