@@ -575,6 +575,11 @@ function newSave(username) {
       goldenUntil: 0,
       goldenMult: 1.5,
       upgradeBonus: 0, // cumulative 3% bonuses applied count
+      heat: 0, // уровень перегрева (0-100)
+      lastHeatUpdate: now(), // время последнего обновления перегрева
+      cooldownUntil: 0, // время до окончания перегрева (когда heat >= 100)
+      clickHistory: [], // массив временных меток последних кликов (для вычисления скорости)
+      smoothedSpeed: 0, // сглаженная скорость кликов для плавных переходов
     },
     bulk: 1, // 1,10
     buildings: [], // filled later
@@ -621,6 +626,10 @@ function newSave(username) {
       goodLuckMode: false, // Debug mode: buildings can't break
       kingDebuffUntil: 0,
       kingDebuffMult: 1.0,
+      clickDebuffLevel: 0, // текущий уровень дебафа (-0.1% за каждый клик, накопительно)
+      clickDebuffLastClickTs: 0, // время последнего клика (для восстановления дебафа)
+      clickDebuffRecoveryAccumulator: 0, // накопленное время для восстановления (для плавности)
+      clickDebuffRecoveryStartTs: 0, // время начала восстановления (для расчета ускорения)
     },
     achievements: {
       unlocked: {}, // key: achievementId, value: true when unlocked
@@ -684,7 +693,7 @@ function ensureTreasury(saveObj) {
         casinoCd: 0,
         // Uber mode buffs (3 hours duration)
         noGoldenUntil: 0, // Buff 1: Click can't become golden
-        alwaysGoldenUntil: 0, // Buff 2: Click always golden, breaks 9x more
+        alwaysGoldenUntil: 0, // Buff 2: Click always golden
         fastRepairUntil: 0, // Buff 3: Buildings repair 2x faster, break 9x more
         passiveBoostUntil: 0, // Buff 4: Passive income boost (resets on click)
         passiveBoostLevel: 0, // Current boost level (0-56%)
@@ -754,6 +763,9 @@ function ensureTreasury(saveObj) {
   if (saveObj.modifiers.angryBarmatunIncomeReduction === undefined) saveObj.modifiers.angryBarmatunIncomeReduction = 0;
   if (saveObj.modifiers.kingDebuffUntil === undefined) saveObj.modifiers.kingDebuffUntil = 0;
   if (saveObj.modifiers.kingDebuffMult === undefined) saveObj.modifiers.kingDebuffMult = 1.0;
+  if (saveObj.modifiers.clickDebuffLevel === undefined) saveObj.modifiers.clickDebuffLevel = 0;
+  if (saveObj.modifiers.clickDebuffLastClickTs === undefined) saveObj.modifiers.clickDebuffLastClickTs = 0;
+  if (saveObj.modifiers.clickDebuffRecoveryAccumulator === undefined) saveObj.modifiers.clickDebuffRecoveryAccumulator = 0;
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
@@ -773,6 +785,25 @@ function ensureTreasury(saveObj) {
   }
   if (saveObj.uber.max === undefined) {
     saveObj.uber.max = 19;
+  }
+  
+  // Миграция для системы перегрева кнопки клика
+  if (saveObj.click) {
+    if (saveObj.click.heat === undefined) {
+      saveObj.click.heat = 0;
+    }
+    if (saveObj.click.lastHeatUpdate === undefined) {
+      saveObj.click.lastHeatUpdate = now();
+    }
+    if (saveObj.click.cooldownUntil === undefined) {
+      saveObj.click.cooldownUntil = 0;
+    }
+    if (!saveObj.click.clickHistory) {
+      saveObj.click.clickHistory = [];
+    }
+    if (saveObj.click.smoothedSpeed === undefined) {
+      saveObj.click.smoothedSpeed = 0;
+    }
   }
   
   // Миграция: уменьшаем baseCost всех зданий в 2 раза (если еще не мигрировано)
@@ -1109,9 +1140,16 @@ function getBlockIncomeAt(type, level, upgradesCount = 0, index = null) {
 }
 
 function canProgressSegment(level, segUpgrades) {
-  if (!segUpgrades) return true; // Uber не имеет segUpgrades
+  // Если segUpgrades не передан или null/undefined, значит апгрейды не требуются (например, для uber)
+  // ВАЖНО: typeof null === 'object' в JavaScript (это баг языка), поэтому нужна явная проверка на null
+  if (segUpgrades === null || segUpgrades === undefined) {
+    return true; // Для убер здания и других объектов без апгрейдов всегда разрешаем прогресс
+  }
   const seg = segmentIndex(level);
   if (seg === 0) return true; // Первый сегмент всегда доступен
+  // Проверяем, что segUpgrades является объектом (но не null) перед обращением к элементу
+  // typeof null === 'object' в JavaScript, поэтому проверяем явно
+  if (segUpgrades === null || typeof segUpgrades !== 'object') return true;
   return !!segUpgrades[seg - 1];
 }
 
@@ -1135,11 +1173,22 @@ function computeBulkCostForBlock(type, bulk, index = null) {
   }
   
   let allowedLevels = 0;
-  const segUpgrades = hasSegmentUpgrades(type) ? block.segUpgrades : null;
+  // Для убер здания segUpgrades всегда null, так как у него нет апгрейдов
+  const segUpgrades = hasSegmentUpgrades(type) ? (block.segUpgrades || null) : null;
+  // Для убер здания не нужно проверять сегменты - оно всегда может прогрессировать
+  const isUber = type === 'uber';
   
   for (let i = 0; i < needLevels; i++) {
     const lvl = block.level + i;
-    if (!canProgressSegment(lvl, segUpgrades)) break;
+    // Проверяем, не превысили ли максимальный уровень
+    if (lvl >= block.max) break;
+    // Для убер здания пропускаем проверку сегментов, для остальных проверяем
+    if (!isUber) {
+      const canProgress = canProgressSegment(lvl, segUpgrades);
+      if (!canProgress) {
+        break;
+      }
+    }
     allowedLevels++;
   }
   
@@ -1772,6 +1821,224 @@ function migrateAchievements() {
 
 // ======= Game state helpers =======
 
+// Система восстановления дебафа от кликов (максимально плавное восстановление)
+// Восстановление происходит ТОЛЬКО в tick() с dt для плавности
+let _lastDebuffUpdateTs = 0;
+function updateClickDebuff(dt = null, updateOnly = false) {
+  if (!save || !save.modifiers) return;
+  
+  const tNow = now();
+  const lastClickTs = save.modifiers.clickDebuffLastClickTs || 0;
+  
+  // Если дебаф есть и прошло хотя бы 5 секунд с последнего клика
+  if (save.modifiers.clickDebuffLevel > 0 && lastClickTs > 0) {
+    const timeSinceLastClick = (tNow - lastClickTs) / 1000; // время в секундах
+    
+    // Восстанавливаем плавно: визуально по 0.01% за раз
+    // Скорость восстановления: 0.25% в секунду (фиксированная)
+    // Восстановление начинается через 5 секунд после последнего клика
+    // Восстановление происходит ТОЛЬКО если передан dt (в tick())
+    // В остальных местах (updateOnly = true) просто читаем значение без восстановления
+    if (timeSinceLastClick >= 5.0) {
+      if (dt !== null && dt > 0 && dt < 1.0 && !updateOnly) {
+        // Инициализируем аккумулятор если нужно
+        if (save.modifiers.clickDebuffRecoveryAccumulator === undefined) {
+          save.modifiers.clickDebuffRecoveryAccumulator = 0;
+        }
+        
+        // Фиксированная скорость восстановления: 0.25% в секунду
+        const recoveryRatePerSecond = 0.25; // 0.25% в секунду
+        
+        // Визуально восстанавливаем по 0.01% за раз для плавности
+        const visualRecoveryStep = 0.01; // визуально по 0.01% за раз
+        
+        // Вычисляем сколько нужно восстановить за этот тик
+        const recoveryNeeded = dt * recoveryRatePerSecond; // сколько нужно восстановить за dt секунд
+        
+        // Добавляем к аккумулятору
+        save.modifiers.clickDebuffRecoveryAccumulator += recoveryNeeded;
+        
+        // Восстанавливаем по 0.01% пока в аккумуляторе достаточно
+        // При увеличении скорости восстановление будет происходить чаще (несколько раз за тик)
+        // Это обеспечивает визуальное ускорение восстановления
+        let recoveryCount = 0;
+        const maxRecoveriesPerTick = 10; // ограничение для производительности
+        while (save.modifiers.clickDebuffRecoveryAccumulator >= visualRecoveryStep && 
+               save.modifiers.clickDebuffLevel > 0 && 
+               recoveryCount < maxRecoveriesPerTick) {
+          save.modifiers.clickDebuffLevel = Math.max(0, save.modifiers.clickDebuffLevel - visualRecoveryStep);
+          save.modifiers.clickDebuffRecoveryAccumulator -= visualRecoveryStep;
+          recoveryCount++;
+        }
+        
+        // НЕ обновляем clickDebuffLastClickTs во время восстановления!
+        // Обновляем только когда дебаф обнулился
+        if (save.modifiers.clickDebuffLevel <= 0) {
+          save.modifiers.clickDebuffLastClickTs = 0;
+          save.modifiers.clickDebuffRecoveryAccumulator = 0; // сбрасываем аккумулятор
+        }
+      }
+      // Если updateOnly = true, не восстанавливаем, просто возвращаем текущее значение
+    }
+  }
+}
+
+// ======= Система перегрева и дебафа кнопки клика =======
+// Производительность: 
+// - updateClickHeat() и updateClickDebuff() вызываются 5 раз/сек (каждые 200мс в tick())
+// - Простые математические операции, минимальная нагрузка на CPU
+// - getClickSpeed() использует экспоненциальное сглаживание для плавности
+// - DOM обновления дебаунсятся через requestAnimationFrame
+
+// Система перегрева кнопки клика на основе скорости кликов
+function getClickSpeed() {
+  if (!save || !save.click || !save.click.clickHistory) return 0;
+  
+  const tNow = now();
+  const twoSecondsAgo = tNow - 2000; // Используем 2 секунды для более стабильного расчета
+  
+  // Очищаем старые клики (старше 2 секунд)
+  save.click.clickHistory = save.click.clickHistory.filter(ts => ts > twoSecondsAgo);
+  
+  // Вычисляем среднюю скорость за последние 2 секунды (более стабильно)
+  const clicksIn2Seconds = save.click.clickHistory.length;
+  const rawSpeed = clicksIn2Seconds / 2; // кликов в секунду
+  
+  // Применяем экспоненциальное сглаживание для плавных переходов
+  // Используем коэффициент сглаживания 0.3 (чем меньше, тем плавнее, но медленнее реакция)
+  const smoothingFactor = 0.3;
+  if (!save.click.smoothedSpeed) {
+    save.click.smoothedSpeed = rawSpeed;
+  } else {
+    // Экспоненциальное сглаживание: новое = старое + (новое - старое) * коэффициент
+    save.click.smoothedSpeed = save.click.smoothedSpeed + (rawSpeed - save.click.smoothedSpeed) * smoothingFactor;
+  }
+  
+  // Возвращаем сглаженную скорость, округленную до 1 знака после запятой
+  return Math.round(save.click.smoothedSpeed * 10) / 10;
+}
+
+function updateClickHeat() {
+  if (!save || !save.click) return;
+  
+  const tNow = now();
+  const lastUpdate = save.click.lastHeatUpdate || tNow;
+  const timePassed = (tNow - lastUpdate) / 1000; // время в секундах
+  
+  // Если кнопка в перегреве (cooldown), не уменьшаем heat
+  if (save.click.cooldownUntil > tNow) {
+    save.click.lastHeatUpdate = tNow;
+    return;
+  }
+  
+  // Если перегрев закончился, сбрасываем heat
+  if (save.click.cooldownUntil > 0 && save.click.cooldownUntil <= tNow) {
+    save.click.heat = 0;
+    save.click.cooldownUntil = 0;
+  }
+  
+  // Охлаждение: уменьшаем heat на 1 единицу в секунду (только если скорость < 21)
+  const clickSpeed = getClickSpeed();
+  if (clickSpeed < 21) {
+    const cooldownRate = 1.0; // единиц в секунду
+    const heatReduction = cooldownRate * timePassed;
+    save.click.heat = Math.max(0, save.click.heat - heatReduction);
+  }
+  
+  save.click.lastHeatUpdate = tNow;
+}
+
+function addClickToHistory() {
+  if (!save || !save.click) return;
+  
+  if (!save.click.clickHistory) {
+    save.click.clickHistory = [];
+  }
+  
+  const tNow = now();
+  save.click.clickHistory.push(tNow);
+  
+  // Очищаем старые клики (старше 2 секунд для более стабильного расчета)
+  const twoSecondsAgo = tNow - 2000;
+  save.click.clickHistory = save.click.clickHistory.filter(ts => ts > twoSecondsAgo);
+  
+  // Вычисляем сглаженную скорость кликов
+  const clickSpeed = getClickSpeed();
+  
+  // Если скорость 21+ кликов/сек, начинаем накапливать перегрев
+  if (clickSpeed >= 21) {
+    updateClickHeat(); // обновляем охлаждение перед добавлением
+    save.click.heat = Math.min(100, save.click.heat + 5);
+    
+    // Если достигли максимума, активируем перегрев
+    if (save.click.heat >= 100) {
+      save.click.heat = 100;
+      save.click.cooldownUntil = now() + 16000; // 16 секунд перегрева
+      toast('Click button overheated! Cooling down...', 'warn');
+    }
+  }
+}
+
+function isClickOverheated() {
+  if (!save || !save.click) return false;
+  updateClickHeat(); // обновляем перед проверкой
+  return save.click.cooldownUntil > now();
+}
+
+function getHeatBarColor(clickSpeed) {
+  // Плавные переходы между цветами на основе интерполяции
+  if (clickSpeed <= 5) {
+    return '#00ff00'; // зеленый - нормально
+  } else if (clickSpeed < 9) {
+    // Плавный переход от зеленого к желтоватому (5-9)
+    const t = (clickSpeed - 5) / 4; // 0-1
+    return interpolateColor('#00ff00', '#ccff00', t);
+  } else if (clickSpeed < 13) {
+    // Плавный переход от желтоватого к желтому (9-13)
+    const t = (clickSpeed - 9) / 4; // 0-1
+    return interpolateColor('#ccff00', '#ffcc00', t);
+  } else if (clickSpeed < 16) {
+    // Плавный переход от желтого к оранжевому (13-16)
+    const t = (clickSpeed - 13) / 3; // 0-1
+    return interpolateColor('#ffcc00', '#ff6600', t);
+  } else if (clickSpeed < 21) {
+    // Плавный переход от оранжевого к красному (16-21)
+    const t = (clickSpeed - 16) / 5; // 0-1
+    return interpolateColor('#ff6600', '#ff0000', t);
+  } else {
+    return '#ff0000'; // красный (21+)
+  }
+}
+
+// Функция для плавной интерполяции между цветами
+function interpolateColor(color1, color2, t) {
+  // t от 0 до 1
+  t = Math.max(0, Math.min(1, t)); // Ограничиваем t в диапазоне 0-1
+  
+  // Парсим hex цвета в RGB
+  const hex1 = color1.replace('#', '');
+  const hex2 = color2.replace('#', '');
+  
+  const r1 = parseInt(hex1.substr(0, 2), 16);
+  const g1 = parseInt(hex1.substr(2, 2), 16);
+  const b1 = parseInt(hex1.substr(4, 2), 16);
+  
+  const r2 = parseInt(hex2.substr(0, 2), 16);
+  const g2 = parseInt(hex2.substr(2, 2), 16);
+  const b2 = parseInt(hex2.substr(4, 2), 16);
+  
+  // Интерполируем каждый канал
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  
+  // Возвращаем hex цвет
+  return '#' + [r, g, b].map(x => {
+    const hex = x.toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
 function totalPPC() {
   // Используем кэш если значение еще актуально
   const t = now();
@@ -1844,9 +2111,18 @@ function totalPPS() {
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
   // King debuff: Passive income reduction
   const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+  // Click debuff: -0.1% пассивного дохода за каждый клик (накопительно, не влияет на клики, максимум -100%)
+  // НЕ восстанавливаем здесь - восстановление происходит только в tick() для плавности
+  // Просто читаем текущее значение
+  let clickDebuffMult = 1.0;
+  if (save.modifiers.clickDebuffLevel > 0) {
+    // Ограничиваем дебаф максимумом -100%
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel);
+    clickDebuffMult = Math.max(0, 1 - (debuffPercent / 100)); // Минимум 0 (не может быть отрицательным)
+  }
   // Buff 5: Spider Buff - не обнуляет доход, только изменяет поведение клика (клик дает казну вместо поинтов)
   // Доход от зданий продолжает работать нормально
-  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult * clickDebuffMult;
   
   // Сохраняем в кэш
   _cachedPPS = result;
@@ -1875,8 +2151,17 @@ function calculateBuildingOfflineEarnings(timeAwaySeconds) {
   const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
   const kingDebuffMult = save.modifiers.kingDebuffUntil > now() ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+  // Click debuff: -0.1% пассивного дохода за каждый клик (накопительно, максимум -100%)
+  // Обновляем дебаф перед вычислением (восстановление за прошедшее время)
+  // Восстановление дебафа происходит только в tick() для плавности
+  let clickDebuffMult = 1.0;
+  if (save.modifiers.clickDebuffLevel > 0) {
+    // Ограничиваем дебаф максимумом -100%
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel);
+    clickDebuffMult = Math.max(0, 1 - (debuffPercent / 100)); // Минимум 0 (не может быть отрицательным)
+  }
   // Spider Buff не обнуляет доход от зданий
-  const totalPPS = buildingPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+  const totalPPS = buildingPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult * clickDebuffMult;
   return totalPPS * timeAwaySeconds;
 }
 
@@ -1894,8 +2179,17 @@ function calculateUberOfflineEarnings(timeAwaySeconds) {
   const passiveBoostMult = (act && act.passiveBoostUntil > now() && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
   const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > now() ? 0.5 : 1.0;
   const kingDebuffMult = save.modifiers.kingDebuffUntil > now() ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+  // Click debuff: -0.1% пассивного дохода за каждый клик (накопительно, максимум -100%)
+  // Обновляем дебаф перед вычислением (восстановление за прошедшее время)
+  // Восстановление дебафа происходит только в tick() для плавности
+  let clickDebuffMult = 1.0;
+  if (save.modifiers.clickDebuffLevel > 0) {
+    // Ограничиваем дебаф максимумом -100%
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel);
+    clickDebuffMult = Math.max(0, 1 - (debuffPercent / 100)); // Минимум 0 (не может быть отрицательным)
+  }
   // Spider Buff не обнуляет доход от uber здания
-  const totalPPS = uberPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+  const totalPPS = uberPPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult * clickDebuffMult;
   return totalPPS * timeAwaySeconds;
 }
 
@@ -1994,12 +2288,18 @@ function canBuyNextBuilding(i) {
 }
 
 function canProgressSegment(entityLevel, segUpgrades) {
+  // Если segUpgrades не передан или null/undefined, значит апгрейды не требуются (например, для uber)
+  // ВАЖНО: typeof null === 'object' в JavaScript (это баг языка), поэтому нужна явная проверка на null
+  if (segUpgrades === null || segUpgrades === undefined) {
+    return true; // Для убер здания и других объектов без апгрейдов всегда разрешаем прогресс
+  }
   // If level is at boundary where next segment starts, require previous segment upgrade
   const seg = segmentIndex(entityLevel);
   const within = withinSegment(entityLevel);
   if (within === 0 && seg > 0) {
     // entering a new segment (levels 10k -> 10k+1), ensure previous segment upgrade exists
-    return !!segUpgrades[seg-1];
+    // Проверяем, что segUpgrades существует и содержит нужный элемент
+    return segUpgrades && !!segUpgrades[seg-1];
   }
   // If within segment, free to progress (unless we cross boundary)
   return true;
@@ -2455,7 +2755,7 @@ function renderTreasuryActions() {
       const desc = {
         header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
         effect: `Performs ${currentLevelData.clicks} passive clicks with x${currentLevelData.multiplier} multiplier over ${currentLevelData.durationMs/1000} seconds.`,
-        details: `This is your current lazy click level. Warning: Click button may break${breakDurationText} when used.`,
+        details: `This is your current lazy click level.`,
         cost: currentLevelData.cost,
         cooldown: 54,
         upgradeCost: nextLevelData.breakDuration
@@ -2465,10 +2765,9 @@ function renderTreasuryActions() {
           toast(`Need ${nextLevelData.clickReq} total clicks to unlock.`, 'warn');
           return;
         }
-        // Ломаем кнопку клика
-        save.click.brokenUntil = now() + nextLevelData.breakDuration;
+        // Кнопка больше не может сломаться
         act.lazyClickLevel = nextLazyClickLevelToUpgrade;
-        toast(`Lazy Click upgraded to Level ${nextLazyClickLevelToUpgrade}! Click button broken for ${nextLevelData.breakDuration/1000}s.`, 'good');
+        toast(`Lazy Click upgraded to Level ${nextLazyClickLevelToUpgrade}!`, 'good');
         renderClick();
         renderTreasuryActions();
       };
@@ -2492,7 +2791,7 @@ function renderTreasuryActions() {
     const desc = {
       header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
       effect: `Performs ${l.clicks} passive clicks with x${l.multiplier} multiplier over ${l.durationMs/1000} seconds.`,
-      note: `These clicks do not count towards your total clicks. Warning: Click button may break${breakDurationText}.`,
+      note: `These clicks do not count towards your total clicks.`,
       cost: l.cost,
       cooldown: 54,
       duration: l.durationMs / 1000
@@ -2856,7 +3155,7 @@ function renderTreasuryActions() {
           const breakSec = btn.desc.upgradeCost / 1000;
           const costLine = document.createElement('div');
           costLine.className = 'tooltip-stat';
-          costLine.innerHTML = `<span class="tooltip-stat-label">UP Cost:</span> <span class="tooltip-stat-value">Break Click button for ${breakSec}s</span>`;
+          costLine.innerHTML = `<span class="tooltip-stat-label">UP Cost:</span> <span class="tooltip-stat-value">Free upgrade</span>`;
           upgradeBody.appendChild(costLine);
         } else {
           const costLine = document.createElement('div');
@@ -3106,7 +3405,7 @@ function renderTreasuryActions() {
       const active = act.noGoldenUntil > nowTs;
       const desc = {
         header: 'NO GOLDEN CLICK',
-        effect: 'Click button cannot become golden or break.',
+        effect: 'Click button cannot become golden.',
         warning: 'Click button brings 17% less income.',
         cost: 1000,
         duration: 10800
@@ -3133,7 +3432,6 @@ function renderTreasuryActions() {
       const desc = {
         header: 'ALWAYS GOLDEN',
         effect: 'Click button is always golden.',
-        warning: 'Click button breaks 9 times more often.',
         cost: 1000,
         duration: 10800
       };
@@ -3929,33 +4227,50 @@ function updateBuildingLevels(forceImmediate = false) {
 function renderClick() {
   if (!save || !clickBtn) return;
   
-  const brokenActive = save.click.brokenUntil > now();
+  // Обновляем перегрев перед рендером
+  updateClickHeat();
+  
   const act = save.treasury?.actions;
   const alwaysGoldenActive = act && act.alwaysGoldenUntil > now();
   // Buff 2: Always golden - force golden state
   let goldenActive = save.click.goldenUntil > now();
-  if (alwaysGoldenActive && !brokenActive) {
+  if (alwaysGoldenActive) {
     goldenActive = true;
     // Extend golden until buff ends
     if (save.click.goldenUntil < act.alwaysGoldenUntil) {
       save.click.goldenUntil = act.alwaysGoldenUntil;
     }
   }
+  
+  const overheated = isClickOverheated();
+  const clickSpeed = getClickSpeed();
+  const heat = save.click.heat || 0;
 
   // Явно удаляем и добавляем классы для гарантированного обновления
-  if (brokenActive) {
-    clickBtn.classList.add('broken');
+  // Кнопка больше не может сломаться - убираем класс broken
+  clickBtn.classList.remove('broken');
+  clickBtn.classList.remove('overheated');
+  
+  if (overheated) {
+    clickBtn.classList.add('overheated');
+    clickBtn.disabled = true;
   } else {
-    clickBtn.classList.remove('broken');
+    clickBtn.disabled = false;
   }
   
-  if (goldenActive) {
+  if (goldenActive && !overheated) {
     clickBtn.classList.add('golden');
   } else {
     clickBtn.classList.remove('golden');
   }
   
-  clickStatus.textContent = brokenActive ? 'Broken' : (goldenActive ? 'Golden' : 'Ready');
+  // Обновляем статус
+  if (overheated) {
+    const remaining = Math.ceil((save.click.cooldownUntil - now()) / 1000);
+    clickStatus.textContent = `Overheated (${remaining}s)`;
+  } else {
+    clickStatus.textContent = goldenActive ? 'Golden' : 'Ready';
+  }
   
   // Обратный таймер вверху кнопки
   let timerEl = clickBtn.querySelector('.click-timer');
@@ -3965,8 +4280,8 @@ function renderClick() {
     clickBtn.appendChild(timerEl);
   }
   
-  if (brokenActive) {
-    const remaining = Math.ceil((save.click.brokenUntil - now()) / 1000);
+  if (overheated) {
+    const remaining = Math.ceil((save.click.cooldownUntil - now()) / 1000);
     timerEl.textContent = `${remaining}s`;
     timerEl.style.display = 'block';
   } else if (goldenActive) {
@@ -3975,6 +4290,34 @@ function renderClick() {
     timerEl.style.display = 'block';
   } else {
     timerEl.style.display = 'none';
+  }
+  
+  // Прогресс-бар перегрева (показывает скорость кликов, а не heat)
+  let heatBar = clickBtn.querySelector('.heat-bar');
+  if (!heatBar) {
+    heatBar = document.createElement('div');
+    heatBar.className = 'heat-bar';
+    clickBtn.appendChild(heatBar);
+  }
+  
+  // Вычисляем процент для отображения (максимум 21+ кликов/сек = 100%)
+  const maxSpeed = 21;
+  const speedPercent = Math.min(100, (clickSpeed / maxSpeed) * 100);
+  
+  // Плавное изменение ширины с помощью transition (уже есть в CSS)
+  heatBar.style.width = `${speedPercent}%`;
+  
+  // Изменяем цвет в зависимости от скорости кликов (с плавными переходами)
+  const targetColor = getHeatBarColor(clickSpeed);
+  heatBar.style.backgroundColor = targetColor;
+  
+  // Если скорость 21+ и идет накопление перегрева, показываем heat как дополнительный индикатор
+  if (clickSpeed >= 21 && heat > 0) {
+    const heatPercent = Math.min(100, heat);
+    // Плавное изменение прозрачности при накоплении перегрева
+    heatBar.style.opacity = heatPercent >= 100 ? '1' : (0.6 + (heatPercent / 250));
+  } else {
+    heatBar.style.opacity = '1';
   }
 
   // Обновляем информацию в формате building-info (как у зданий)
@@ -4142,6 +4485,27 @@ function renderClick() {
           // Также обновляем отдельный HTML элемент если он существует
           if (clickCostEl) clickCostEl.textContent = fmt(upgradeCost);
         }
+        
+        // Элемент 3 или создаем новый: Click Debuff - отображение дебафа от кликов
+        // Восстановление дебафа происходит только в tick() для плавности
+        
+        let debuffElement = metaElements[3];
+        if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
+          if (!debuffElement) {
+            // Создаем новый элемент если его нет
+            debuffElement = document.createElement('div');
+            debuffElement.className = 'building-meta';
+            clickInfoContainer.appendChild(debuffElement);
+          }
+          const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(2);
+          debuffElement.innerHTML = `<strong style="color: #ff6b6b;">Passive Debuff:</strong> <span style="color: #ff6b6b;">-${debuffPercent}%</span>`;
+          debuffElement.style.display = '';
+        } else {
+          // Скрываем элемент если дебаф не активен
+          if (debuffElement) {
+            debuffElement.style.display = 'none';
+          }
+        }
       }
       if (clickSegInfo) clickSegInfo.textContent = 'Segment UP required to progress';
       clickBuyBtn.classList.add('hidden');
@@ -4198,6 +4562,27 @@ function renderClick() {
           metaElements[2].innerHTML = `<strong>Next Cost:</strong> ${fmt(totalCost)} (${save.bulk === 'max' ? 'max' : 'x'+save.bulk})`;
           // Также обновляем отдельный HTML элемент если он существует
           if (clickCostEl) clickCostEl.textContent = fmt(totalCost);
+        }
+        
+        // Элемент 3 или создаем новый: Click Debuff - отображение дебафа от кликов
+        // Восстановление дебафа происходит только в tick() для плавности
+        
+        let debuffElement = metaElements[3];
+        if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
+          if (!debuffElement) {
+            // Создаем новый элемент если его нет
+            debuffElement = document.createElement('div');
+            debuffElement.className = 'building-meta';
+            clickInfoContainer.appendChild(debuffElement);
+          }
+          const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(2);
+          debuffElement.innerHTML = `<strong style="color: #ff6b6b;">Passive Debuff:</strong> <span style="color: #ff6b6b;">-${debuffPercent}%</span>`;
+          debuffElement.style.display = '';
+        } else {
+          // Скрываем элемент если дебаф не активен
+          if (debuffElement) {
+            debuffElement.style.display = 'none';
+          }
         }
       }
       clickSegBtn.classList.add('hidden');
@@ -4744,11 +5129,7 @@ function renderEffects() {
 
   const t = now();
 
-  // Broken click
-  if (save.click.brokenUntil > t) {
-    const remain = Math.ceil((save.click.brokenUntil - t) / 1000);
-    list.innerHTML += `<div class="effect bad">Click broken: ${remain}s</div>`;
-  }
+  // Кнопка больше не может сломаться - убираем отображение эффекта поломки
 
   // Golden click
   if (save.click.goldenUntil > t) {
@@ -4762,6 +5143,14 @@ function renderEffects() {
     const mult = save.modifiers.spiderMult;
     const type = mult > 1 ? 'good' : 'bad';
     list.innerHTML += `<div class="effect ${type}">Spider ${mult>1?'blessing':'curse'}: ${remain}s</div>`;
+  }
+
+  // Click debuff: отображение дебафа от кликов (максимум -100%)
+  // НЕ восстанавливаем здесь - восстановление происходит только в tick() для плавности
+  // Просто читаем текущее значение для отображения
+  if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(2);
+    list.innerHTML += `<div class="effect bad">Click debuff: -${debuffPercent}% passive income</div>`;
   }
 }
 
@@ -5409,7 +5798,7 @@ function buyClickLevels() {
     const seg = segmentIndex(lvl);
     save.click.pendingSegmentCost[seg] = (save.click.pendingSegmentCost[seg] || 0) + cost;
 
-    // 66% break or 33% golden on 101st continuous click (handled in clicking, not leveling)
+    // Golden click chance on continuous clicks (handled in clicking, not leveling)
     // Level up gating check (3% fail chance for buildings only, not for click)
     save.click.level = Math.min(save.click.level + 1, save.click.max);
   });
@@ -5863,14 +6252,43 @@ if (gameTitleEl) {
 }
 
 clickBtn.addEventListener('click', (event) => {
-  // Broken or golden states
-  if (save.click.brokenUntil > now()) {
-    toast('Click button is broken.', 'warn');
-    renderClick(); // обновляем статус сразу
+  const ts = now();
+  
+  // Проверка перегрева - блокируем клики если кнопка перегрета
+  if (isClickOverheated()) {
+    const remaining = Math.ceil((save.click.cooldownUntil - ts) / 1000);
+    toast(`Click button is overheated! Wait ${remaining}s.`, 'warn');
+    renderClick();
     return;
   }
-
-  const ts = now();
+  
+  // Добавляем клик в историю и обрабатываем перегрев на основе скорости
+  addClickToHistory();
+  
+  // Дебаф от кликов: -0.1% пассивного дохода за каждый клик (накопительно)
+  // Восстанавливается визуально по 0.01% за раз, логика 0.25% в секунду, начинается через 5 секунд
+  if (save.modifiers.clickDebuffLevel === undefined) {
+    save.modifiers.clickDebuffLevel = 0;
+  }
+  if (save.modifiers.clickDebuffLastClickTs === undefined) {
+    save.modifiers.clickDebuffLastClickTs = 0;
+  }
+  if (save.modifiers.clickDebuffRecoveryAccumulator === undefined) {
+    save.modifiers.clickDebuffRecoveryAccumulator = 0;
+  }
+  if (save.modifiers.clickDebuffRecoveryAccumulator === undefined) {
+    save.modifiers.clickDebuffRecoveryAccumulator = 0;
+  }
+  
+  // Обновляем дебаф перед добавлением нового (восстановление за прошедшее время)
+  updateClickDebuff();
+  
+  // Увеличиваем уровень дебафа на 0.1% за каждый клик (максимум -100%)
+  // Восстановление дебафа происходит только в tick() для плавности
+  save.modifiers.clickDebuffLevel = Math.min(100, save.modifiers.clickDebuffLevel + 0.1);
+  
+  // Обновляем время последнего клика (восстановление начнется через 5 секунд в tick())
+  save.modifiers.clickDebuffLastClickTs = ts;
   
   // Streak logic - разрыв стрика при паузе более 1 секунды
   if (ts - save.streak.lastClickTs <= 1000) {
@@ -5964,8 +6382,6 @@ clickBtn.addEventListener('click', (event) => {
     const noGoldenActive = act && act.noGoldenUntil > now();
     // Buff 1: Skip all golden/break chances if noGolden is active
     if (!noGoldenActive) {
-      const brokenActive = save.click.brokenUntil > now();
-      
       // Проверяем, активна ли обычная золотая кнопка (не от alwaysGolden баффа)
       // Обычная золотая кнопка определяется как: goldenUntil > now() И это не от alwaysGolden баффа
       const goldenUntilFromBuff = alwaysGoldenActive ? act.alwaysGoldenUntil : 0;
@@ -5973,53 +6389,16 @@ clickBtn.addEventListener('click', (event) => {
                                  save.click.goldenUntil !== goldenUntilFromBuff &&
                                  !alwaysGoldenActive;
       
-      // Обычная золотая кнопка (на 8 секунд) не может сломаться
-      // Но при активном alwaysGolden баффе кнопка может сломаться даже если она золотая
+      // Кнопка больше не может сломаться - оставляем только логику золотой кнопки
         if (alwaysGoldenActive) {
-        // При alwaysGolden баффе: кнопка всегда золотая, но может сломаться в 9 раз чаще
-        // Проверяем только если кнопка не сломана
-        if (!brokenActive) {
+        // При alwaysGolden баффе: кнопка всегда золотая
+        // Поломка отключена
+      } else if (!normalGoldenActive) {
+          // Обычная логика: шанс на золотую кнопку (без поломки)
           const roll = Math.random();
-          const breakChance = 0.045; // 9x break chance (0.005 * 9)
-          if (roll < breakChance) {
-            save.click.brokenUntil = now() + 52000;
-            save.streak.count = 0;
-            save.streak.multiplier = 1.0;
-            toast('Always Golden backlash: Click button broke for 52s!', 'bad');
-            
-            // Воспроизводим звук сломанной кнопки
-            playSound('clickBroken');
-            
-            renderClick();
-          }
-        }
-      } else if (!normalGoldenActive && !brokenActive) {
-          // Обычная логика: шанс на золотую или сломанную кнопку
-        // Работает только если кнопка не сломана и не золотая
-          const roll = Math.random();
-          const breakChance = 0.005; // 0.5% base chance
-          if (roll < breakChance) {
-            const outcomeRoll = Math.random();
-            if (outcomeRoll < 0.66) {
-              // 66% из шанса = сломанная кнопка
-              save.click.brokenUntil = now() + 52000;
-              
-              // Отслеживаем broken click
-              if (save.achievements && save.achievements.stats) {
-                save.achievements.stats.brokenClicksEncountered++;
-                save.achievements.stats.brokenClickEvents++; // для совместимости
-              }
-              
-              save.streak.count = 0;
-              save.streak.multiplier = 1.0;
-              toast('Click button broke for 52s.', 'bad');
-              
-              // Воспроизводим звук сломанной кнопки
-              playSound('clickBroken');
-              
-              renderClick();
-            } else {
-              // 34% из шанса = золотая кнопка
+          const goldenChance = 0.005; // 0.5% base chance (только золотая, без поломки)
+          if (roll < goldenChance) {
+              // Золотая кнопка
             const goldenEndTime = now() + 8000;
             save.click.goldenUntil = goldenEndTime;
               
@@ -6037,7 +6416,7 @@ clickBtn.addEventListener('click', (event) => {
               toast('Click button turned golden for 8s (x1.5 PPC).', 'good');
               renderClick();
               
-              // Золотая кнопка просто заканчивается без поломки
+              // Золотая кнопка просто заканчивается
               setTimeout(() => {
               // Проверяем, что это та же золотая кнопка (не была перезаписана)
               if (save.click.goldenUntil === goldenEndTime) {
@@ -6046,11 +6425,9 @@ clickBtn.addEventListener('click', (event) => {
                 renderClick();
               }
               }, 8000);
-            }
           }
         }
-        // Если normalGoldenActive = true, ничего не делаем (обычная золотая кнопка не может сломаться)
-      // Если brokenActive = true, ничего не делаем (сломанная кнопка не может стать золотой)
+        // Если normalGoldenActive = true, ничего не делаем (обычная золотая кнопка активна)
     }
   }
 
@@ -7869,6 +8246,13 @@ function tick() {
     }
   }
 
+  // Обновляем перегрев кнопки клика
+  updateClickHeat();
+  
+  // Обновляем дебаф от кликов (плавное восстановление каждые 200мс)
+  // Передаем dt для плавного восстановления без рывков
+  updateClickDebuff(dt);
+  
   // Real-time income
   const pps = totalPPS();
   addPoints(pps * dt);
@@ -7992,7 +8376,12 @@ uberBuyBtn.addEventListener('click', () => {
   const bulkCost = computeBulkCostForBlock('uber', bulk);
   
   if (bulkCost.totalLevels === 0) {
-    toast('Cannot buy more levels. Max level reached or segment upgrade required.', 'warn');
+    // Для убер здания не должно быть проверки на апгрейд
+    if (save.uber.level >= save.uber.max) {
+      toast('Cannot buy more levels. Max level reached.', 'warn');
+    } else {
+      toast('Cannot buy more levels.', 'warn');
+    }
     return;
   }
   
@@ -8816,8 +9205,8 @@ debugTools.addEventListener('click', (e) => {
       cycleSeason();
       break;
     case 'breakClick':
-      save.click.brokenUntil = now() + 52000;
-      toast('Click button broken.', 'bad'); break;
+      // Кнопка больше не может сломаться
+      toast('Click button cannot break anymore.', 'info'); break;
     case 'goldenClick':
       save.click.goldenUntil = now() + 8000;
       toast('Click button golden.', 'good'); break;
@@ -9501,7 +9890,6 @@ function renderStatistics() {
   const unlockedBuildings = save.buildings.filter(b => b.level > 0).length;
   const unlockedAchievements = achievements ? Object.keys(achievements.unlocked || {}).length : 0;
   const tNow = now();
-  const clickBroken = save.click.brokenUntil > tNow;
   const clickGolden = save.click.goldenUntil > tNow;
   const streakCount = save.streak ? save.streak.count : 0;
   const streakMult = save.streak ? save.streak.multiplier : 1.0;
@@ -9565,7 +9953,7 @@ function renderStatistics() {
       </div>
       <div class="stat-row">
         <span class="stat-label">Click Status:</span>
-        <span class="stat-value">${clickBroken ? 'Broken' : clickGolden ? 'Golden' : 'Ready'}</span>
+        <span class="stat-value">${clickGolden ? 'Golden' : 'Ready'}</span>
       </div>
       <div class="stat-row">
         <span class="stat-label">Current Streak:</span>
