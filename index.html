@@ -103,6 +103,19 @@
 </head>
 <body style="background-image: url('icons/back.png'); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;">
 
+  <!-- FPS & Performance Monitor -->
+  <div id="fps-monitor" class="fps-monitor">
+    <div class="fps-item">
+      <span class="fps-label">FPS:</span>
+      <span id="fps-value" class="fps-value">--</span>
+    </div>
+    <div class="fps-item">
+      <span class="fps-label">Frame:</span>
+      <span id="frame-time-value" class="fps-value">--</span>
+      <span class="fps-unit">ms</span>
+    </div>
+  </div>
+
   <!-- Offline Earnings Modal -->
   <div id="offline-earnings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal-card" role="document">

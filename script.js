@@ -630,6 +630,29 @@ function newSave(username) {
       clickDebuffLastClickTs: 0, // время последнего клика (для восстановления дебафа)
       clickDebuffRecoveryAccumulator: 0, // накопленное время для восстановления (для плавности)
       clickDebuffRecoveryStartTs: 0, // время начала восстановления (для расчета ускорения)
+      incomeTransferLevel: 0, // уровень перелива дохода (0-100%, сколько % отнято от зданий)
+      incomeTransferLastClickTs: 0, // время последнего клика (для таймера 5 секунд)
+      // Debuffs from buffs
+      repairDebuffPPSUntil: 0, // Repair: пассивный доход -15% на 45 сек
+      repairDebuffCostMult: 1.0, // Repair: стоимость зданий +25% во время эффекта
+      lazyClickDebuffPPSMult: 1.0, // Lazy Click: пассивный доход -10-20% во время
+      lazyClickDebuffPPCUntil: 0, // Lazy Click: доход за клик -25% на 60 сек
+      profitWithoutTaxDebuffPPSUntil: 0, // Profit Without Tax: пассивный доход -30% на 60 сек
+      engineerDebuffPPSUntil: 0, // Engineer: пассивный доход -25% на 90 сек
+      clickMadnessDebuffPPCUntil: 0, // Click Madness: доход за клик -50% на 120 сек
+      noGoldenDebuffBuildingsUntil: 0, // No Golden: здания ломаются на 120 сек
+      alwaysGoldenNoGoldenUntil: 0, // Always Golden: кнопка не может стать золотой на 120 сек
+      alwaysGoldenDebuffPPCUntil: 0, // Always Golden: доход за клик -35% на 90 сек
+      fastRepairDebuffRepairMult: 1.0, // Fast Repair: +50% времени ремонта сломанным зданиям
+      fastRepairDebuffBuildingsUntil: 0, // Fast Repair: здания ломаются на 150 сек
+      passiveBoostDebuffPPSUntil: 0, // Passive Boost: пассивный доход -30% на 120 сек
+      passiveBoostDebuffPPCUntil: 0, // Passive Boost: доход за клик -25% на 90 сек
+      passiveBoostDebuffBuildingsUntil: 0, // Passive Boost: здания ломаются на 180 сек
+      masterBuilderDebuffPPSUntil: 0, // Master Builder: пассивный доход -40% на 120 сек
+      masterBuilderDebuffPPCUntil: 0, // Master Builder: доход за клик -30% на 90 сек
+      spiderBuffDebuffPPSUntil: 0, // Spider Buff: пассивный доход -20% на 90 сек
+      spiderBuffDebuffPPCUntil: 0, // Spider Buff: доход за клик -25% на 60 сек
+      spiderBuffDebuffBuildingsUntil: 0, // Spider Buff: здания ломаются на 150 сек
     },
     achievements: {
       unlocked: {}, // key: achievementId, value: true when unlocked
@@ -766,6 +789,29 @@ function ensureTreasury(saveObj) {
   if (saveObj.modifiers.clickDebuffLevel === undefined) saveObj.modifiers.clickDebuffLevel = 0;
   if (saveObj.modifiers.clickDebuffLastClickTs === undefined) saveObj.modifiers.clickDebuffLastClickTs = 0;
   if (saveObj.modifiers.clickDebuffRecoveryAccumulator === undefined) saveObj.modifiers.clickDebuffRecoveryAccumulator = 0;
+  if (saveObj.modifiers.incomeTransferLevel === undefined) saveObj.modifiers.incomeTransferLevel = 0;
+  if (saveObj.modifiers.incomeTransferLastClickTs === undefined) saveObj.modifiers.incomeTransferLastClickTs = 0;
+  // Debuffs from buffs - migration
+  if (saveObj.modifiers.repairDebuffPPSUntil === undefined) saveObj.modifiers.repairDebuffPPSUntil = 0;
+  if (saveObj.modifiers.repairDebuffCostMult === undefined) saveObj.modifiers.repairDebuffCostMult = 1.0;
+  if (saveObj.modifiers.lazyClickDebuffPPSMult === undefined) saveObj.modifiers.lazyClickDebuffPPSMult = 1.0;
+  if (saveObj.modifiers.lazyClickDebuffPPCUntil === undefined) saveObj.modifiers.lazyClickDebuffPPCUntil = 0;
+  if (saveObj.modifiers.profitWithoutTaxDebuffPPSUntil === undefined) saveObj.modifiers.profitWithoutTaxDebuffPPSUntil = 0;
+  if (saveObj.modifiers.engineerDebuffPPSUntil === undefined) saveObj.modifiers.engineerDebuffPPSUntil = 0;
+  if (saveObj.modifiers.clickMadnessDebuffPPCUntil === undefined) saveObj.modifiers.clickMadnessDebuffPPCUntil = 0;
+  if (saveObj.modifiers.noGoldenDebuffBuildingsUntil === undefined) saveObj.modifiers.noGoldenDebuffBuildingsUntil = 0;
+  if (saveObj.modifiers.alwaysGoldenNoGoldenUntil === undefined) saveObj.modifiers.alwaysGoldenNoGoldenUntil = 0;
+  if (saveObj.modifiers.alwaysGoldenDebuffPPCUntil === undefined) saveObj.modifiers.alwaysGoldenDebuffPPCUntil = 0;
+  if (saveObj.modifiers.fastRepairDebuffRepairMult === undefined) saveObj.modifiers.fastRepairDebuffRepairMult = 1.0;
+  if (saveObj.modifiers.fastRepairDebuffBuildingsUntil === undefined) saveObj.modifiers.fastRepairDebuffBuildingsUntil = 0;
+  if (saveObj.modifiers.passiveBoostDebuffPPSUntil === undefined) saveObj.modifiers.passiveBoostDebuffPPSUntil = 0;
+  if (saveObj.modifiers.passiveBoostDebuffPPCUntil === undefined) saveObj.modifiers.passiveBoostDebuffPPCUntil = 0;
+  if (saveObj.modifiers.passiveBoostDebuffBuildingsUntil === undefined) saveObj.modifiers.passiveBoostDebuffBuildingsUntil = 0;
+  if (saveObj.modifiers.masterBuilderDebuffPPSUntil === undefined) saveObj.modifiers.masterBuilderDebuffPPSUntil = 0;
+  if (saveObj.modifiers.masterBuilderDebuffPPCUntil === undefined) saveObj.modifiers.masterBuilderDebuffPPCUntil = 0;
+  if (saveObj.modifiers.spiderBuffDebuffPPSUntil === undefined) saveObj.modifiers.spiderBuffDebuffPPSUntil = 0;
+  if (saveObj.modifiers.spiderBuffDebuffPPCUntil === undefined) saveObj.modifiers.spiderBuffDebuffPPCUntil = 0;
+  if (saveObj.modifiers.spiderBuffDebuffBuildingsUntil === undefined) saveObj.modifiers.spiderBuffDebuffBuildingsUntil = 0;
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
@@ -1224,7 +1270,10 @@ function buildingLevelCostAt(b, level) {
   // Buff 6: Buildings can't break, but cost 2x more
   const act = save.treasury?.actions;
   const noBreakActive = act && act.noBreakUntil > now();
-  return noBreakActive ? baseCost * 7 : baseCost;
+  let cost = noBreakActive ? baseCost * 7 : baseCost;
+  // Repair debuff: стоимость зданий +25% во время эффекта
+  cost *= save.modifiers.repairDebuffCostMult || 1.0;
+  return cost;
 }
 function buildingIncomeAt(b, level, upgradesCount) {
   const upgradeMult = Math.pow(1.03, upgradesCount || 0);
@@ -1821,71 +1870,74 @@ function migrateAchievements() {
 
 // ======= Game state helpers =======
 
-// Система восстановления дебафа от кликов (максимально плавное восстановление)
+// Система восстановления дебафа от кликов (работает параллельно с переливом дохода)
 // Восстановление происходит ТОЛЬКО в tick() с dt для плавности
+// Использует тот же таймер что и перелив дохода (incomeTransferLastClickTs)
 let _lastDebuffUpdateTs = 0;
 function updateClickDebuff(dt = null, updateOnly = false) {
   if (!save || !save.modifiers) return;
   
   const tNow = now();
-  const lastClickTs = save.modifiers.clickDebuffLastClickTs || 0;
+  // Используем тот же таймер что и перелив дохода для синхронизации
+  const lastClickTs = save.modifiers.incomeTransferLastClickTs || 0;
   
   // Если дебаф есть и прошло хотя бы 5 секунд с последнего клика
   if (save.modifiers.clickDebuffLevel > 0 && lastClickTs > 0) {
     const timeSinceLastClick = (tNow - lastClickTs) / 1000; // время в секундах
     
-    // Восстанавливаем плавно: визуально по 0.01% за раз
-    // Скорость восстановления: 0.25% в секунду (фиксированная)
+    // Восстанавливаем за 15 секунд (как и перелив дохода)
     // Восстановление начинается через 5 секунд после последнего клика
     // Восстановление происходит ТОЛЬКО если передан dt (в tick())
-    // В остальных местах (updateOnly = true) просто читаем значение без восстановления
     if (timeSinceLastClick >= 5.0) {
       if (dt !== null && dt > 0 && dt < 1.0 && !updateOnly) {
-        // Инициализируем аккумулятор если нужно
-        if (save.modifiers.clickDebuffRecoveryAccumulator === undefined) {
-          save.modifiers.clickDebuffRecoveryAccumulator = 0;
-        }
+        // Возвращаем дебаф обратно за 15 секунд (как и перелив)
+        // Скорость возврата: текущий уровень / 15 сек
+        const currentDebuffLevel = save.modifiers.clickDebuffLevel;
+        const returnRatePerSecond = currentDebuffLevel / 15.0; // % в секунду (динамически)
+        const returnAmount = dt * returnRatePerSecond;
+        save.modifiers.clickDebuffLevel = Math.max(0, save.modifiers.clickDebuffLevel - returnAmount);
         
-        // Фиксированная скорость восстановления: 0.25% в секунду
-        const recoveryRatePerSecond = 0.25; // 0.25% в секунду
-        
-        // Визуально восстанавливаем по 0.01% за раз для плавности
-        const visualRecoveryStep = 0.01; // визуально по 0.01% за раз
-        
-        // Вычисляем сколько нужно восстановить за этот тик
-        const recoveryNeeded = dt * recoveryRatePerSecond; // сколько нужно восстановить за dt секунд
-        
-        // Добавляем к аккумулятору
-        save.modifiers.clickDebuffRecoveryAccumulator += recoveryNeeded;
-        
-        // Восстанавливаем по 0.01% пока в аккумуляторе достаточно
-        // При увеличении скорости восстановление будет происходить чаще (несколько раз за тик)
-        // Это обеспечивает визуальное ускорение восстановления
-        let recoveryCount = 0;
-        const maxRecoveriesPerTick = 10; // ограничение для производительности
-        while (save.modifiers.clickDebuffRecoveryAccumulator >= visualRecoveryStep && 
-               save.modifiers.clickDebuffLevel > 0 && 
-               recoveryCount < maxRecoveriesPerTick) {
-          save.modifiers.clickDebuffLevel = Math.max(0, save.modifiers.clickDebuffLevel - visualRecoveryStep);
-          save.modifiers.clickDebuffRecoveryAccumulator -= visualRecoveryStep;
-          recoveryCount++;
-        }
-        
-        // НЕ обновляем clickDebuffLastClickTs во время восстановления!
-        // Обновляем только когда дебаф обнулился
+        // Если дебаф обнулился, сбрасываем (таймер сбрасывается в updateIncomeTransfer)
         if (save.modifiers.clickDebuffLevel <= 0) {
-          save.modifiers.clickDebuffLastClickTs = 0;
-          save.modifiers.clickDebuffRecoveryAccumulator = 0; // сбрасываем аккумулятор
+          save.modifiers.clickDebuffLevel = 0;
         }
       }
-      // Если updateOnly = true, не восстанавливаем, просто возвращаем текущее значение
+    }
+  }
+}
+
+// Система перелива дохода: при клике отнимается 1% от дохода зданий, 5% от отнятого добавляется к клику
+function updateIncomeTransfer(dt = null) {
+  if (!save || !save.modifiers) return;
+  
+  const tNow = now();
+  const lastClickTs = save.modifiers.incomeTransferLastClickTs || 0;
+  
+  if (save.modifiers.incomeTransferLevel > 0) {
+    const timeSinceLastClick = (tNow - lastClickTs) / 1000; // время в секундах
+    
+    // Если прошло больше 5 секунд без кликов, начинаем возвращать доход
+    if (timeSinceLastClick > 5.0) {
+      if (dt !== null && dt > 0 && dt < 1.0) {
+        // Возвращаем доход обратно за 15 секунд
+        // Скорость возврата: 100% / 15 сек = 6.666...% в секунду
+        const returnRatePerSecond = 100.0 / 15.0; // 6.666...% в секунду
+        const returnAmount = dt * returnRatePerSecond;
+        save.modifiers.incomeTransferLevel = Math.max(0, save.modifiers.incomeTransferLevel - returnAmount);
+        
+        // Если уровень обнулился, сбрасываем таймер
+        if (save.modifiers.incomeTransferLevel <= 0) {
+          save.modifiers.incomeTransferLevel = 0;
+          save.modifiers.incomeTransferLastClickTs = 0;
+        }
+      }
     }
   }
 }
 
 // ======= Система перегрева и дебафа кнопки клика =======
 // Производительность: 
-// - updateClickHeat() и updateClickDebuff() вызываются 5 раз/сек (каждые 200мс в tick())
+// - updateClickHeat() и updateClickDebuff() вызываются ~2.86 раз/сек (каждые 350мс в tick())
 // - Простые математические операции, минимальная нагрузка на CPU
 // - getClickSpeed() использует экспоненциальное сглаживание для плавности
 // - DOM обновления дебаунсятся через requestAnimationFrame
@@ -2070,8 +2122,50 @@ function totalPPC() {
   const elfArcherMult = save.modifiers.elfArcherUntil > tNow ? save.modifiers.elfArcherMult : 1.0;
   // King debuff: Passive income reduction
   const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+  
+  // Система перелива дохода: добавляем 5% от перелитого дохода к клику
+  // НЕ вызываем updateIncomeTransfer() здесь - он уже вызван в tick() с правильным dt
+  // Это избегает дублирующих вызовов и улучшает производительность
+  
+  let incomeTransferBonus = 0;
+  if (save.modifiers.incomeTransferLevel > 0) {
+    // Вычисляем базовый доход зданий (без перелива и других модификаторов, влияющих на перелив)
+    let basePPS = 0;
+    for (const b of save.buildings) {
+      if (tNow < b.blockedUntil) continue;
+      if (b.level < 1) continue;
+      basePPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+    }
+    if (save.uber.unlocked) {
+      basePPS += uberIncomeAt(save.uber.level);
+    }
+    
+    // Применяем только те модификаторы, которые не зависят от перелива
+    // ВАЖНО: clickDebuffMult НЕ применяется к переливу, так как дебаф влияет только на пассивный доход зданий, а не на перелив к клику
+    const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+    const act = save.treasury?.actions;
+    const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+    const basePPSWithMods = basePPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+    
+    // Вычисляем сколько дохода перелито
+    const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+    const transferedIncome = basePPSWithMods * (transferPercent / 100);
+    
+    // Добавляем 5% от перелитого дохода к клику
+    incomeTransferBonus = transferedIncome * 0.05;
+  }
+  
   // Note: Random click multiplier is applied per-click in clickBtn event handler, not here
-  const result = ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
+  
+  // Debuffs from buffs
+  const lazyClickDebuffPPCMult = save.modifiers.lazyClickDebuffPPCUntil > tNow ? 0.75 : 1.0; // -25%
+  const clickMadnessDebuffPPCMult = save.modifiers.clickMadnessDebuffPPCUntil > tNow ? 0.50 : 1.0; // -50%
+  const alwaysGoldenDebuffPPCMult = save.modifiers.alwaysGoldenDebuffPPCUntil > tNow ? 0.65 : 1.0; // -35%
+  const passiveBoostDebuffPPCMult = save.modifiers.passiveBoostDebuffPPCUntil > tNow ? 0.75 : 1.0; // -25%
+  const masterBuilderDebuffPPCMult = save.modifiers.masterBuilderDebuffPPCUntil > tNow ? 0.70 : 1.0; // -30%
+  const spiderBuffDebuffPPCMult = save.modifiers.spiderBuffDebuffPPCUntil > tNow ? 0.75 : 1.0; // -25%
+  
+  const result = ppc * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult * lazyClickDebuffPPCMult * clickMadnessDebuffPPCMult * alwaysGoldenDebuffPPCMult * passiveBoostDebuffPPCMult * masterBuilderDebuffPPCMult * spiderBuffDebuffPPCMult + incomeTransferBonus;
   
   // Сохраняем в кэш
   _cachedPPC = result;
@@ -2120,9 +2214,30 @@ function totalPPS() {
     const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel);
     clickDebuffMult = Math.max(0, 1 - (debuffPercent / 100)); // Минимум 0 (не может быть отрицательным)
   }
+  // Система перелива дохода: отнимаем процент от дохода зданий
+  // НЕ вызываем updateIncomeTransfer() здесь - он уже вызван в tick() с правильным dt
+  // Это избегает дублирующих вызовов и улучшает производительность
+  
+  let incomeTransferMult = 1.0;
+  if (save.modifiers.incomeTransferLevel > 0) {
+    // Отнимаем процент от дохода зданий (0-100%)
+    const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+    incomeTransferMult = 1 - (transferPercent / 100); // Например, 10% = 0.9 множитель
+  }
+  
   // Buff 5: Spider Buff - не обнуляет доход, только изменяет поведение клика (клик дает казну вместо поинтов)
   // Доход от зданий продолжает работать нормально
-  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult * clickDebuffMult;
+  
+  // Debuffs from buffs
+  const repairDebuffPPSMult = save.modifiers.repairDebuffPPSUntil > tNow ? 0.85 : 1.0; // -15%
+  const lazyClickDebuffPPSMult = save.modifiers.lazyClickDebuffPPSMult || 1.0;
+  const profitWithoutTaxDebuffPPSMult = save.modifiers.profitWithoutTaxDebuffPPSUntil > tNow ? 0.70 : 1.0; // -30%
+  const engineerDebuffPPSMult = save.modifiers.engineerDebuffPPSUntil > tNow ? 0.75 : 1.0; // -25%
+  const passiveBoostDebuffPPSMult = save.modifiers.passiveBoostDebuffPPSUntil > tNow ? 0.70 : 1.0; // -30%
+  const masterBuilderDebuffPPSMult = save.modifiers.masterBuilderDebuffPPSUntil > tNow ? 0.60 : 1.0; // -40%
+  const spiderBuffDebuffPPSMult = save.modifiers.spiderBuffDebuffPPSUntil > tNow ? 0.80 : 1.0; // -20%
+  
+  const result = pps * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult * clickDebuffMult * incomeTransferMult * repairDebuffPPSMult * lazyClickDebuffPPSMult * profitWithoutTaxDebuffPPSMult * engineerDebuffPPSMult * passiveBoostDebuffPPSMult * masterBuilderDebuffPPSMult * spiderBuffDebuffPPSMult;
   
   // Сохраняем в кэш
   _cachedPPS = result;
@@ -2525,10 +2640,12 @@ function breakRandomBuildings(count, durationMs) {
   if (opened.length === 0) return;
   const tNow = now();
   const repairTimeMult = save.modifiers.repairTimeMult || 1;
+  // Fast Repair debuff: +50% времени ремонта сломанным зданиям
+  const fastRepairDebuffMult = save.modifiers.fastRepairDebuffRepairMult || 1.0;
   for (let k=0;k<count;k++){
     const pickIdx = Math.floor(Math.random()*opened.length);
     const {b} = opened[pickIdx];
-    const newDurationMs = durationMs * repairTimeMult;
+    const newDurationMs = durationMs * repairTimeMult * fastRepairDebuffMult;
     // Если здание уже сломано, прибавляем время к оставшемуся
     if (b.blockedUntil > tNow) {
       b.blockedUntil = b.blockedUntil + newDurationMs;
@@ -2559,6 +2676,9 @@ function startLazyClick(level = 1) {
   let done = 0;
   save.modifiers.lazyClickUntil = now() + durationMs;
   save.modifiers.lazyClickCount = 0;
+  // Lazy Click debuff: пассивный доход -10-20% во время эффекта (зависит от уровня)
+  const lazyClickDebuffPercent = level === 1 ? 10 : level === 2 ? 15 : 20;
+  save.modifiers.lazyClickDebuffPPSMult = 1.0 - (lazyClickDebuffPercent / 100);
   if (_lazyClickInterval) clearInterval(_lazyClickInterval);
   _lazyClickInterval = setInterval(() => {
     if (done >= totalClicks || now() >= save.modifiers.lazyClickUntil) {
@@ -2584,6 +2704,8 @@ function applyEngineer(durationMs) {
 function applyClickMadness(durationMs) {
   save.treasury.actions.clickMadnessUntil = now() + durationMs;
   // Disable golden/broken transitions handled in click handler
+  // Инвалидируем кэш при активации (влияет на PPC)
+  _cachedPPC = null;
 }
 
 function applyProfitWithoutTax(durationMs) {
@@ -2591,6 +2713,8 @@ function applyProfitWithoutTax(durationMs) {
   // Обновляем отслеживание сразу при активации
   _lastProfitWithoutTaxUntil = save.treasury.actions.profitWithoutTaxUntil;
   _wasProfitWithoutTaxActive = true; // Баф только что активирован
+  // Инвалидируем кэш при активации (влияет на PPS)
+  _cachedPPS = null;
 }
 
 function renderTreasuryActions() {
@@ -2685,6 +2809,8 @@ function renderTreasuryActions() {
       if (!spendTreasury(currentR.cost)) { toast('Not enough treasury.', 'warn'); return; }
       reduceAllRepairs(currentR.percent);
       act.repairCd = now() + currentR.cdSec*1000;
+      // Repair debuff: стоимость зданий +25% во время эффекта
+      save.modifiers.repairDebuffCostMult = 1.25;
       toast(`Repair Level ${nextRepairLevelToUpgrade - 1} applied!`, 'good');
       renderTreasuryActions();
     }, cdUntil, true, 0, repairUpgradeOnClick);
@@ -2705,6 +2831,8 @@ function renderTreasuryActions() {
       if (!spendTreasury(r.cost)) { toast('Not enough treasury.', 'warn'); return; }
       reduceAllRepairs(r.percent);
       act.repairCd = now() + r.cdSec*1000;
+      // Repair debuff: стоимость зданий +25% во время эффекта
+      save.modifiers.repairDebuffCostMult = 1.25;
       toast(`Repair Level ${currentRepairLevel} applied!`, 'good');
       renderTreasuryActions();
     }, cdUntil);
@@ -2881,19 +3009,20 @@ function renderTreasuryActions() {
       applyClickMadness(36000);
       act.clickMadnessCd = now() + 36000;
       act.clickMadnessUntil = now() + 36000;
+      _cachedPPC = null;
       toast('Click Madness activated!', 'good');
       renderTreasuryActions();
     }, cdUntil, false, clickMadnessUntil);
   }
 
-  // Иконки для кнопок
+  // Иконки для кнопок (пути к изображениям)
   const icons = {
-    'repair': '🔧',
-    'lazyClick': '😴',
-    'taxfree': '💰',
-    'engineer': '👷',
-    'clickMadness': '💥',
-    'casino': '🎲'
+    'repair': 'icons/repair.png',
+    'lazyClick': 'icons/lazy_click.png',
+    'taxfree': 'icons/profit.png',
+    'engineer': 'icons/engineer.png',
+    'clickMadness': 'icons/click_madnes.png',
+    'casino': 'icons/kazino.png'
   };
 
   // Удаляем старые tooltip перед созданием новых
@@ -2904,10 +3033,32 @@ function renderTreasuryActions() {
   buttons.forEach(btn => {
     const el = document.createElement('button');
     el.className = 'btn treasury-action-btn';
-    const icon = icons[btn.id] || '?';
-    el.setAttribute('data-icon', icon);
+    const iconPath = icons[btn.id];
     el.setAttribute('data-btn-id', btn.id); // Сохраняем ID для обновления
     el.disabled = !btn.enabled;
+    
+    // Добавляем иконку как изображение
+    if (iconPath) {
+      const iconImg = document.createElement('img');
+      iconImg.src = iconPath;
+      iconImg.style.width = '60px';
+      iconImg.style.height = '60px';
+      iconImg.style.objectFit = 'contain';
+      iconImg.style.pointerEvents = 'none';
+      // Используем правильные свойства для четкого рендеринга без размытия
+      iconImg.style.imageRendering = '-webkit-optimize-contrast';
+      iconImg.style.imageRendering = 'crisp-edges';
+      iconImg.style.imageRendering = 'pixelated';
+      iconImg.style.imageRendering = '-moz-crisp-edges';
+      iconImg.style.msInterpolationMode = 'nearest-neighbor';
+      // Дополнительные свойства для четкости и производительности
+      iconImg.style.backfaceVisibility = 'hidden';
+      iconImg.style.transform = 'translateZ(0)';
+      el.appendChild(iconImg);
+    } else {
+      // Fallback на эмодзи если иконки нет
+      el.setAttribute('data-icon', '?');
+    }
     
     // Tooltip в стиле PoE
     const tooltip = document.createElement('div');
@@ -3511,6 +3662,7 @@ function renderTreasuryActions() {
           act.passiveBoostUntil = now() + hourMs;
           act.passiveBoostLevel = 0;
           act.passiveBoostLastTick = now();
+          _cachedPPS = null;
           toast('Passive Boost activated for 3 hours.', 'good');
           renderTreasuryActions();
         },
@@ -3603,9 +3755,11 @@ function renderTreasuryActions() {
       const el = document.createElement('button');
       el.className = 'btn treasury-action-btn uber-mode-btn';
       const icon = uberIcons[btn.id] || '⭐';
-      el.setAttribute('data-icon', icon);
       el.setAttribute('data-btn-id', btn.id);
       el.disabled = !btn.enabled;
+      
+      // Для второй строки пока оставляем эмодзи (там другие кнопки)
+      el.setAttribute('data-icon', icon);
       
       // Tooltip (same structure as first row)
       const tooltip = document.createElement('div');
@@ -3789,8 +3943,8 @@ function updateTreasuryActions() {
   
   const nowTs = now();
   
-  // Полный перерендер раз в секунду или если кнопок нет
-  if (treasuryActionsEl.children.length === 0 || (nowTs - _lastTreasuryFullRender) >= 1000) {
+  // Полный перерендер раз в 1.5 секунды или если кнопок нет (оптимизация)
+  if (treasuryActionsEl.children.length === 0 || (nowTs - _lastTreasuryFullRender) >= 1500) {
     renderTreasuryActions();
     _lastTreasuryFullRender = nowTs;
     return;
@@ -3883,10 +4037,10 @@ function updateBuildingLevels(forceImmediate = false) {
   if (!buildingsList || !save) return;
   
   const nowTs = now();
-  // Обновляем уровни раз в 300мс для лучшей производительности (было 100мс)
+  // Обновляем уровни раз в 400мс для лучшей производительности
   // Но если forceImmediate = true, обновляем немедленно
   // Также обновляем немедленно при изменении bulk (проверяем через флаг)
-  if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 300)) return;
+  if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 400)) return;
   _lastBuildingLevelsUpdate = nowTs;
   
   // Сбрасываем кэш модификаторов при принудительном обновлении, чтобы пересчитать все
@@ -3894,8 +4048,8 @@ function updateBuildingLevels(forceImmediate = false) {
     _cachedModifiers = null;
   }
   
-  // Кэшируем модификаторы на 100мс (они меняются реже чем обновления уровней)
-  if (!_cachedModifiers || (nowTs - _lastModifiersUpdate > 100)) {
+  // Кэшируем модификаторы на 200мс (они меняются реже чем обновления уровней)
+  if (!_cachedModifiers || (nowTs - _lastModifiersUpdate > 200)) {
     const tNow = now();
     _cachedModifiers = {
       spiderMult: save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0,
@@ -4365,6 +4519,35 @@ function renderClick() {
         }
       } else {
         const realPPC = totalPPC();
+        // Вычисляем базовый PPC без бонуса перелива для корректного расчета прироста
+        // Бонус перелива не зависит от уровня клика, поэтому его нужно исключить при расчете прироста
+        let basePPCWithoutTransfer = realPPC;
+        if (save.modifiers.incomeTransferLevel > 0) {
+          const tNow = now();
+          let basePPS = 0;
+          for (const b of save.buildings) {
+            if (tNow < b.blockedUntil) continue;
+            if (b.level < 1) continue;
+            basePPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+          }
+          if (save.uber.unlocked) {
+            basePPS += uberIncomeAt(save.uber.level);
+          }
+          const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+          const achievementMult = getAchievementBonus();
+          const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+          const act = save.treasury?.actions;
+          const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+          const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+          const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+          // ВАЖНО: clickDebuffMult НЕ применяется к переливу, так как дебаф влияет только на пассивный доход зданий
+          const basePPSWithMods = basePPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+          const transferedIncome = basePPSWithMods * (transferPercent / 100);
+          const incomeTransferBonus = transferedIncome * 0.05;
+          basePPCWithoutTransfer = realPPC - incomeTransferBonus;
+        }
+        
         // Calculate income increase for next level or upgrade
         const seg = segmentIndex(save.click.level);
         const within = withinSegment(save.click.level);
@@ -4388,7 +4571,7 @@ function renderClick() {
         const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
         const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
         const realPPCAfterUpgrade = baseIncomeAfterUpgrade * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
-        incomeIncrease = realPPCAfterUpgrade - realPPC;
+        incomeIncrease = realPPCAfterUpgrade - basePPCWithoutTransfer;
       } else {
         // Calculate income increase for next level (considering bulk)
         const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
@@ -4406,7 +4589,7 @@ function renderClick() {
         const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
         const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
         const realPPCNextLevel = baseIncomeNextLevel * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
-          const incomeIncreasePerLevel = realPPCNextLevel - realPPC;
+          const incomeIncreasePerLevel = realPPCNextLevel - basePPCWithoutTransfer;
           incomeIncrease = incomeIncreasePerLevel * bulk;
         }
         
@@ -4454,6 +4637,33 @@ function renderClick() {
         // Элемент 1: Income/click - показываем реальный доход с модификаторами
         if (metaElements[1]) {
           const realPPC = totalPPC();
+          // Вычисляем базовый PPC без бонуса перелива для корректного расчета прироста
+          let basePPCWithoutTransfer = realPPC;
+          if (save.modifiers.incomeTransferLevel > 0) {
+            const tNow = now();
+            let basePPS = 0;
+            for (const b of save.buildings) {
+              if (tNow < b.blockedUntil) continue;
+              if (b.level < 1) continue;
+              basePPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+            }
+            if (save.uber.unlocked) {
+              basePPS += uberIncomeAt(save.uber.level);
+            }
+            const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+            const achievementMult = getAchievementBonus();
+            const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+            const act = save.treasury?.actions;
+            const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+            const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+            const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+            // ВАЖНО: clickDebuffMult НЕ применяется к переливу, так как дебаф влияет только на пассивный доход зданий
+            const basePPSWithMods = basePPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+            const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+            const transferedIncome = basePPSWithMods * (transferPercent / 100);
+            const incomeTransferBonus = transferedIncome * 0.05;
+            basePPCWithoutTransfer = realPPC - incomeTransferBonus;
+          }
           // Calculate income after upgrade (+3%)
           const baseIncomeAfterUpgrade = clickIncomeAt(save.click.level, save.click.upgradeBonus + 1);
           const tNow = now();
@@ -4469,7 +4679,7 @@ function renderClick() {
           const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
           const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
           const realPPCAfterUpgrade = baseIncomeAfterUpgrade * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
-          const incomeIncrease = realPPCAfterUpgrade - realPPC;
+          const incomeIncrease = realPPCAfterUpgrade - basePPCWithoutTransfer;
           const incomeText = `<strong>Income/click:</strong> ${fmt(realPPC)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
           if (metaElements[1].innerHTML !== incomeText) {
             metaElements[1].innerHTML = incomeText;
@@ -4486,24 +4696,79 @@ function renderClick() {
           if (clickCostEl) clickCostEl.textContent = fmt(upgradeCost);
         }
         
-        // Элемент 3 или создаем новый: Click Debuff - отображение дебафа от кликов
-        // Восстановление дебафа происходит только в tick() для плавности
+        // Элемент 3 или создаем новый: Income Transfer - отображение перелива дохода
+        // Обновляем перелив перед отображением
+        updateIncomeTransfer();
         
-        let debuffElement = metaElements[3];
-        if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
-          if (!debuffElement) {
+        let transferElement = metaElements[3];
+        const hasTransfer = save.modifiers && save.modifiers.incomeTransferLevel > 0;
+        
+        if (hasTransfer) {
+          if (!transferElement) {
             // Создаем новый элемент если его нет
-            debuffElement = document.createElement('div');
-            debuffElement.className = 'building-meta';
-            clickInfoContainer.appendChild(debuffElement);
+            transferElement = document.createElement('div');
+            transferElement.className = 'building-meta';
+            clickInfoContainer.appendChild(transferElement);
           }
-          const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(2);
-          debuffElement.innerHTML = `<strong style="color: #ff6b6b;">Passive Debuff:</strong> <span style="color: #ff6b6b;">-${debuffPercent}%</span>`;
-          debuffElement.style.display = '';
+          
+          // Вычисляем текущие значения для отображения
+          const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+          
+          // Вычисляем базовый доход для расчета перелитого дохода
+          let basePPS = 0;
+          const tNow = now();
+          for (const b of save.buildings) {
+            if (tNow < b.blockedUntil) continue;
+            if (b.level < 1) continue;
+            basePPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+          }
+          if (save.uber.unlocked) {
+            basePPS += uberIncomeAt(save.uber.level);
+          }
+          
+          // Применяем модификаторы (кроме перелива)
+          const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+          const achievementMult = getAchievementBonus();
+          const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+          const act = save.treasury?.actions;
+          const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+          const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+          const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+          const clickDebuffMult = save.modifiers.clickDebuffLevel > 0 ? Math.max(0, 1 - (Math.min(100, save.modifiers.clickDebuffLevel) / 100)) : 1.0;
+          const basePPSWithMods = basePPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          
+          const transferedIncome = basePPSWithMods * (transferPercent / 100);
+          const clickBonus = transferedIncome * 0.05;
+          
+          // Отображаем процент с округлением до 4 знаков после запятой, бонус с буквенными сокращениями
+          const transferPercentDisplay = transferPercent.toFixed(4);
+          const clickBonusDisplay = fmt(clickBonus);
+          
+          transferElement.innerHTML = `
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 10px 14px;
+              background: linear-gradient(135deg, rgba(74, 158, 255, 0.18), rgba(74, 158, 255, 0.08));
+              border: 1px solid rgba(74, 158, 255, 0.5);
+              border-radius: 8px;
+              box-shadow: 0 0 12px rgba(74, 158, 255, 0.25), inset 0 1px 3px rgba(255, 255, 255, 0.15);
+              margin-top: 4px;
+            ">
+              <span style="color: #4a9eff; font-weight: 600; font-size: 1.1em; text-shadow: 0 0 8px rgba(74, 158, 255, 0.6);">⚡</span>
+              <span style="color: #4a9eff; font-weight: 600; text-shadow: 0 0 6px rgba(74, 158, 255, 0.4);">-${transferPercentDisplay}%</span>
+              <span style="color: var(--muted); font-size: 0.95em;">buildings</span>
+              <span style="color: var(--muted); font-size: 1.2em;">→</span>
+              <span style="color: #ffd700; font-weight: 700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.7), 0 0 20px rgba(255, 215, 0, 0.4);">+${clickBonusDisplay}</span>
+              <span style="color: var(--muted); font-size: 0.9em;">per click</span>
+            </div>
+          `;
+          transferElement.style.display = '';
         } else {
-          // Скрываем элемент если дебаф не активен
-          if (debuffElement) {
-            debuffElement.style.display = 'none';
+          // Скрываем элемент если перелив не активен
+          if (transferElement) {
+            transferElement.style.display = 'none';
           }
         }
       }
@@ -4530,6 +4795,33 @@ function renderClick() {
         // Элемент 1: Income/click - показываем реальный доход с модификаторами
         if (metaElements[1]) {
           const realPPC = totalPPC();
+          // Вычисляем базовый PPC без бонуса перелива для корректного расчета прироста
+          let basePPCWithoutTransfer = realPPC;
+          if (save.modifiers.incomeTransferLevel > 0) {
+            const tNow = now();
+            let basePPS = 0;
+            for (const b of save.buildings) {
+              if (tNow < b.blockedUntil) continue;
+              if (b.level < 1) continue;
+              basePPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+            }
+            if (save.uber.unlocked) {
+              basePPS += uberIncomeAt(save.uber.level);
+            }
+            const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+            const achievementMult = getAchievementBonus();
+            const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+            const act = save.treasury?.actions;
+            const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+            const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+            const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+            // ВАЖНО: clickDebuffMult НЕ применяется к переливу, так как дебаф влияет только на пассивный доход зданий
+            const basePPSWithMods = basePPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+            const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+            const transferedIncome = basePPSWithMods * (transferPercent / 100);
+            const incomeTransferBonus = transferedIncome * 0.05;
+            basePPCWithoutTransfer = realPPC - incomeTransferBonus;
+          }
           // Calculate income increase for next level (considering bulk)
           const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
           const baseIncomeNextLevel = clickIncomeAt(save.click.level + 1, save.click.upgradeBonus);
@@ -4546,7 +4838,7 @@ function renderClick() {
           const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
           const madnessMult = (act && act.clickMadnessUntil > tNow) ? 99.9999 : 1.0;
           const realPPCNextLevel = baseIncomeNextLevel * madnessMult * goldenMult * spiderMult * achievementMult * streakMult * noGoldenMult * angryBarmatunIncomeReduction * elfArcherMult * kingDebuffMult;
-          const incomeIncreasePerLevel = realPPCNextLevel - realPPC;
+          const incomeIncreasePerLevel = realPPCNextLevel - basePPCWithoutTransfer;
           const incomeIncrease = incomeIncreasePerLevel * bulk;
           const incomeText = `<strong>Income/click:</strong> ${fmt(realPPC)} <span style="color: var(--muted);">(+${fmt(incomeIncrease)})</span>`;
           if (metaElements[1].innerHTML !== incomeText) {
@@ -4564,24 +4856,79 @@ function renderClick() {
           if (clickCostEl) clickCostEl.textContent = fmt(totalCost);
         }
         
-        // Элемент 3 или создаем новый: Click Debuff - отображение дебафа от кликов
-        // Восстановление дебафа происходит только в tick() для плавности
+        // Элемент 3 или создаем новый: Income Transfer - отображение перелива дохода
+        // Обновляем перелив перед отображением
+        updateIncomeTransfer();
         
-        let debuffElement = metaElements[3];
-        if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
-          if (!debuffElement) {
+        let transferElement = metaElements[3];
+        const hasTransfer = save.modifiers && save.modifiers.incomeTransferLevel > 0;
+        
+        if (hasTransfer) {
+          if (!transferElement) {
             // Создаем новый элемент если его нет
-            debuffElement = document.createElement('div');
-            debuffElement.className = 'building-meta';
-            clickInfoContainer.appendChild(debuffElement);
+            transferElement = document.createElement('div');
+            transferElement.className = 'building-meta';
+            clickInfoContainer.appendChild(transferElement);
           }
-          const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(2);
-          debuffElement.innerHTML = `<strong style="color: #ff6b6b;">Passive Debuff:</strong> <span style="color: #ff6b6b;">-${debuffPercent}%</span>`;
-          debuffElement.style.display = '';
+          
+          // Вычисляем текущие значения для отображения
+          const transferPercent = Math.min(100, save.modifiers.incomeTransferLevel);
+          
+          // Вычисляем базовый доход для расчета перелитого дохода
+          let basePPS = 0;
+          const tNow = now();
+          for (const b of save.buildings) {
+            if (tNow < b.blockedUntil) continue;
+            if (b.level < 1) continue;
+            basePPS += buildingIncomeAt(b, b.level, b.upgradeBonus);
+          }
+          if (save.uber.unlocked) {
+            basePPS += uberIncomeAt(save.uber.level);
+          }
+          
+          // Применяем модификаторы (кроме перелива)
+          const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
+          const achievementMult = getAchievementBonus();
+          const taxMult = save.treasury?.actions?.profitWithoutTaxUntil > tNow ? 11 : 1.0;
+          const act = save.treasury?.actions;
+          const passiveBoostMult = (act && act.passiveBoostUntil > tNow && act.passiveBoostLevel > 0) ? (1 + (act.passiveBoostLevel / 100)) : 1.0;
+          const angryBarmatunIncomeReduction = save.modifiers.angryBarmatunIncomeReduction > tNow ? 0.5 : 1.0;
+          const kingDebuffMult = save.modifiers.kingDebuffUntil > tNow ? (save.modifiers.kingDebuffMult || 0.23) : 1.0;
+          const clickDebuffMult = save.modifiers.clickDebuffLevel > 0 ? Math.max(0, 1 - (Math.min(100, save.modifiers.clickDebuffLevel) / 100)) : 1.0;
+          const basePPSWithMods = basePPS * spiderMult * achievementMult * taxMult * passiveBoostMult * angryBarmatunIncomeReduction * kingDebuffMult;
+          
+          const transferedIncome = basePPSWithMods * (transferPercent / 100);
+          const clickBonus = transferedIncome * 0.05;
+          
+          // Отображаем процент с округлением до 4 знаков после запятой, бонус с буквенными сокращениями
+          const transferPercentDisplay = transferPercent.toFixed(4);
+          const clickBonusDisplay = fmt(clickBonus);
+          
+          transferElement.innerHTML = `
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 10px 14px;
+              background: linear-gradient(135deg, rgba(74, 158, 255, 0.18), rgba(74, 158, 255, 0.08));
+              border: 1px solid rgba(74, 158, 255, 0.5);
+              border-radius: 8px;
+              box-shadow: 0 0 12px rgba(74, 158, 255, 0.25), inset 0 1px 3px rgba(255, 255, 255, 0.15);
+              margin-top: 4px;
+            ">
+              <span style="color: #4a9eff; font-weight: 600; font-size: 1.1em; text-shadow: 0 0 8px rgba(74, 158, 255, 0.6);">⚡</span>
+              <span style="color: #4a9eff; font-weight: 600; text-shadow: 0 0 6px rgba(74, 158, 255, 0.4);">-${transferPercentDisplay}%</span>
+              <span style="color: var(--muted); font-size: 0.95em;">buildings</span>
+              <span style="color: var(--muted); font-size: 1.2em;">→</span>
+              <span style="color: #ffd700; font-weight: 700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.7), 0 0 20px rgba(255, 215, 0, 0.4);">+${clickBonusDisplay}</span>
+              <span style="color: var(--muted); font-size: 0.9em;">per click</span>
+            </div>
+          `;
+          transferElement.style.display = '';
         } else {
-          // Скрываем элемент если дебаф не активен
-          if (debuffElement) {
-            debuffElement.style.display = 'none';
+          // Скрываем элемент если перелив не активен
+          if (transferElement) {
+            transferElement.style.display = 'none';
           }
         }
       }
@@ -5149,7 +5496,7 @@ function renderEffects() {
   // НЕ восстанавливаем здесь - восстановление происходит только в tick() для плавности
   // Просто читаем текущее значение для отображения
   if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
-    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(2);
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(4);
     list.innerHTML += `<div class="effect bad">Click debuff: -${debuffPercent}% passive income</div>`;
   }
 }
@@ -5451,7 +5798,7 @@ let _cachedPPS = null;
 let _cachedPPC = null;
 let _cachedPPSTime = 0;
 let _cachedPPCTime = 0;
-const CACHE_TTL = 50; // Кэш на 50мс
+const CACHE_TTL = 200; // Кэш на 200мс для лучшей производительности
 
 // Кэширование вычислений для оптимизации производительности
 
@@ -5463,8 +5810,8 @@ let _lastClickUpdate = 0;
 
 function debouncedRenderTopStats() {
   const nowTs = now();
-  // Обновляем не чаще чем раз в 200мс
-  if (nowTs - _lastStatsUpdate < 200) {
+  // Обновляем не чаще чем раз в 300мс для лучшей производительности
+  if (nowTs - _lastStatsUpdate < 300) {
     if (!_debounceStatsTimeout) {
       _debounceStatsTimeout = requestAnimationFrame(() => {
         renderTopStats();
@@ -5480,8 +5827,8 @@ function debouncedRenderTopStats() {
 
 function debouncedRenderClick() {
   const nowTs = now();
-  // Обновляем не чаще чем раз в 200мс
-  if (nowTs - _lastClickUpdate < 200) {
+  // Обновляем не чаще чем раз в 300мс для лучшей производительности
+  if (nowTs - _lastClickUpdate < 300) {
     if (!_debounceClickTimeout) {
       _debounceClickTimeout = requestAnimationFrame(() => {
         renderClick();
@@ -5557,8 +5904,8 @@ function updateButtonStates() {
   if (!save) return;
   
   const nowTs = now();
-  // Обновляем не чаще чем раз в 200мс для лучшей производительности (было 100мс)
-  if (nowTs - _lastButtonStatesUpdate < 200) {
+  // Обновляем не чаще чем раз в 300мс для лучшей производительности
+  if (nowTs - _lastButtonStatesUpdate < 300) {
     if (!_debounceButtonStatesTimeout) {
       _debounceButtonStatesTimeout = requestAnimationFrame(() => {
         _updateButtonStatesInternal();
@@ -6285,10 +6632,38 @@ clickBtn.addEventListener('click', (event) => {
   
   // Увеличиваем уровень дебафа на 0.1% за каждый клик (максимум -100%)
   // Восстановление дебафа происходит только в tick() для плавности
+  const oldClickDebuffLevel = save.modifiers.clickDebuffLevel;
   save.modifiers.clickDebuffLevel = Math.min(100, save.modifiers.clickDebuffLevel + 0.1);
   
-  // Обновляем время последнего клика (восстановление начнется через 5 секунд в tick())
-  save.modifiers.clickDebuffLastClickTs = ts;
+  // Инвалидируем кэш если дебаф изменился (влияет на PPS)
+  if (oldClickDebuffLevel !== save.modifiers.clickDebuffLevel) {
+    _cachedPPS = null;
+  }
+  
+  // Обновляем время последнего клика для дебафа (используется тот же таймер что и перелив)
+  // Таймер обновляется в системе перелива дохода (incomeTransferLastClickTs)
+  
+  // Система перелива дохода: при клике отнимается 1% от дохода зданий
+  // Инициализируем если нужно
+  if (save.modifiers.incomeTransferLevel === undefined) {
+    save.modifiers.incomeTransferLevel = 0;
+  }
+  if (save.modifiers.incomeTransferLastClickTs === undefined) {
+    save.modifiers.incomeTransferLastClickTs = 0;
+  }
+  
+  // Увеличиваем уровень перелива на 1% за клик (максимум 100%)
+  const oldIncomeTransferLevel = save.modifiers.incomeTransferLevel;
+  save.modifiers.incomeTransferLevel = Math.min(100, save.modifiers.incomeTransferLevel + 1);
+  
+  // Инвалидируем кэш если перелив изменился (влияет на PPS и PPC)
+  if (oldIncomeTransferLevel !== save.modifiers.incomeTransferLevel) {
+    _cachedPPS = null;
+    _cachedPPC = null;
+  }
+  
+  // Обновляем таймер (5 секунд до начала возврата)
+  save.modifiers.incomeTransferLastClickTs = ts;
   
   // Streak logic - разрыв стрика при паузе более 1 секунды
   if (ts - save.streak.lastClickTs <= 1000) {
@@ -6380,8 +6755,10 @@ clickBtn.addEventListener('click', (event) => {
   // Buff 2: Always golden - кнопка всегда золотая, но может сломаться в 9 раз чаще
   if (!madnessActive) {
     const noGoldenActive = act && act.noGoldenUntil > now();
+    // Always Golden debuff: кнопка не может стать золотой на 120 сек по окончании
+    const alwaysGoldenNoGoldenDebuff = save.modifiers.alwaysGoldenNoGoldenUntil > now();
     // Buff 1: Skip all golden/break chances if noGolden is active
-    if (!noGoldenActive) {
+    if (!noGoldenActive && !alwaysGoldenNoGoldenDebuff) {
       // Проверяем, активна ли обычная золотая кнопка (не от alwaysGolden баффа)
       // Обычная золотая кнопка определяется как: goldenUntil > now() И это не от alwaysGolden баффа
       const goldenUntilFromBuff = alwaysGoldenActive ? act.alwaysGoldenUntil : 0;
@@ -6954,6 +7331,8 @@ function endKingMiniGame(outcome, info = {}) {
     // Apply 23% passive income debuff for 48 seconds
     save.modifiers.kingDebuffUntil = now() + 48000;
     save.modifiers.kingDebuffMult = 0.23;
+    _cachedPPS = null;
+    _cachedPPC = null;
     toast(`Time's up. The King punished you: -13 levels Building, -13 Click. Passive income reduced to 23% for 48s.`, 'bad');
     
     // Воспроизводим звук дебафа от короля
@@ -6973,6 +7352,8 @@ function endKingMiniGame(outcome, info = {}) {
     // Apply 23% passive income debuff for 48 seconds
     save.modifiers.kingDebuffUntil = now() + 48000;
     save.modifiers.kingDebuffMult = 0.23;
+    _cachedPPS = null;
+    _cachedPPC = null;
     toast(`Miss! The King is furious: -13 levels Buildings, -13 Click, -30% points. Passive income reduced to 23% for 48s.`, 'bad');
     
     // Воспроизводим звук дебафа от короля
@@ -7205,6 +7586,8 @@ if (spiderEl) {
         // Positive effect - shorter duration (4s instead of 7s)
         save.modifiers.spiderMult = 11.0;
         save.modifiers.spiderUntil = now() + 4000;
+        _cachedPPS = null;
+        _cachedPPC = null;
         toast('Spider blessing! All income x11 for 4s.', 'good');
         
         // Воспроизводим звук баффа от паука
@@ -7213,6 +7596,8 @@ if (spiderEl) {
                 // Negative effect - shorter duration (12s instead of 36s)
                 save.modifiers.spiderMult = 0.0001;
                 save.modifiers.spiderUntil = now() + 12000;
+                _cachedPPS = null;
+                _cachedPPC = null;
                 toast('Spider curse! All income x0.0001 for 12s.', 'bad');
                 // Воспроизводим звук дебафа от паука
                 playSound('debuff');
@@ -7226,12 +7611,16 @@ if (spiderEl) {
       if (roll < 0.25) {
         save.modifiers.spiderMult = 0.0001;
         save.modifiers.spiderUntil = now() + 36000;
+        _cachedPPS = null;
+        _cachedPPC = null;
         toast('Spider curse! All income x0.0001 for 36s.', 'bad');
         // Воспроизводим звук дебафа от паука
         playSound('debuff');
       } else if (roll < 0.50) {
         save.modifiers.spiderMult = 11.0;
         save.modifiers.spiderUntil = now() + 7000;
+        _cachedPPS = null;
+        _cachedPPC = null;
         toast('Spider blessing! All income x11 for 7s.', 'good');
         
         // Воспроизводим звук баффа от паука
@@ -7535,6 +7924,8 @@ if (angryBarmatunEl) {
     if (roll < 0.5) {
       // 50% chance: Angry - reduce all income by 50% for 36 seconds (3x original)
       save.modifiers.angryBarmatunIncomeReduction = now() + 36000;
+      _cachedPPS = null;
+      _cachedPPC = null;
       toast('Angry Barmatun is furious! All income reduced by 50% for 36s.', 'bad');
       
       // Воспроизводим звук дебафа от барматуна
@@ -8030,6 +8421,7 @@ function _shootArrow() {
       // Hit! Apply x13.2 multiplier for 11 seconds (reduced from x33 - 2.5x decrease: 33/2.5 = 13.2)
       save.modifiers.elfArcherMult = 13.2;
       save.modifiers.elfArcherUntil = now() + 11000;
+      _cachedPPC = null;
       toast('Elf archer hit! Click income x13.2 for 11 seconds!', 'good');
       renderTopStats(); // Update income display
     } else {
@@ -8106,9 +8498,19 @@ if (elfArcherEl) {
 let _lastAchievementCheck = 0;
 let _lastProfitWithoutTaxUntil = 0; // Отслеживаем окончание бафа Profit Without Tax
 let _wasProfitWithoutTaxActive = false; // Флаг активности бафа в предыдущем тике
+let _wasRepairActive = false; // Флаг активности Repair бафа
+let _wasLazyClickActive = false; // Флаг активности Lazy Click бафа
+let _wasEngineerActive = false; // Флаг активности Engineer бафа
+let _wasClickMadnessActive = false; // Флаг активности Click Madness бафа
+let _wasNoGoldenActive = false; // Флаг активности No Golden бафа
+let _wasAlwaysGoldenActive = false; // Флаг активности Always Golden бафа
+let _wasFastRepairActive = false; // Флаг активности Fast Repair бафа
+let _wasPassiveBoostActive = false; // Флаг активности Passive Boost бафа
+let _wasMasterBuilderActive = false; // Флаг активности Master Builder бафа
+let _wasSpiderBuffActive = false; // Флаг активности Spider Buff бафа
 function tick() {
   if (!save) return;
-  const t = now();
+  const t = now(); // Кэшируем now() один раз для всего тика
   const dt = (t - (save.lastTick || t)) / 1000; // seconds
   save.lastTick = t;
   
@@ -8157,6 +8559,8 @@ function tick() {
         act.passiveBoostLastTick = t;
         if (act.passiveBoostLevel !== oldLevel) {
           passiveBoostChanged = true;
+          // Инвалидируем кэш при изменении уровня пассивного буста (влияет на PPS)
+          _cachedPPS = null;
         }
       }
     } else if (act) {
@@ -8164,6 +8568,8 @@ function tick() {
       act.passiveBoostLevel = 0;
       if (oldLevel !== 0) {
         passiveBoostChanged = true;
+        // Инвалидируем кэш при сбросе пассивного буста (влияет на PPS)
+        _cachedPPS = null;
       }
     }
     
@@ -8202,6 +8608,12 @@ function tick() {
     
     // Обновляем флаг активности для следующего тика (ВАЖНО: после проверки!)
     _wasProfitWithoutTaxActive = isActive;
+    
+    // Profit Without Tax debuff: пассивный доход -30% на 60 сек по окончании
+    if (_wasProfitWithoutTaxActive && !isActive) {
+      save.modifiers.profitWithoutTaxDebuffPPSUntil = t + 60000;
+      _cachedPPS = null;
+    }
 
     // Buff 3: Fast Repair - ускоряет восстановление зданий в 2 раза
     const fastRepairActive = act && act.fastRepairUntil > t;
@@ -8233,7 +8645,8 @@ function tick() {
     }
     
     // Engineer effect
-    if (save.treasury.actions.engineerUntil > t) {
+    const engineerActive = save.treasury.actions.engineerUntil > t;
+    if (engineerActive) {
       if (!fastRepairActive) {
         save.modifiers.breakChanceMult = 0.34; // -66%
         save.modifiers.repairTimeMult = 2.0;
@@ -8243,7 +8656,131 @@ function tick() {
         save.modifiers.breakChanceMult = 1.0;
         save.modifiers.repairTimeMult = 1.0;
       }
+      // Engineer debuff: пассивный доход -25% на 90 сек по окончании
+      if (_wasEngineerActive && !engineerActive) {
+        save.modifiers.engineerDebuffPPSUntil = t + 90000;
+        _cachedPPS = null;
+      }
     }
+    _wasEngineerActive = engineerActive;
+    
+    // Repair debuff tracking
+    const repairActive = act && act.repairCd > t;
+    if (!repairActive && _wasRepairActive) {
+      // Repair debuff: пассивный доход -15% на 45 сек по окончании
+      save.modifiers.repairDebuffPPSUntil = t + 45000;
+      save.modifiers.repairDebuffCostMult = 1.0; // Сбрасываем модификатор стоимости
+      _cachedPPS = null;
+    } else if (repairActive) {
+      save.modifiers.repairDebuffCostMult = 1.25; // Стоимость +25% во время эффекта
+    } else {
+      save.modifiers.repairDebuffCostMult = 1.0;
+    }
+    _wasRepairActive = repairActive;
+    
+    // Lazy Click debuff tracking
+    const lazyClickActive = save.modifiers.lazyClickUntil > t;
+    if (!lazyClickActive && _wasLazyClickActive) {
+      // Lazy Click debuff: доход за клик -25% на 60 сек по окончании
+      save.modifiers.lazyClickDebuffPPCUntil = t + 60000;
+      save.modifiers.lazyClickDebuffPPSMult = 1.0; // Сбрасываем модификатор пассивного дохода
+      _cachedPPC = null;
+      _cachedPPS = null;
+    } else if (!lazyClickActive) {
+      save.modifiers.lazyClickDebuffPPSMult = 1.0;
+    }
+    _wasLazyClickActive = lazyClickActive;
+    
+    // Click Madness debuff tracking
+    const clickMadnessActive = act && act.clickMadnessUntil > t;
+    if (!clickMadnessActive && _wasClickMadnessActive) {
+      // Click Madness debuff: доход за клик -50% на 120 сек + 3-5 зданий ломаются на 180 сек
+      save.modifiers.clickMadnessDebuffPPCUntil = t + 120000;
+      const breakCount = 3 + Math.floor(Math.random() * 3); // 3-5 зданий
+      breakRandomBuildings(breakCount, 180000);
+      _cachedPPC = null;
+      renderAll();
+    }
+    _wasClickMadnessActive = clickMadnessActive;
+    
+    // No Golden debuff tracking (Uber mode)
+    const noGoldenActive = act && act.noGoldenUntil > t;
+    if (!noGoldenActive && _wasNoGoldenActive) {
+      // No Golden debuff: 2-3 здания ломаются на 120 сек по окончании
+      const breakCount = 2 + Math.floor(Math.random() * 2); // 2-3 здания
+      breakRandomBuildings(breakCount, 120000);
+      renderAll();
+    }
+    _wasNoGoldenActive = noGoldenActive;
+    
+    // Always Golden debuff tracking (Uber mode)
+    const alwaysGoldenActive = act && act.alwaysGoldenUntil > t;
+    if (!alwaysGoldenActive && _wasAlwaysGoldenActive) {
+      // Always Golden debuff: кнопка не может стать золотой на 120 сек + доход за клик -35% на 90 сек
+      save.modifiers.alwaysGoldenNoGoldenUntil = t + 120000;
+      save.modifiers.alwaysGoldenDebuffPPCUntil = t + 90000;
+      _cachedPPC = null;
+    }
+    _wasAlwaysGoldenActive = alwaysGoldenActive;
+    
+    // Fast Repair debuff tracking (Uber mode)
+    if (!fastRepairActive && _wasFastRepairActive) {
+      // Fast Repair debuff: +50% времени ремонта сломанным зданиям + 3-4 здания ломаются на 150 сек
+      save.modifiers.fastRepairDebuffRepairMult = 1.5; // +50% времени ремонта
+      const breakCount = 3 + Math.floor(Math.random() * 2); // 3-4 здания
+      breakRandomBuildings(breakCount, 150000);
+      save.modifiers.fastRepairDebuffBuildingsUntil = t + 150000;
+      renderAll();
+    } else if (fastRepairActive) {
+      save.modifiers.fastRepairDebuffRepairMult = 1.0; // Сбрасываем во время бафа
+    } else {
+      // Применяем +50% времени ремонта только если есть сломанные здания и дебаф активен
+      if (save.modifiers.fastRepairDebuffBuildingsUntil > t) {
+        save.modifiers.fastRepairDebuffRepairMult = 1.5;
+      } else {
+        save.modifiers.fastRepairDebuffRepairMult = 1.0;
+      }
+    }
+    _wasFastRepairActive = fastRepairActive;
+    
+    // Passive Boost debuff tracking (Uber mode)
+    const passiveBoostActive = act && act.passiveBoostUntil > t;
+    if (!passiveBoostActive && _wasPassiveBoostActive) {
+      // Passive Boost debuff: пассивный доход -30% на 120 сек + доход за клик -25% на 90 сек + 2-3 здания ломаются на 180 сек
+      save.modifiers.passiveBoostDebuffPPSUntil = t + 120000;
+      save.modifiers.passiveBoostDebuffPPCUntil = t + 90000;
+      const breakCount = 2 + Math.floor(Math.random() * 2); // 2-3 здания
+      breakRandomBuildings(breakCount, 180000);
+      _cachedPPS = null;
+      _cachedPPC = null;
+      renderAll();
+    }
+    _wasPassiveBoostActive = passiveBoostActive;
+    
+    // Master Builder debuff tracking (Uber mode)
+    const masterBuilderActive = act && act.noBreakUntil > t;
+    if (!masterBuilderActive && _wasMasterBuilderActive) {
+      // Master Builder debuff: пассивный доход -40% на 120 сек + доход за клик -30% на 90 сек
+      save.modifiers.masterBuilderDebuffPPSUntil = t + 120000;
+      save.modifiers.masterBuilderDebuffPPCUntil = t + 90000;
+      _cachedPPS = null;
+      _cachedPPC = null;
+    }
+    _wasMasterBuilderActive = masterBuilderActive;
+    
+    // Spider Buff debuff tracking (Uber mode)
+    const spiderBuffActive = act && act.spiderBuffUntil > t;
+    if (!spiderBuffActive && _wasSpiderBuffActive) {
+      // Spider Buff debuff: пассивный доход -20% на 90 сек + доход за клик -25% на 60 сек + 2-3 здания ломаются на 150 сек
+      save.modifiers.spiderBuffDebuffPPSUntil = t + 90000;
+      save.modifiers.spiderBuffDebuffPPCUntil = t + 60000;
+      const breakCount = 2 + Math.floor(Math.random() * 2); // 2-3 здания
+      breakRandomBuildings(breakCount, 150000);
+      _cachedPPS = null;
+      _cachedPPC = null;
+      renderAll();
+    }
+    _wasSpiderBuffActive = spiderBuffActive;
   }
 
   // Обновляем перегрев кнопки клика
@@ -8252,6 +8789,9 @@ function tick() {
   // Обновляем дебаф от кликов (плавное восстановление каждые 200мс)
   // Передаем dt для плавного восстановления без рывков
   updateClickDebuff(dt);
+  
+  // Обновляем систему перелива дохода (возврат после 5 секунд без кликов)
+  updateIncomeTransfer(dt);
   
   // Real-time income
   const pps = totalPPS();
@@ -8287,9 +8827,8 @@ function tick() {
   maybeSpawnElfArcher();
 
   // Update UI (с дебаунсингом для производительности)
-  // Инвалидируем кэш PPS/PPC каждый тик (значения могут измениться из-за модификаторов времени)
-  _cachedPPS = null;
-  _cachedPPC = null;
+  // НЕ инвалидируем кэш PPS/PPC каждый тик - кэш будет инвалидирован только при реальных изменениях
+  // Это значительно улучшает производительность, так как totalPPS/PPC вызываются часто
   debouncedRenderTopStats();
   debouncedRenderClick(); // Обновляем кнопку Click для автоматического снятия баффов/дебаффов
   renderEffects(); // Теперь с дебаунсингом внутри
@@ -8317,7 +8856,85 @@ function tick() {
 
   // Render some parts less often
 }
-setInterval(tick, 200); // 5x per second - оптимизировано для производительности (было 100ms = 10x/sec)
+setInterval(tick, 350); // ~2.86x per second - оптимизировано для производительности и плавности
+
+// ======= FPS & Performance Monitor =======
+let _fpsMonitor = {
+  frameCount: 0,
+  lastTime: performance.now(),
+  fps: 0,
+  frameTime: 0,
+  samples: [] // для сглаживания
+};
+
+function updateFPSMonitor() {
+  const now = performance.now();
+  const delta = now - _fpsMonitor.lastTime;
+  
+  // Измеряем время кадра
+  _fpsMonitor.frameTime = delta;
+  
+  // Добавляем в массив для сглаживания (последние 10 кадров)
+  _fpsMonitor.samples.push(delta);
+  if (_fpsMonitor.samples.length > 10) {
+    _fpsMonitor.samples.shift();
+  }
+  
+  // Вычисляем средний FPS за последние кадры
+  const avgFrameTime = _fpsMonitor.samples.reduce((a, b) => a + b, 0) / _fpsMonitor.samples.length;
+  _fpsMonitor.fps = Math.round(1000 / avgFrameTime);
+  
+  // Обновляем UI
+  const fpsValueEl = document.getElementById('fps-value');
+  const frameTimeValueEl = document.getElementById('frame-time-value');
+  
+  if (fpsValueEl && frameTimeValueEl) {
+    // Обновляем FPS
+    fpsValueEl.textContent = _fpsMonitor.fps;
+    
+    // Определяем цвет в зависимости от FPS
+    fpsValueEl.className = 'fps-value';
+    if (_fpsMonitor.fps >= 55) {
+      fpsValueEl.classList.add('fps-excellent');
+    } else if (_fpsMonitor.fps >= 45) {
+      fpsValueEl.classList.add('fps-good');
+    } else if (_fpsMonitor.fps >= 30) {
+      fpsValueEl.classList.add('fps-warning');
+    } else {
+      fpsValueEl.classList.add('fps-bad');
+    }
+    
+    // Обновляем время кадра
+    const frameTime = Math.round(avgFrameTime * 10) / 10; // округляем до 0.1 мс
+    frameTimeValueEl.textContent = frameTime.toFixed(1);
+    
+    // Определяем цвет в зависимости от времени кадра
+    frameTimeValueEl.className = 'fps-value';
+    if (frameTime < 18) {
+      frameTimeValueEl.classList.add('fps-excellent');
+    } else if (frameTime < 25) {
+      frameTimeValueEl.classList.add('fps-good');
+    } else if (frameTime < 35) {
+      frameTimeValueEl.classList.add('fps-warning');
+    } else {
+      frameTimeValueEl.classList.add('fps-bad');
+    }
+  }
+  
+  _fpsMonitor.lastTime = now;
+  requestAnimationFrame(updateFPSMonitor);
+}
+
+// Запускаем монитор FPS после загрузки страницы
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    _fpsMonitor.lastTime = performance.now();
+    requestAnimationFrame(updateFPSMonitor);
+  });
+} else {
+  _fpsMonitor.lastTime = performance.now();
+  requestAnimationFrame(updateFPSMonitor);
+}
 
 // ======= Endgame & caps =======
 function checkUberUnlock() {
@@ -9285,8 +9902,8 @@ let _effectsDebounceTimeout = null;
 
 function renderEffects() {
   const nowTs = now();
-  // Обновляем не чаще чем раз в 500мс для производительности
-  if (nowTs - _lastEffectsUpdate < 500) {
+  // Обновляем не чаще чем раз в 600мс для производительности
+  if (nowTs - _lastEffectsUpdate < 600) {
     if (!_effectsDebounceTimeout) {
       _effectsDebounceTimeout = requestAnimationFrame(() => {
         _renderEffectsInternal();
@@ -9714,6 +10331,20 @@ document.addEventListener('keydown', (e) => {
     save = stored;
     if (!save.buildings || save.buildings.length === 0) initBuildings(save);
     ensureTreasury(save);
+    // Инициализируем флаги активности бафов
+    const act = save.treasury?.actions;
+    const t = now();
+    _wasProfitWithoutTaxActive = act && act.profitWithoutTaxUntil > t;
+    _wasRepairActive = act && act.repairCd > t;
+    _wasLazyClickActive = save.modifiers && save.modifiers.lazyClickUntil > t;
+    _wasEngineerActive = act && act.engineerUntil > t;
+    _wasClickMadnessActive = act && act.clickMadnessUntil > t;
+    _wasNoGoldenActive = act && act.noGoldenUntil > t;
+    _wasAlwaysGoldenActive = act && act.alwaysGoldenUntil > t;
+    _wasFastRepairActive = act && act.fastRepairUntil > t;
+    _wasPassiveBoostActive = act && act.passiveBoostUntil > t;
+    _wasMasterBuilderActive = act && act.noBreakUntil > t;
+    _wasSpiderBuffActive = act && act.spiderBuffUntil > t;
     // Инициализируем достижения, если их нет
     if (!save.achievements) {
       save.achievements = {

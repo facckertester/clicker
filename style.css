@@ -90,6 +90,78 @@ input, textarea, select { user-select: text; cursor: text; }
 .hidden{display:none!important}
 .center{display:flex;align-items:center;justify-content:center}
 
+/* ---------- FPS & Performance Monitor ---------- */
+.fps-monitor {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.92), rgba(26, 26, 26, 0.88));
+  border: 1px solid rgba(100, 100, 100, 0.4);
+  border-radius: 6px;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.6),
+    inset 0 1px 2px rgba(255, 255, 255, 0.05);
+  font-family: var(--mono-font);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+  user-select: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.fps-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.fps-label {
+  color: var(--muted);
+  font-weight: 500;
+  min-width: 42px;
+}
+
+.fps-value {
+  color: var(--text-bright);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.fps-value.fps-excellent {
+  color: var(--success);
+  text-shadow: 0 0 6px rgba(102, 204, 102, 0.5);
+}
+
+.fps-value.fps-good {
+  color: #a0d080;
+  text-shadow: 0 0 4px rgba(160, 208, 128, 0.4);
+}
+
+.fps-value.fps-warning {
+  color: var(--warn);
+  text-shadow: 0 0 4px rgba(255, 170, 68, 0.4);
+}
+
+.fps-value.fps-bad {
+  color: var(--danger);
+  text-shadow: 0 0 6px rgba(255, 85, 85, 0.5);
+}
+
+.fps-unit {
+  color: var(--muted-dark);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 /* ---------- GLOBAL LAYOUT ---------- */
 .page{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:calc(var(--gap)*1.25);padding:20px}
 .container{width:100%;max-width:var(--max-width);margin:0 auto;padding:0 16px}
@@ -459,6 +531,29 @@ a:hover { color: var(--poe-orange-bright); }
   display:block;
   position:relative;
   z-index:2;
+}
+/* Скрываем ::before если есть изображение */
+.treasury-actions .btn img,
+.treasury-actions-row .btn img{
+  position:relative;
+  z-index:2;
+  /* Улучшенное качество рендеринга изображений - предотвращаем размытие */
+  /* Используем правильную последовательность для разных браузеров */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
+  /* Дополнительные свойства для четкости и производительности */
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+  /* Предотвращаем сглаживание браузером */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.treasury-actions .btn:has(img)::before{
+  display:none;
 }
 .treasury-actions .btn[data-cooldown]::after{
   content:attr(data-cooldown)'s';
