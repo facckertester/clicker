@@ -371,6 +371,22 @@ function getItemTooltipHTML(item) {
         </div>
       `;
     }
+    if (item.stats && item.stats.critChance) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Crit Chance:</span>
+          <span class="tooltip-stat-value">+${item.stats.critChance.toFixed(1)}%</span>
+        </div>
+      `;
+    }
+    if (item.stats && item.stats.critMultiplier) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Crit Multiplier:</span>
+          <span class="tooltip-stat-value">+${item.stats.critMultiplier.toFixed(2)}x</span>
+        </div>
+      `;
+    }
     if (item.effect) {
       const effectNames = {
         bleed: 'Bleeding',
@@ -378,10 +394,19 @@ function getItemTooltipHTML(item) {
         shock: 'Shock',
         frost: 'Frost'
       };
+      const effectDescriptions = {
+        bleed: 'Deals damage over time to the enemy',
+        poison: 'Reduces damage dealt by the enemy',
+        shock: 'Can stun the enemy, preventing attacks',
+        frost: 'Slows enemy attacks, increasing time between attacks'
+      };
       html += `
         <div class="tooltip-stat">
           <span class="tooltip-stat-label">Effect:</span>
           <span class="tooltip-stat-value">${effectNames[item.effect] || item.effect}</span>
+        </div>
+        <div class="tooltip-stat" style="color: var(--muted); font-size: 0.8rem; margin-top: 4px;">
+          <span>${effectDescriptions[item.effect] || ''}</span>
         </div>
       `;
     }
@@ -421,10 +446,33 @@ function getItemTooltipHTML(item) {
     }
   }
   
+  // Add hints
+  html += `<div class="tooltip-line"></div>`;
+  
+  // Add sell hint for items in inventory (all items can be sold)
+  if (item.rarity) {
+    const getSellPrice = (rarity) => {
+      if (!rarity || !window.combatSystem || !window.combatSystem.ITEM_RARITY) return 1;
+      const rarityPrices = {
+        'COMMON': 1,
+        'UNCOMMON': 5,
+        'RARE': 10,
+        'EPIC': 50,
+        'LEGENDARY': 100
+      };
+      return rarityPrices[rarity] || 1;
+    };
+    const sellPrice = getSellPrice(item.rarity);
+    html += `
+      <div class="tooltip-stat" style="color: var(--muted); font-size: 0.85rem; margin-top: 8px;">
+        <span>Shift + Click to sell for ${sellPrice} coins</span>
+      </div>
+    `;
+  }
+  
   // Add unequip hint for equipped items
   html += `
-    <div class="tooltip-line"></div>
-    <div class="tooltip-stat" style="color: var(--muted); font-size: 0.85rem; margin-top: 8px;">
+    <div class="tooltip-stat" style="color: var(--muted); font-size: 0.85rem;">
       <span>Ctrl + Click to unequip</span>
     </div>
   `;
@@ -475,29 +523,32 @@ function hideItemTooltip() {
 
 // Render inventory modal
 function renderInventory() {
-  // Get equipped items from combat system if available
-  let equippedItems = inventorySystem.equipment;
-  if (window.combatSystem && window.combatSystem.isActive && !window.combatSystem.isActive()) {
-    // Use combat system equipment when not in combat
-    const combatEquipped = window.combatSystem.getEquipped ? window.combatSystem.getEquipped() : null;
+  // Always get equipped items from combat system (it's the source of truth)
+  let equippedItems = {};
+  
+  if (window.combatSystem && window.combatSystem.getEquipped) {
+    const combatEquipped = window.combatSystem.getEquipped();
     if (combatEquipped) {
       equippedItems = {
-        helmet: combatEquipped.helmet,
-        shoulders: combatEquipped.shoulders,
-        chest: combatEquipped.chest,
-        gloves: combatEquipped.gloves,
+        helmet: combatEquipped.helmet || null,
+        shoulders: combatEquipped.shoulders || null,
+        chest: combatEquipped.chest || null,
+        gloves: combatEquipped.gloves || null,
         ring1: null, // Rings not in combat system
         ring2: null,
         accessory1: null,
         accessory2: null,
         accessory3: null,
         necklace: null,
-        legs: combatEquipped.legs,
-        boots: combatEquipped.boots,
-        'weapon-right': combatEquipped.weaponRight,
-        'weapon-left': combatEquipped.weaponLeft
+        legs: combatEquipped.legs || null,
+        boots: combatEquipped.boots || null,
+        'weapon-right': combatEquipped.weaponRight || null,
+        'weapon-left': combatEquipped.weaponLeft || null
       };
     }
+  } else {
+    // Fallback to inventorySystem.equipment if combat system not available
+    equippedItems = inventorySystem.equipment || {};
   }
   
   // Render equipment slots
@@ -612,7 +663,202 @@ function renderInventory() {
         try {
           const data = JSON.parse(e.dataTransfer.getData('text/plain'));
           if (data.type === 'equipped') {
-            // Swapping equipped items - not implemented for now
+            // Swapping equipped items - check if dragging from different slot
+            if (data.slot !== slotName) {
+              // CRITICAL: Get the actual item from equipped slots, not from serialized data
+              // The serialized item might be stale or a copy
+              const combatEquipped = window.combatSystem.getEquipped();
+              
+              // Convert slot names to camelCase
+              let sourceSlotCamel = data.slot;
+              let targetSlotCamel = slotName;
+              if (data.slot === 'weapon-right') sourceSlotCamel = 'weaponRight';
+              else if (data.slot === 'weapon-left') sourceSlotCamel = 'weaponLeft';
+              if (slotName === 'weapon-right') targetSlotCamel = 'weaponRight';
+              else if (slotName === 'weapon-left') targetSlotCamel = 'weaponLeft';
+              
+              // CRITICAL: Get items from equipped slots using a DEEP COPY approach
+              // We need to ensure we're working with the actual current state, not stale references
+              const sourceItemRef = combatEquipped[sourceSlotCamel];
+              const targetItemRef = combatEquipped[targetSlotCamel];
+              
+              // Verify we have a source item
+              if (!sourceItemRef) {
+                hideItemTooltip();
+                return;
+              }
+              
+              // CRITICAL CHECK: If dragging the same item to the same slot (shouldn't happen, but check anyway)
+              if (sourceSlotCamel === targetSlotCamel) {
+                hideItemTooltip();
+                return;
+              }
+              
+              // CRITICAL CHECK: If target slot already has the same item (by ID), don't swap - just clear source
+              if (targetItemRef && targetItemRef.id === sourceItemRef.id) {
+                // Same item in both slots - this shouldn't happen, but if it does, just clear source
+                combatEquipped[sourceSlotCamel] = null;
+                hideItemTooltip();
+                window.combatSystem.calculateStats();
+                window.combatSystem.save();
+                window.combatSystem.render();
+                renderInventory();
+                return;
+              }
+              
+              // Store item IDs for verification (not references)
+              const sourceItemId = sourceItemRef.id;
+              const targetItemId = targetItemRef ? targetItemRef.id : null;
+              
+              // Direct swap: swap items between slots without going through inventory
+              // Check compatibility first
+              if (!canEquipItemInSlot(sourceItem, slotName)) {
+                toast('Cannot equip this item in this slot!', 'warn');
+                hideItemTooltip();
+                return;
+              }
+              
+              // CRITICAL: Before swapping, ensure items are NOT in inventory
+              // Remove any instances of these items from inventory to prevent duplicates
+              if (save && save.inventory && save.inventory.inventory) {
+                const inventory = save.inventory.inventory;
+                // Remove source item from inventory if it exists there
+                for (let i = 0; i < inventory.length; i++) {
+                  if (inventory[i] && inventory[i].id === sourceItemId) {
+                    inventory[i] = null;
+                  }
+                  if (targetItemId && inventory[i] && inventory[i].id === targetItemId) {
+                    inventory[i] = null;
+                  }
+                }
+                save.inventory.inventory = inventory;
+              }
+              
+              // Sync with experience system inventory - remove items
+              if (window.experienceSystem && window.experienceSystem.inventory) {
+                const invSystem = window.experienceSystem.inventory;
+                if (invSystem.inventory) {
+                  const expInventory = invSystem.inventory;
+                  for (let i = 0; i < expInventory.length; i++) {
+                    if (expInventory[i] && expInventory[i].id === sourceItemId) {
+                      expInventory[i] = null;
+                    }
+                    if (targetItemId && expInventory[i] && expInventory[i].id === targetItemId) {
+                      expInventory[i] = null;
+                    }
+                  }
+                }
+              }
+              
+              // Get fresh equipped reference again before swap
+              const swapEquipped = window.combatSystem.getEquipped();
+              
+              // Now do the direct swap in equipped slots
+              // Handle two-handed weapons
+              if (sourceItem.hands === 2) {
+                // Two-handed weapon occupies both hands
+                // Clear source slot first
+                swapEquipped[sourceSlotCamel] = null;
+                // Then set in both hands
+                swapEquipped.weaponRight = sourceItem;
+                swapEquipped.weaponLeft = sourceItem;
+                // If there was an item in target slot, it needs to go to inventory
+                if (targetItem && targetItem.id !== sourceItemId) {
+                  // Add target item to inventory manually
+                  const inventory = save && save.inventory && save.inventory.inventory ? save.inventory.inventory : [];
+                  const emptySlot = inventory.findIndex(s => s === null);
+                  if (emptySlot !== -1) {
+                    inventory[emptySlot] = targetItem;
+                    if (save && save.inventory) {
+                      save.inventory.inventory = inventory;
+                    }
+                  }
+                }
+              } else if (targetItem && targetItem.hands === 2) {
+                // Target item is two-handed - it occupies both hands
+                // Clear source slot first
+                swapEquipped[sourceSlotCamel] = null;
+                // Clear both hands for two-handed weapon
+                swapEquipped.weaponRight = null;
+                swapEquipped.weaponLeft = null;
+                // Put source item in target slot
+                swapEquipped[targetSlotCamel] = sourceItem;
+                // Add two-handed weapon to inventory manually
+                const inventory = save && save.inventory && save.inventory.inventory ? save.inventory.inventory : [];
+                const emptySlot = inventory.findIndex(s => s === null);
+                if (emptySlot !== -1) {
+                  inventory[emptySlot] = targetItem;
+                  if (save && save.inventory) {
+                    save.inventory.inventory = inventory;
+                  }
+                }
+              } else {
+                // Normal swap - exchange items between slots
+                // CRITICAL: Verify items are still in expected slots before swap
+                const verifySource = swapEquipped[sourceSlotCamel];
+                const verifyTarget = swapEquipped[targetSlotCamel];
+                
+                // Verify source item matches
+                if (!verifySource || verifySource.id !== sourceItemId) {
+                  console.warn('Source item changed during swap!', {
+                    expectedId: sourceItemId,
+                    actualId: verifySource?.id
+                  });
+                  hideItemTooltip();
+                  return;
+                }
+                
+                // CRITICAL: If target already has same item, abort
+                if (verifyTarget && verifyTarget.id === sourceItemId) {
+                  swapEquipped[sourceSlotCamel] = null;
+                  hideItemTooltip();
+                  window.combatSystem.calculateStats();
+                  window.combatSystem.save();
+                  window.combatSystem.render();
+                  renderInventory();
+                  return;
+                }
+                
+                // Perform atomic swap: clear both, then set
+                const itemFromSource = verifySource;
+                const itemFromTarget = verifyTarget;
+                
+                // Clear both slots
+                swapEquipped[sourceSlotCamel] = null;
+                swapEquipped[targetSlotCamel] = null;
+                
+                // Set items in swapped positions
+                swapEquipped[targetSlotCamel] = itemFromSource;
+                swapEquipped[sourceSlotCamel] = itemFromTarget;
+                
+                // CRITICAL: Final check - ensure no duplicate IDs in weapon slots
+                const finalRight = swapEquipped.weaponRight;
+                const finalLeft = swapEquipped.weaponLeft;
+                
+                if (finalRight && finalLeft && finalRight.id === finalLeft.id) {
+                  // Same item ID in both hands
+                  if (finalRight.hands !== 2) {
+                    // NOT a two-handed weapon - this is a bug! Clear the source slot
+                    if (sourceSlotCamel === 'weaponRight') {
+                      swapEquipped.weaponRight = itemFromTarget;
+                    } else if (sourceSlotCamel === 'weaponLeft') {
+                      swapEquipped.weaponLeft = itemFromTarget;
+                    }
+                  }
+                }
+              }
+              
+              // Update stats and save
+              window.combatSystem.calculateStats();
+              window.combatSystem.save();
+              window.combatSystem.render();
+              
+              // Force inventory render
+              if (window.experienceSystem && window.experienceSystem.inventory && window.experienceSystem.inventory.render) {
+                window.experienceSystem.inventory.render();
+              }
+            }
+            hideItemTooltip();
             return;
           } else if (data.item) {
             // Dropping from inventory
@@ -634,11 +880,8 @@ function renderInventory() {
       const storedItem = item; // Store item reference
       
       newSlot.addEventListener('click', function(e) {
-        console.log('Click event on equipment slot. Stored slot:', storedSlotName, 'Dataset slot:', this.dataset.slot, 'Ctrl:', e.ctrlKey, 'Meta:', e.metaKey);
-        
         // Check for Ctrl (Windows/Linux) or Cmd (Mac)
         if (e.ctrlKey || e.metaKey) {
-          console.log('Ctrl+Click detected! Attempting to unequip from slot:', storedSlotName);
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -646,35 +889,16 @@ function renderInventory() {
           
           // Get slot name from multiple sources
           const currentSlotName = this.dataset.slot || this.getAttribute('data-slot-name') || storedSlotName;
-          console.log('Final slot name to unequip:', currentSlotName);
-          console.log('combatSystem available:', !!window.combatSystem);
-          console.log('combatSystem object:', window.combatSystem);
-          console.log('unequip function available:', !!(window.combatSystem && window.combatSystem.unequip));
-          console.log('unequip function type:', typeof (window.combatSystem && window.combatSystem.unequip));
           
-          // Try multiple ways to call unequip
-          let unequipped = false;
-          
-          if (window.combatSystem) {
-            if (window.combatSystem.unequip && typeof window.combatSystem.unequip === 'function') {
-              console.log('Calling unequip via window.combatSystem.unequip...');
-              try {
-                window.combatSystem.unequip(currentSlotName);
-                console.log('unequip called successfully');
-                unequipped = true;
-              } catch (error) {
-                console.error('Error in unequip:', error);
-              }
-            } else {
-              console.error('window.combatSystem.unequip is not a function!', window.combatSystem.unequip);
+          if (window.combatSystem && window.combatSystem.unequip && typeof window.combatSystem.unequip === 'function') {
+            try {
+              window.combatSystem.unequip(currentSlotName);
+            } catch (error) {
+              console.error('Error in unequip:', error);
+              toast('Failed to unequip item!', 'bad');
             }
           } else {
-            console.error('window.combatSystem is not available!');
-          }
-          
-          if (!unequipped) {
-            console.error('Failed to unequip item!');
-            toast('Failed to unequip item. Check console for details.', 'bad');
+            toast('Cannot unequip item!', 'bad');
           }
           
           return false;
@@ -776,7 +1000,71 @@ function renderInventory() {
   // Render inventory grid
   const inventoryGrid = document.getElementById('inventory-grid');
   if (inventoryGrid) {
+    // Get current sort mode from data attribute or default to none
+    const currentSort = inventoryGrid.dataset.sortMode || 'none';
+    
+    // Sort inventory if needed
+    if (currentSort !== 'none') {
+      // Create array of items with their indices for sorting
+      let itemsWithIndices = [];
+      for (let i = 0; i < 40; i++) {
+        if (inventorySystem.inventory[i]) {
+          itemsWithIndices.push({ item: inventorySystem.inventory[i], originalIndex: i });
+        }
+      }
+      
+      // Sort items based on current sort mode
+      if (itemsWithIndices.length > 0) {
+        itemsWithIndices.sort((a, b) => {
+          const itemA = a.item;
+          const itemB = b.item;
+          
+          if (currentSort === 'level') {
+            // Sort by level (descending)
+            return (itemB.level || 0) - (itemA.level || 0);
+          } else if (currentSort === 'type') {
+            // Sort by type (weapons first, then armor)
+            const typeOrder = { 'weapon': 0, 'armor': 1 };
+            const typeA = typeOrder[itemA.type] ?? 2;
+            const typeB = typeOrder[itemB.type] ?? 2;
+            if (typeA !== typeB) return typeA - typeB;
+            // If same type, sort by name
+            return (itemA.name || '').localeCompare(itemB.name || '');
+          } else if (currentSort === 'rarity') {
+            // Sort by rarity (legendary first, then epic, rare, uncommon, common)
+            const rarityOrder = { 
+              'LEGENDARY': 0, 
+              'EPIC': 1, 
+              'RARE': 2, 
+              'UNCOMMON': 3, 
+              'COMMON': 4 
+            };
+            const rarityA = rarityOrder[itemA.rarity] ?? 5;
+            const rarityB = rarityOrder[itemB.rarity] ?? 5;
+            if (rarityA !== rarityB) return rarityA - rarityB;
+            // If same rarity, sort by level
+            return (itemB.level || 0) - (itemA.level || 0);
+          }
+          return 0;
+        });
+        
+        // Rebuild inventory array with sorted items
+        const sortedInventory = new Array(40).fill(null);
+        let sortedIndex = 0;
+        for (const { item } of itemsWithIndices) {
+          sortedInventory[sortedIndex++] = item;
+        }
+        
+        // Update inventory system and save
+        inventorySystem.inventory = sortedInventory;
+        if (save && save.inventory) {
+          save.inventory.inventory = sortedInventory;
+        }
+      }
+    }
+    
     inventoryGrid.innerHTML = '';
+    
     for (let i = 0; i < 40; i++) {
       const slot = document.createElement('div');
       slot.className = 'inventory-slot';
@@ -826,8 +1114,56 @@ function renderInventory() {
           });
         });
         
-        // Add click handler for equipping
-        slot.addEventListener('click', () => {
+        // Add click handler for equipping and selling
+        slot.addEventListener('click', (e) => {
+          // Shift+Click to sell item
+          if (e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideItemTooltip();
+            
+            // Calculate sell price based on rarity
+            const getSellPrice = (rarity) => {
+              if (!rarity || !window.combatSystem || !window.combatSystem.ITEM_RARITY) return 1;
+              const rarityPrices = {
+                'COMMON': 1,
+                'UNCOMMON': 5,
+                'RARE': 10,
+                'EPIC': 50,
+                'LEGENDARY': 100
+              };
+              return rarityPrices[rarity] || 1;
+            };
+            
+            const sellPrice = getSellPrice(item.rarity);
+            const confirmMessage = `Продать предмет за +${sellPrice} монет казны?`;
+            
+            if (confirm(confirmMessage)) {
+              // Remove item from inventory
+              inventorySystem.inventory[i] = null;
+              
+              // Update save
+              if (save && save.inventory) {
+                save.inventory.inventory = inventorySystem.inventory;
+              }
+              
+              // Add treasury coins
+              if (save && save.treasury) {
+                save.treasury.coins = (save.treasury.coins || 0) + sellPrice;
+                // Update treasury display if function exists
+                if (typeof renderTreasury === 'function') {
+                  renderTreasury();
+                }
+              }
+              
+              // Re-render inventory
+              renderInventory();
+              toast(`Предмет продан за ${sellPrice} монет казны`, 'good');
+            }
+            return;
+          }
+          
+          // Normal click for equipping
           if (item.type === 'weapon') {
             if (item.weaponType === 'SHIELD') {
               window.combatSystem.equip(item, 'weapon-left');
@@ -866,11 +1202,159 @@ function renderInventory() {
         });
       } else {
         slot.style.borderColor = '';
+        slot.draggable = false;
       }
+      
+      // Add drop handler for inventory slots (for unequipping items by dragging)
+      slot.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        // Highlight if dragging any item (equipped or from inventory)
+        if (window._currentDragItem && window._currentDragItem.type) {
+          slot.classList.add('drag-over-valid');
+        }
+      });
+      
+      slot.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        // Highlight if dragging any item (equipped or from inventory)
+        if (window._currentDragItem && window._currentDragItem.type) {
+          slot.classList.add('drag-over-valid');
+        }
+      });
+      
+      slot.addEventListener('dragleave', () => {
+        slot.classList.remove('drag-over-valid', 'drag-over-invalid');
+      });
+      
+      slot.addEventListener('drop', (e) => {
+        e.preventDefault();
+        slot.classList.remove('drag-over-valid', 'drag-over-invalid');
+        
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+          const targetSlotIndex = parseInt(slot.dataset.slot);
+          
+          // If dropping equipped item into inventory slot
+          if (data.type === 'equipped') {
+            // Always unequip - unequip function will find empty slot automatically
+            window.combatSystem.unequip(data.slot);
+            // Item will be added to inventory by unequip function
+            hideItemTooltip();
+          } 
+          // If dropping from inventory to inventory (swapping/moving items)
+          else if (data.itemIndex !== undefined) {
+            const sourceSlotIndex = data.itemIndex;
+            const sourceItem = inventorySystem.inventory[sourceSlotIndex];
+            const targetItem = inventorySystem.inventory[targetSlotIndex];
+            
+            // Swap items
+            if (sourceSlotIndex !== targetSlotIndex && sourceItem) {
+              inventorySystem.inventory[targetSlotIndex] = sourceItem;
+              inventorySystem.inventory[sourceSlotIndex] = targetItem;
+              
+              // Update save
+              if (save && save.inventory) {
+                save.inventory.inventory = inventorySystem.inventory;
+              }
+              
+              // Re-render inventory
+              renderInventory();
+              hideItemTooltip();
+            }
+          }
+        } catch (err) {
+          console.error('Error handling drop:', err);
+        }
+      });
       
       inventoryGrid.appendChild(slot);
     }
   }
+  
+  // Setup sort buttons
+  setupInventorySortButtons();
+}
+
+// Setup inventory sort buttons (only once, using data attribute to track)
+function setupInventorySortButtons() {
+  const sortLevelBtn = document.getElementById('sort-level');
+  const sortTypeBtn = document.getElementById('sort-type');
+  const sortRarityBtn = document.getElementById('sort-rarity');
+  const inventoryGrid = document.getElementById('inventory-grid');
+  
+  if (!inventoryGrid) return;
+  
+  // Check if already set up
+  if (inventoryGrid.dataset.sortButtonsSetup === 'true') return;
+  inventoryGrid.dataset.sortButtonsSetup = 'true';
+  
+  // Update active state based on current sort mode
+  const updateActiveState = () => {
+    const currentSort = inventoryGrid.dataset.sortMode || 'none';
+    [sortLevelBtn, sortTypeBtn, sortRarityBtn].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+    if (currentSort === 'level' && sortLevelBtn) sortLevelBtn.classList.add('active');
+    if (currentSort === 'type' && sortTypeBtn) sortTypeBtn.classList.add('active');
+    if (currentSort === 'rarity' && sortRarityBtn) sortRarityBtn.classList.add('active');
+  };
+  
+  // Remove active class from all buttons
+  const removeActive = () => {
+    [sortLevelBtn, sortTypeBtn, sortRarityBtn].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+  };
+  
+  if (sortLevelBtn) {
+    sortLevelBtn.addEventListener('click', () => {
+      removeActive();
+      const currentSort = inventoryGrid.dataset.sortMode;
+      if (currentSort === 'level') {
+        // Toggle off
+        inventoryGrid.dataset.sortMode = 'none';
+      } else {
+        inventoryGrid.dataset.sortMode = 'level';
+        sortLevelBtn.classList.add('active');
+      }
+      renderInventory();
+    });
+  }
+  
+  if (sortTypeBtn) {
+    sortTypeBtn.addEventListener('click', () => {
+      removeActive();
+      const currentSort = inventoryGrid.dataset.sortMode;
+      if (currentSort === 'type') {
+        // Toggle off
+        inventoryGrid.dataset.sortMode = 'none';
+      } else {
+        inventoryGrid.dataset.sortMode = 'type';
+        sortTypeBtn.classList.add('active');
+      }
+      renderInventory();
+    });
+  }
+  
+  if (sortRarityBtn) {
+    sortRarityBtn.addEventListener('click', () => {
+      removeActive();
+      const currentSort = inventoryGrid.dataset.sortMode;
+      if (currentSort === 'rarity') {
+        // Toggle off
+        inventoryGrid.dataset.sortMode = 'none';
+      } else {
+        inventoryGrid.dataset.sortMode = 'rarity';
+        sortRarityBtn.classList.add('active');
+      }
+      renderInventory();
+    });
+  }
+  
+  // Update active state on first setup
+  updateActiveState();
 }
 
 // Open inventory modal
@@ -963,11 +1447,17 @@ if (typeof window !== 'undefined') {
 
 // Check if item can be equipped in a specific slot
 function canEquipItemInSlot(item, slotName) {
-  if (!item || !window.combatSystem) return false;
+  if (!item || !window.combatSystem) {
+    console.log('canEquipItemInSlot: missing item or combatSystem', { item, hasCombatSystem: !!window.combatSystem });
+    return false;
+  }
   
   // Armor items
   if (item.type === 'armor') {
-    return item.armorType === slotName;
+    // Normalize armorType to lowercase for comparison (handle both old 'BOOTS' and new 'boots' format)
+    const itemArmorType = (item.armorType || '').toLowerCase();
+    const normalizedSlotName = (slotName || '').toLowerCase();
+    return itemArmorType === normalizedSlotName;
   }
   
   // Weapon items

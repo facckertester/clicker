@@ -3913,6 +3913,31 @@ body.season-winter .achievement-item {
   flex-shrink: 0;
 }
 
+.inventory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.inventory-sort-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.inventory-sort-controls .btn.tiny {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  min-width: auto;
+}
+
+.inventory-sort-controls .btn.tiny.active {
+  background: var(--poe-orange);
+  color: var(--text);
+  border-color: var(--poe-orange);
+}
+
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(10, 1fr);

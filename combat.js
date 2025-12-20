@@ -86,6 +86,34 @@ function generateItem(bossLevel, rarity) {
       ? weaponData.attackSpeed.min + (weaponData.attackSpeed.max - weaponData.attackSpeed.min) * (rarityData.multiplier / 5)
       : null;
     
+    // Generate random crit stats (chance to have crit stats: 60-80% depending on rarity)
+    const hasCritChance = Math.random() < (0.6 + (rarityData.multiplier - 1) * 0.1);
+    const hasCritMultiplier = Math.random() < (0.6 + (rarityData.multiplier - 1) * 0.1);
+    
+    // Base crit chance: 1-5% per level, scaled by rarity
+    const baseCritChance = hasCritChance 
+      ? (1 + itemLevel * 0.2) * rarityData.multiplier * (0.8 + Math.random() * 0.4)
+      : 0;
+    const critChance = Math.floor(baseCritChance * 10) / 10; // Round to 1 decimal
+    
+    // Base crit multiplier: reduced by 10x (0.01-0.03 per level, scaled by rarity)
+    const baseCritMultiplier = hasCritMultiplier
+      ? (0.01 + itemLevel * 0.005) * rarityData.multiplier * (0.8 + Math.random() * 0.4)
+      : 0;
+    const critMultiplier = Math.floor(baseCritMultiplier * 100) / 100; // Round to 2 decimals
+    
+    const weaponStats = {
+      damage: damage
+    };
+    
+    // Add crit stats if they were generated
+    if (critChance > 0) {
+      weaponStats.critChance = critChance;
+    }
+    if (critMultiplier > 0) {
+      weaponStats.critMultiplier = critMultiplier;
+    }
+    
     return {
       id: `weapon_${Date.now()}_${Math.random()}`,
       type: 'weapon',
@@ -98,14 +126,13 @@ function generateItem(bossLevel, rarity) {
       effect: weaponData.effect,
       hands: weaponData.hands,
       icon: getWeaponIcon(weaponType),
-      stats: {
-        damage: damage
-      }
+      stats: weaponStats
     };
   } else {
     // Generate armor
-    const armorTypes = Object.keys(ARMOR_TYPES);
-    const armorType = armorTypes[Math.floor(Math.random() * armorTypes.length)];
+    const armorTypeKeys = Object.keys(ARMOR_TYPES);
+    const armorTypeKey = armorTypeKeys[Math.floor(Math.random() * armorTypeKeys.length)];
+    const armorType = ARMOR_TYPES[armorTypeKey]; // Use the value, not the key
     
     const baseStats = {
       hp: Math.floor((10 + itemLevel * 3) * rarityData.multiplier),
@@ -129,7 +156,7 @@ function generateItem(bossLevel, rarity) {
     return {
       id: `armor_${Date.now()}_${Math.random()}`,
       type: 'armor',
-      armorType: armorType,
+      armorType: armorType, // Now this will be 'boots', 'helmet', etc. (lowercase)
       name: `${rarityData.name} ${armorType.charAt(0).toUpperCase() + armorType.slice(1)}`,
       level: itemLevel,
       rarity: rarity,
@@ -195,6 +222,8 @@ function calculatePlayerStats() {
       if (item.stats.dodge) baseStats.dodgeChance += item.stats.dodge;
       if (item.stats.hpRegen) baseStats.hpRegen += item.stats.hpRegen;
       if (item.stats.damage) baseStats.damage += item.stats.damage;
+      if (item.stats.critChance) baseStats.critChance += item.stats.critChance;
+      if (item.stats.critMultiplier) baseStats.critMultiplier += item.stats.critMultiplier;
       if (item.attackSpeed) baseStats.attackSpeed = item.attackSpeed;
     }
   });
@@ -216,8 +245,8 @@ function calculatePlayerStats() {
 
 // Generate boss
 function generateBoss(wave) {
-  const baseHp = 500 + wave * 200;
-  const baseDamage = 10 + wave * 5;
+  const baseHp = 200 + wave * 5;
+  const baseDamage = 7 + wave * 2;
   const hp = Math.floor(baseHp * (1 + wave * 0.1));
   const damage = Math.floor(baseDamage * (1 + wave * 0.1));
   const attackSpeed = (1.5 - (wave * 0.02)) * 0.8; // Bosses attack faster as wave increases, but 10% slower overall
@@ -376,21 +405,30 @@ function endCombat(victory) {
       save.combat.souls = combatSystem.souls;
     }
     
-    // Chance to drop item
+    // Chance to drop items (can drop up to 3 items)
     const dropChance = Math.min(0.7, 0.3 + combatSystem.bossWave * 0.05);
-    if (Math.random() < dropChance) {
-      // Determine rarity based on wave
-      let rarity = 'COMMON';
-      const roll = Math.random();
-      if (roll < 0.05) rarity = 'LEGENDARY';
-      else if (roll < 0.15) rarity = 'EPIC';
-      else if (roll < 0.35) rarity = 'RARE';
-      else if (roll < 0.6) rarity = 'UNCOMMON';
-      
-      const item = generateItem(combatSystem.bossWave, rarity);
-      addItemToInventory(item);
-      
-      toast(`Item dropped: ${item.name}!`, 'good');
+    const maxDrops = 3;
+    let dropCount = 0;
+    
+    // Try to drop items (up to 3)
+    for (let i = 0; i < maxDrops; i++) {
+      if (Math.random() < dropChance) {
+        // Determine rarity based on wave
+        let rarity = 'COMMON';
+        const roll = Math.random();
+        if (roll < 0.05) rarity = 'LEGENDARY';
+        else if (roll < 0.15) rarity = 'EPIC';
+        else if (roll < 0.35) rarity = 'RARE';
+        else if (roll < 0.6) rarity = 'UNCOMMON';
+        
+        const item = generateItem(combatSystem.bossWave, rarity);
+        addItemToInventory(item);
+        dropCount++;
+      }
+    }
+    
+    if (dropCount > 0) {
+      toast(`${dropCount} item${dropCount > 1 ? 's' : ''} dropped!`, 'good');
     }
     
     toast(`Boss defeated! +${soulsReward} Souls. You can now start the next wave.`, 'good');
@@ -557,23 +595,29 @@ function equipItem(item, slot) {
         combatSystem.player.equipped.weaponLeft = null;
       }
     }
-    // DAGGER - можно в обе руки, но нужно два кинжала
+    // DAGGER - можно в обе руки, но в левую только если есть кинжал в правой
     else if (item.weaponType === 'DAGGER') {
       if (!slot) {
-        // Auto-equip: try right first, then left
+        // Auto-equip: try right first, then left (only if right has dagger)
         if (!combatSystem.player.equipped.weaponRight) {
           combatSystem.player.equipped.weaponRight = item;
-        } else if (!combatSystem.player.equipped.weaponLeft || combatSystem.player.equipped.weaponLeft.weaponType === 'SHIELD') {
-          // Unequip left if it's a shield or empty
+        } else if (combatSystem.player.equipped.weaponRight.weaponType === 'DAGGER' && 
+                   (!combatSystem.player.equipped.weaponLeft || combatSystem.player.equipped.weaponLeft.weaponType === 'SHIELD')) {
+          // Can equip in left if right has dagger
           if (combatSystem.player.equipped.weaponLeft) {
             addItemToInventory(combatSystem.player.equipped.weaponLeft);
           }
           combatSystem.player.equipped.weaponLeft = item;
         } else {
-          // Both hands occupied, unequip right
+          // Right hand occupied with non-dagger, unequip right
           currentItem = combatSystem.player.equipped.weaponRight;
           if (currentItem) addItemToInventory(currentItem);
           combatSystem.player.equipped.weaponRight = item;
+          // Remove shield from left if equipping dagger
+          if (combatSystem.player.equipped.weaponLeft && combatSystem.player.equipped.weaponLeft.weaponType === 'SHIELD') {
+            addItemToInventory(combatSystem.player.equipped.weaponLeft);
+            combatSystem.player.equipped.weaponLeft = null;
+          }
         }
       } else if (slot === 'weapon-right') {
         currentItem = combatSystem.player.equipped.weaponRight;
@@ -585,8 +629,15 @@ function equipItem(item, slot) {
           combatSystem.player.equipped.weaponLeft = null;
         }
       } else if (slot === 'weapon-left') {
+        // Can only equip dagger in left if right has dagger
+        const rightWeapon = combatSystem.player.equipped.weaponRight;
+        if (!rightWeapon || rightWeapon.weaponType !== 'DAGGER') {
+          addItemToInventory(item);
+          toast('Dagger can only be equipped in left hand if there is a dagger in right hand!', 'warn');
+          return;
+        }
         currentItem = combatSystem.player.equipped.weaponLeft;
-        if (currentItem && currentItem.weaponType !== 'SHIELD') {
+        if (currentItem) {
           addItemToInventory(currentItem);
         }
         combatSystem.player.equipped.weaponLeft = item;
@@ -630,18 +681,35 @@ function equipItem(item, slot) {
       }
     }
   } else if (item.type === 'armor') {
-    currentItem = combatSystem.player.equipped[item.armorType];
+    // Normalize armorType to lowercase to match slot names
+    const normalizedArmorType = (item.armorType || '').toLowerCase();
+    
+    // Check if slot exists
+    if (!combatSystem.player.equipped.hasOwnProperty(normalizedArmorType)) {
+      addItemToInventory(item);
+      toast(`Cannot equip ${item.name}: slot ${normalizedArmorType} not found!`, 'warn');
+      return;
+    }
+    
+    currentItem = combatSystem.player.equipped[normalizedArmorType];
     if (currentItem) {
       addItemToInventory(currentItem);
     }
-    combatSystem.player.equipped[item.armorType] = item;
+    
+    // Also update item.armorType to normalized value for consistency
+    item.armorType = normalizedArmorType;
+    combatSystem.player.equipped[normalizedArmorType] = item;
   }
   
   calculatePlayerStats();
   saveCombatState();
   renderCombat();
+  
+  // Force inventory render to update equipment display
   if (window.experienceSystem && window.experienceSystem.inventory) {
-    window.experienceSystem.inventory.render();
+    if (window.experienceSystem.inventory.render) {
+      window.experienceSystem.inventory.render();
+    }
   }
   
   toast(`Equipped: ${item.name}`, 'good');
@@ -649,14 +717,7 @@ function equipItem(item, slot) {
 
 // Unequip item
 function unequipItem(slot) {
-  console.log('=== unequipItem START ===');
-  console.log('Slot received:', slot);
-  console.log('Type of slot:', typeof slot);
-  console.log('Current equipped items:', combatSystem.player.equipped);
-  console.log('Available slots:', Object.keys(combatSystem.player.equipped));
-  
   if (!slot) {
-    console.error('No slot provided!');
     toast('Error: No slot specified', 'bad');
     return;
   }
@@ -669,20 +730,14 @@ function unequipItem(slot) {
     actualSlot = 'weaponLeft';
   }
   
-  console.log('Converted slot:', actualSlot);
-  
   // Handle weapon slots
   if (slot === 'weapon-right' || slot === 'weapon-left') {
     const item = combatSystem.player.equipped[actualSlot];
-    console.log('Weapon slot, item found:', item);
     
     if (!item) {
-      console.log('No item in weapon slot:', actualSlot);
       toast('No item to unequip in this slot', 'warn');
       return;
     }
-    
-    console.log('Unequipping weapon:', item.name);
     
     // If it's a two-handed weapon, it occupies both slots
     if (item.hands === 2 && slot === 'weapon-right') {
@@ -692,7 +747,6 @@ function unequipItem(slot) {
       combatSystem.player.equipped[actualSlot] = null;
     }
     
-    console.log('Item removed from equipped, adding to inventory...');
     addItemToInventory(item);
     calculatePlayerStats();
     saveCombatState();
@@ -704,22 +758,16 @@ function unequipItem(slot) {
     }
     
     toast(`Unequipped: ${item.name}`, 'info');
-    console.log('=== unequipItem END (weapon) ===');
     return;
   }
   
   // Handle armor slots
-  console.log('Checking armor slot:', slot);
   const item = combatSystem.player.equipped[slot];
-  console.log('Armor item found:', item);
   
   if (!item) {
-    console.log('No item in armor slot:', slot);
     toast('No item to unequip in this slot', 'warn');
     return;
   }
-  
-  console.log('Unequipping armor:', item.name);
   
   combatSystem.player.equipped[slot] = null;
   addItemToInventory(item);
@@ -733,7 +781,6 @@ function unequipItem(slot) {
   }
   
   toast(`Unequipped: ${item.name}`, 'info');
-  console.log('=== unequipItem END (armor) ===');
 }
 
 // Player attack
@@ -1251,8 +1298,15 @@ function saveCombatState() {
     save.inventory.equipment = {};
   }
   
+  // Save all equipped items (weapons and armor)
   Object.keys(combatSystem.player.equipped).forEach(slot => {
-    save.inventory.equipment[slot] = combatSystem.player.equipped[slot];
+    const equippedItem = combatSystem.player.equipped[slot];
+    if (equippedItem) {
+      save.inventory.equipment[slot] = equippedItem;
+    } else {
+      // Clear slot if no item
+      save.inventory.equipment[slot] = null;
+    }
   });
 }
 
@@ -1286,14 +1340,7 @@ function getItemRarityColor(rarity) {
   return '#9d9d9d';
 }
 
-// Export constants for use in other files
-if (typeof window !== 'undefined') {
-  window.combatSystem = window.combatSystem || {};
-  window.combatSystem.ITEM_RARITY = ITEM_RARITY;
-  window.combatSystem.WEAPON_TYPES = WEAPON_TYPES;
-}
-
-// Export functions
+// Export functions and constants
 if (typeof window !== 'undefined') {
   window.combatSystem = {
     init: initCombatSystem,
@@ -1309,7 +1356,9 @@ if (typeof window !== 'undefined') {
     calculateStats: calculatePlayerStats,
     getEquipped: getEquippedItems,
     getPlayerStats: getPlayerStats,
-    getItemRarityColor: getItemRarityColor
+    getItemRarityColor: getItemRarityColor,
+    ITEM_RARITY: ITEM_RARITY,
+    WEAPON_TYPES: WEAPON_TYPES
   };
 }
 

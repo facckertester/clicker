@@ -653,6 +653,7 @@ function newSave(username) {
       spiderBuffDebuffPPSUntil: 0, // Spider Buff: пассивный доход -20% на 90 сек
       spiderBuffDebuffPPCUntil: 0, // Spider Buff: доход за клик -25% на 60 сек
       spiderBuffDebuffBuildingsUntil: 0, // Spider Buff: здания ломаются на 150 сек
+      permanentGoldenClick: false, // Permanent golden click from debug menu
     },
     achievements: {
       unlocked: {}, // key: achievementId, value: true when unlocked
@@ -2116,7 +2117,8 @@ function totalPPC() {
     ppc *= 99.9999;
   }
   // Golden modifier
-  const goldenActive = save.click.goldenUntil > tNow;
+  const permanentGoldenClick = save.modifiers.permanentGoldenClick;
+  const goldenActive = save.click.goldenUntil > tNow || permanentGoldenClick;
   const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
   // Spider modifier
   const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
@@ -4463,14 +4465,20 @@ function renderClick() {
   
   const act = save.treasury?.actions;
   const alwaysGoldenActive = act && act.alwaysGoldenUntil > now();
+  // Permanent golden click from debug menu
+  const permanentGoldenClick = save.modifiers.permanentGoldenClick;
   // Buff 2: Always golden - force golden state
-  let goldenActive = save.click.goldenUntil > now();
+  let goldenActive = save.click.goldenUntil > now() || permanentGoldenClick;
   if (alwaysGoldenActive) {
     goldenActive = true;
-    // Extend golden until buff ends
-    if (save.click.goldenUntil < act.alwaysGoldenUntil) {
+    // Extend golden until buff ends (unless permanent)
+    if (!permanentGoldenClick && save.click.goldenUntil < act.alwaysGoldenUntil) {
       save.click.goldenUntil = act.alwaysGoldenUntil;
     }
+  }
+  // Ensure permanent golden click stays active
+  if (permanentGoldenClick && save.click.goldenUntil !== Infinity) {
+    save.click.goldenUntil = Infinity;
   }
   
   const overheated = isClickOverheated();
@@ -4516,9 +4524,14 @@ function renderClick() {
     timerEl.textContent = `${remaining}s`;
     timerEl.style.display = 'block';
   } else if (goldenActive) {
-    const remaining = Math.ceil((save.click.goldenUntil - now()) / 1000);
-    timerEl.textContent = `${remaining}s`;
-    timerEl.style.display = 'block';
+    if (save.modifiers.permanentGoldenClick) {
+      timerEl.textContent = '∞';
+      timerEl.style.display = 'block';
+    } else {
+      const remaining = Math.ceil((save.click.goldenUntil - now()) / 1000);
+      timerEl.textContent = `${remaining}s`;
+      timerEl.style.display = 'block';
+    }
   } else {
     timerEl.style.display = 'none';
   }
@@ -4574,7 +4587,7 @@ function renderClick() {
         const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
         const baseIncomeNextLevel = clickIncomeAt(1, save.click.upgradeBonus);
         const tNow = now();
-        const goldenActive = save.click.goldenUntil > tNow;
+        const goldenActive = save.click.goldenUntil > tNow || save.modifiers.permanentGoldenClick;
         const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
         const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
         const achievementMult = getAchievementBonus();
@@ -4636,7 +4649,7 @@ function renderClick() {
         // Calculate income after upgrade (+3%)
         const baseIncomeAfterUpgrade = clickIncomeAt(save.click.level, save.click.upgradeBonus + 1);
         const tNow = now();
-        const goldenActive = save.click.goldenUntil > tNow;
+        const goldenActive = save.click.goldenUntil > tNow || save.modifiers.permanentGoldenClick;
         const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
         const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
         const achievementMult = getAchievementBonus();
@@ -4654,7 +4667,7 @@ function renderClick() {
         const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
         const baseIncomeNextLevel = clickIncomeAt(save.click.level + 1, save.click.upgradeBonus);
         const tNow = now();
-        const goldenActive = save.click.goldenUntil > tNow;
+        const goldenActive = save.click.goldenUntil > tNow || save.modifiers.permanentGoldenClick;
         const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
         const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
         const achievementMult = getAchievementBonus();
@@ -4744,7 +4757,7 @@ function renderClick() {
           // Calculate income after upgrade (+3%)
           const baseIncomeAfterUpgrade = clickIncomeAt(save.click.level, save.click.upgradeBonus + 1);
           const tNow = now();
-          const goldenActive = save.click.goldenUntil > tNow;
+          const goldenActive = save.click.goldenUntil > tNow || save.modifiers.permanentGoldenClick;
           const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
           const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
           const achievementMult = getAchievementBonus();
@@ -4903,7 +4916,7 @@ function renderClick() {
           const bulk = save.bulk === 'max' ? 1 : (typeof save.bulk === 'number' ? save.bulk : parseInt(save.bulk, 10) || 1);
           const baseIncomeNextLevel = clickIncomeAt(save.click.level + 1, save.click.upgradeBonus);
           const tNow = now();
-          const goldenActive = save.click.goldenUntil > tNow;
+          const goldenActive = save.click.goldenUntil > tNow || save.modifiers.permanentGoldenClick;
           const goldenMult = goldenActive ? save.click.goldenMult : 1.0;
           const spiderMult = save.modifiers.spiderUntil > tNow ? save.modifiers.spiderMult : 1.0;
           const achievementMult = getAchievementBonus();
@@ -10070,7 +10083,50 @@ debugTools.addEventListener('click', (e) => {
   if (!action) return;
   if (!save) { toast('Not logged in.', 'warn'); return; }
   switch(action) {
-    case 'addPoints': addPoints(10000); toast('Added 10000 points.', 'good'); break;
+    case 'setPoints': {
+      const amount = prompt('Enter points amount:');
+      if (amount !== null && !isNaN(amount) && amount >= 0) {
+        const points = parseFloat(amount);
+        save.points = points;
+        renderAll();
+        toast(`Set points to ${formatNumber(points)}.`, 'good');
+      }
+      break;
+    }
+    case 'setBuildingLevels': {
+      const level = prompt('Enter building level:');
+      if (level !== null && !isNaN(level) && level >= 0) {
+        const targetLevel = Math.min(parseInt(level), 1000); // Max level
+        save.buildings.forEach((b, i) => {
+          // Reset to target level
+          b.level = Math.min(targetLevel, b.max);
+          // Clear pending costs
+          b.pendingSegmentCost = {};
+        });
+        _lastBuildingsState = null;
+        _lastSortMode = -1;
+        _cachedPPS = null;
+        renderBuildings();
+        updateBuildingLevels(true);
+        updateButtonStates();
+        renderAll();
+        toast(`Set all buildings to level ${targetLevel}.`, 'good');
+      }
+      break;
+    }
+    case 'setClickLevel': {
+      const level = prompt('Enter click level:');
+      if (level !== null && !isNaN(level) && level >= 0) {
+        const targetLevel = Math.min(parseInt(level), save.click.max);
+        save.click.level = targetLevel;
+        save.click.pendingSegmentCost = {};
+        _cachedPPC = null;
+        renderClick();
+        renderAll();
+        toast(`Set click level to ${targetLevel}.`, 'good');
+      }
+      break;
+    }
     case 'addAllBuildingLevels':
       save.buildings.forEach((b,i)=>{
         for (let k=0;k<100;k++){
@@ -10129,19 +10185,22 @@ debugTools.addEventListener('click', (e) => {
         toast('Citadel is locked.', 'warn');
       }
       break;
-    case 'addMillionPoints':
-      addPoints(1000000);
-      toast('Added 1,000,000 points.', 'good');
-      break;
     case 'cycleSeason':
       cycleSeason();
       break;
-    case 'breakClick':
-      // Кнопка больше не может сломаться
-      toast('Click button cannot break anymore.', 'info'); break;
     case 'goldenClick':
-      save.click.goldenUntil = now() + 8000;
-      toast('Click button golden.', 'good'); break;
+      // Toggle permanent golden click mode
+      if (!save.modifiers.permanentGoldenClick) {
+        save.modifiers.permanentGoldenClick = true;
+        save.click.goldenUntil = Infinity;
+        toast('Permanent golden click ON.', 'good');
+      } else {
+        save.modifiers.permanentGoldenClick = false;
+        save.click.goldenUntil = 0;
+        toast('Permanent golden click OFF.', 'warn');
+      }
+      renderClick();
+      break;
     case 'goodLuck':
       // Toggle режим, где здания не могут ломаться
       if (!save.modifiers.goodLuckMode) {

@@ -144,7 +144,9 @@
 
       <div id="debug-tools" class="hidden">
         <div class="debug-actions">
-          <button class="btn secondary" data-debug="addPoints">Add 10000 points</button>
+          <button class="btn secondary" data-debug="setPoints">Set points</button>
+          <button class="btn secondary" data-debug="setBuildingLevels">Set level for buildings</button>
+          <button class="btn secondary" data-debug="setClickLevel">Set level for click</button>
           <button class="btn secondary" data-debug="addAllBuildingLevels">Add 100 levels to all buildings</button>
           <button class="btn secondary" data-debug="addClickLevels">Add 100 levels to Click</button>
           <button class="btn secondary" data-debug="clickIncomeBoost">Click income x1000</button>
@@ -153,10 +155,8 @@
           <button class="btn secondary" data-debug="spawnElfArcher">Spawn Elf Archer</button>
           <button class="btn secondary" data-debug="spawnKing">Spawn king</button>
           <button class="btn secondary" data-debug="addUberLevels">+10 levels to Citadel</button>
-          <button class="btn secondary" data-debug="addMillionPoints">+1M points</button>
           <button class="btn secondary" data-debug="cycleSeason">Cycle season</button>
-          <button class="btn secondary" data-debug="breakClick">Break click button</button>
-          <button class="btn secondary" data-debug="goldenClick">Make click button golden</button>
+          <button class="btn secondary" data-debug="goldenClick">Make click button golden (toggle)</button>
           <button class="btn secondary" data-debug="goodLuck">Good luck (toggle: buildings can't break)</button>
           <button class="btn secondary" data-debug="resetUberBuffs">Reset uber-buffs</button>
           <button class="btn secondary" data-debug="addTreasury">+1000 treasury coins</button>
@@ -540,7 +540,14 @@
       
       <!-- Bottom section: Inventory Grid -->
       <div class="inventory-bottom-section">
-        <h4 class="inventory-section-title">Inventory</h4>
+        <div class="inventory-header">
+          <h4 class="inventory-section-title">Inventory</h4>
+          <div class="inventory-sort-controls">
+            <button class="btn tiny" id="sort-level" title="Sort by Level">📊 Level</button>
+            <button class="btn tiny" id="sort-type" title="Sort by Type">🔧 Type</button>
+            <button class="btn tiny" id="sort-rarity" title="Sort by Rarity">💎 Rarity</button>
+          </div>
+        </div>
         <div class="inventory-grid" id="inventory-grid">
           <!-- 10x4 = 40 slots -->
         </div>
