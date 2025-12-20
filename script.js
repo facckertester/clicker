@@ -686,14 +686,7 @@ function newSave(username) {
     },
     lastTick: now(),
     lastActivityTime: now(), // Track last activity (click or page load)
-    buildingSortMode: 0, // Building sort mode (0 = default, 1-4 = various sorts)
-    player: {
-      level: 1,
-      xp: 0,
-      xpForNextLevel: 110, // XP для уровня 2 (100 + 10 + 0.5 = 110.5, округляем до 110)
-      totalXP: 0,
-      clicksForXP: 0 // Счетчик кликов для начисления XP
-    }
+    buildingSortMode: 0 // Building sort mode (0 = default, 1-4 = various sorts)
   };
 }
 
@@ -822,53 +815,6 @@ function ensureTreasury(saveObj) {
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
-  
-  // Миграция для системы XP и уровней
-  if (typeof initXPSystem === 'function') {
-    initXPSystem(saveObj);
-  } else {
-      // Fallback если xp-system.js еще не загружен
-      if (!saveObj.player) {
-        saveObj.player = {
-          level: 1,
-          xp: 0,
-          xpForNextLevel: 110,
-          totalXP: 0,
-          clicksForXP: 0
-        };
-      } else {
-        // Убеждаемся что все поля существуют
-        if (saveObj.player.level === undefined) saveObj.player.level = 1;
-        if (saveObj.player.xp === undefined) saveObj.player.xp = 0;
-        if (saveObj.player.totalXP === undefined) saveObj.player.totalXP = 0;
-        if (saveObj.player.clicksForXP === undefined) saveObj.player.clicksForXP = 0;
-        if (saveObj.player.xpForNextLevel === undefined) {
-          // Пересчитываем XP для следующего уровня (новая формула)
-          saveObj.player.xpForNextLevel = 100 + (saveObj.player.level * 10) + (saveObj.player.level * saveObj.player.level * 0.5);
-        }
-      }
-  }
-  
-  // Инициализация новых систем
-  if (typeof initSoulsSystem === 'function') {
-    initSoulsSystem(saveObj);
-  }
-  if (typeof initBattlefieldSystem === 'function' && saveObj) {
-    initBattlefieldSystem(saveObj);
-    // Планируем первый спавн генерала если нужно
-    if (saveObj && saveObj.battlefield && (!saveObj.battlefield.nextGeneralSpawn || saveObj.battlefield.nextGeneralSpawn === 0)) {
-      if (typeof scheduleNextGeneral === 'function') {
-        scheduleNextGeneral();
-      }
-    }
-  }
-  if (typeof initInventorySystem === 'function') {
-    initInventorySystem(saveObj);
-  }
-  if (typeof updateBuffModifiers === 'function') {
-    updateBuffModifiers();
-  }
-  
   
   // Миграция для новых функций: убеждаемся, что bulk существует (для старых сохранений)
   if (saveObj.bulk === undefined || saveObj.bulk === null) {
@@ -1071,23 +1017,6 @@ function _updateBuildingCountdowns() {
   const nodes = document.querySelectorAll('.building-downnote');
   const t = now();
   let removedAny = false;
-  const repairedBuildings = []; // Список зданий, которые только что отремонтировались
-
-  // Проверяем все здания на завершение ремонта (до удаления нот)
-  if (save && save.buildings) {
-    save.buildings.forEach((b, index) => {
-      // Если здание было сломано (blockedUntil > 0) и теперь отремонтировано (blockedUntil <= t)
-      // И еще не было отмечено как отремонтированное (нет флага _repaired)
-      if (b.blockedUntil && b.blockedUntil > 0 && b.blockedUntil <= t && !b._repaired) {
-        repairedBuildings.push({ building: b, index: index });
-        b._repaired = true; // Помечаем как отремонтированное, чтобы не давать XP повторно
-      }
-      // Сбрасываем флаг если здание снова сломалось
-      if (b.blockedUntil && b.blockedUntil > t) {
-        b._repaired = false;
-      }
-    });
-  }
 
   nodes.forEach(node => {
     const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
@@ -1100,13 +1029,6 @@ function _updateBuildingCountdowns() {
     const remain = Math.ceil((blockedUntil - t) / 1000);
     node.textContent = `Under repair: ${remain}s`;
   });
-  
-  // XP за завершение ремонта (только один раз для каждого здания)
-  if (repairedBuildings.length > 0 && typeof addXPForRepair === 'function') {
-    repairedBuildings.forEach(({ building }) => {
-      addXPForRepair(building.level);
-    });
-  }
 
   // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
   if (removedAny) {
@@ -1118,10 +1040,7 @@ function startCountdownLoop() {
   if (_countdownInterval) return;
   _countdownInterval = setInterval(() => {
     _updateBuildingCountdowns();
-    // Проверяем что функция renderEffects существует перед вызовом
-    if (typeof renderEffects === 'function') {
-      renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
-    }
+    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
     // при необходимости можно обновлять верхнюю панель:
     renderTopStats();
   }, 1000);
@@ -1905,31 +1824,6 @@ function checkAchievements() {
       save.achievements.unlocked[ach.id] = true;
       anyUnlocked = true;
       toast(`Achievement unlocked: ${ach.name} (+${(ach.reward * 100).toFixed(0)}% income)!`, 'good');
-      
-      // XP за достижение (определяем tier на основе типа)
-      if (typeof addXPForAchievement === 'function') {
-        let tier = 0; // Простые по умолчанию
-        let achievementValue = 0;
-        
-        if (ach.type === 'clicks') {
-          achievementValue = ach.value || 0;
-          if (achievementValue >= 1000000) tier = 2; // Сложные
-          else if (achievementValue >= 10000) tier = 1; // Средние
-        } else if (ach.type === 'buildings_level') {
-          achievementValue = ach.level || 0;
-          if (achievementValue >= 800) tier = 2; // Сложные
-          else if (achievementValue >= 100) tier = 1; // Средние
-        } else if (ach.type === 'playtime') {
-          achievementValue = ach.value || 0;
-          if (achievementValue >= 3600000) tier = 2; // Сложные (1 час+)
-          else if (achievementValue >= 300000) tier = 1; // Средние (5 минут+)
-        } else {
-          // Для других типов используем значение если есть
-          achievementValue = ach.value || 0;
-        }
-        
-        addXPForAchievement(tier, achievementValue);
-      }
     }
   });
   
@@ -2091,13 +1985,8 @@ function updateClickHeat() {
   
   // Если перегрев закончился, сбрасываем heat
   if (save.click.cooldownUntil > 0 && save.click.cooldownUntil <= tNow) {
-    const wasOverheated = save.click.cooldownUntil > 0;
     save.click.heat = 0;
     save.click.cooldownUntil = 0;
-    // XP за успешное охлаждение
-    if (wasOverheated && typeof addXPForCooldown === 'function') {
-      addXPForCooldown();
-    }
   }
   
   // Охлаждение: уменьшаем heat на 1 единицу в секунду (только если скорость < 21)
@@ -2660,11 +2549,6 @@ function renderTopStats() {
     const newTreasuryText = `${fmt(value)} / ${fmt(baseMax)}`;
     if (treasuryValueEl.textContent !== newTreasuryText) {
       treasuryValueEl.textContent = newTreasuryText;
-    }
-    
-    // XP Bar
-    if (typeof renderXPBar === 'function') {
-      renderXPBar();
     }
     
     const newRegenText = `+${baseRegen.toFixed(0)} /s`;
@@ -5651,7 +5535,37 @@ function renderUber() {
 }
 
 
-// Старая функция renderEffects удалена - используется оптимизированная версия ниже
+function renderEffects() {
+  const list = document.getElementById('effects-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const t = now();
+
+  // Кнопка больше не может сломаться - убираем отображение эффекта поломки
+
+  // Golden click
+  if (save.click.goldenUntil > t) {
+    const remain = Math.ceil((save.click.goldenUntil - t) / 1000);
+    list.innerHTML += `<div class="effect good">Golden click: ${remain}s</div>`;
+  }
+
+  // Spider buff/debuff
+  if (save.modifiers.spiderUntil > t) {
+    const remain = Math.ceil((save.modifiers.spiderUntil - t) / 1000);
+    const mult = save.modifiers.spiderMult;
+    const type = mult > 1 ? 'good' : 'bad';
+    list.innerHTML += `<div class="effect ${type}">Spider ${mult>1?'blessing':'curse'}: ${remain}s</div>`;
+  }
+
+  // Click debuff: отображение дебафа от кликов (максимум -100%)
+  // НЕ восстанавливаем здесь - восстановление происходит только в tick() для плавности
+  // Просто читаем текущее значение для отображения
+  if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(4);
+    list.innerHTML += `<div class="effect bad">Click debuff: -${debuffPercent}% passive income</div>`;
+  }
+}
 
 
 // Рисует пиксельную иконку для достижения
@@ -6067,11 +5981,6 @@ function renderAll() {
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk (работают для всех)
   updateSeason(); // Обновляем сезонную тему
   startAutosave();
-  
-  // XP Bar
-  if (typeof renderXPBar === 'function') {
-    renderXPBar();
-  }
 
   updateEndgameButtons();
 }
@@ -6380,10 +6289,6 @@ function buyClickLevels() {
   });
   if (bought) {
     triggerUpgradeEffect(clickBtn, 'Level Up!');
-    // XP за покупку уровня клика
-    if (typeof addXPForClickLevel === 'function') {
-      addXPForClickLevel(save.click.level);
-    }
     // Обновляем только критичные элементы сразу, остальное через scheduleRender
     renderClick();
     renderTopStats();
@@ -6414,11 +6319,6 @@ function buyClickSegmentUpgrade(segIndex) {
   save.click.upgradeBonus += 1; // 3% per upgrade (count stack)
   toast('Click segment upgraded: +3% income.', 'good');
   triggerUpgradeEffect(clickBtn, 'Upgrade!');
-  
-  // XP за сегментный апгрейд клика
-  if (typeof addXPForClickUpgrade === 'function') {
-    addXPForClickUpgrade(segIndex);
-  }
   
   // Обновляем только критичные элементы сразу
   renderClick();
@@ -6512,10 +6412,6 @@ function buyBuildingLevels(i) {
   const bought = buyBulkLevels('building', computeFn, applyFn, i);
   if (bought) {
     triggerBuildingUpgradeEffect(i, 'Level Up!');
-    // XP за покупку уровня здания
-    if (typeof addXPForBuildingLevel === 'function') {
-      addXPForBuildingLevel(b.level);
-    }
   }
   // Проверяем достижения и разблокировку асинхронно (не блокируем рендеринг)
   requestAnimationFrame(() => {
@@ -6547,11 +6443,6 @@ function buyBuildingSegUpgrade(i, segIndex) {
   b.upgradeBonus += 1;
     toast(`${b.name} segment UP: +3% income.`, 'good');
   triggerBuildingUpgradeEffect(i, 'Upgrade!');
-  
-  // XP за сегментный апгрейд здания
-  if (typeof addXPForBuildingUpgrade === 'function') {
-    addXPForBuildingUpgrade(segIndex);
-  }
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
   _lastSortMode = -1;
@@ -6989,11 +6880,6 @@ clickBtn.addEventListener('click', (event) => {
     save.achievements.stats.totalClicks += 1;
     checkAchievements();
   }
-  
-  // XP за клики
-  if (typeof addXPForClicks === 'function') {
-    addXPForClicks(1);
-  }
 
   // Клик Безумия: шанс потерять уровни
   if (madnessActive && randChance(0.005)) {
@@ -7277,22 +7163,12 @@ function maybeSpawnSpider() {
 
 // ======= King: behavior + mini-game =======
 
-let kingEl = document.getElementById('king');
-let kingModal = document.getElementById('king-modal');
-let kingArena = document.getElementById('king-arena');
-let kingTimerEl = document.getElementById('king-game-timer');
-let kingStatusEl = document.getElementById('king-game-status');
-let kingCloseBtn = document.getElementById('king-game-close');
-
-// Функция для получения элементов модального окна (на случай если они еще не загружены)
-function getKingModalElements() {
-  if (!kingModal) kingModal = document.getElementById('king-modal');
-  if (!kingArena) kingArena = document.getElementById('king-arena');
-  if (!kingTimerEl) kingTimerEl = document.getElementById('king-game-timer');
-  if (!kingStatusEl) kingStatusEl = document.getElementById('king-game-status');
-  if (!kingCloseBtn) kingCloseBtn = document.getElementById('king-game-close');
-  return { kingModal, kingArena, kingTimerEl, kingStatusEl, kingCloseBtn };
-}
+const kingEl = document.getElementById('king');
+const kingModal = document.getElementById('king-modal');
+const kingArena = document.getElementById('king-arena');
+const kingTimerEl = document.getElementById('king-game-timer');
+const kingStatusEl = document.getElementById('king-game-status');
+const kingCloseBtn = document.getElementById('king-game-close');
 
 let _kingState = {
   spawnTimer: null,
@@ -7342,26 +7218,13 @@ function scheduleNextKing() {
 
 // place king randomly (reuses spider placement logic)
 function _placeKingRandom() {
-  if (!kingEl) {
-    return;
-  }
-  
-  // Получаем размер короля (используем кэш или вычисляем заново)
-  let { w, h } = _kingState.cachedSize;
-  if (!w || !h || w === 0 || h === 0) {
-    // Если размер не кэширован, получаем его из элемента
-    w = kingEl.offsetWidth || 64;
-    h = kingEl.offsetHeight || 64;
-    _kingState.cachedSize = { w, h };
-  }
-  
+  if (!kingEl) return;
+  const { w, h } = _kingState.cachedSize;
   const maxLeft = Math.max(0, window.innerWidth - w);
   const maxTop = Math.max(0, window.innerHeight - h);
   kingEl.style.left = _randInt(0, maxLeft) + 'px';
   kingEl.style.top = _randInt(0, maxTop) + 'px';
   kingEl.style.transform = `rotate(${_randInt(-12,12)}deg)`;
-  kingEl.style.position = 'fixed';
-  kingEl.style.zIndex = '1000';
 }
 
 function drawKing(canvas) {
@@ -7446,131 +7309,40 @@ function drawKing(canvas) {
 }
 
 // spawn king: show for 23s unless clicked
-function spawnKing(force = false) {
-  // Получаем элемент короля (на случай если он еще не загружен)
-  if (!kingEl) {
-    kingEl = document.getElementById('king');
-  }
+function spawnKing() {
+  if (!kingEl) return;
   
-  if (!kingEl) {
-    if (typeof toast === 'function') {
-      toast('King element not found!', 'bad');
-    }
+  // Проверяем условие: минимум 25 зданий с уровнем 50
+  if (!save || !save.buildings) {
+    scheduleNextKing();
     return;
   }
-  
-  // Проверяем условие: минимум 25 зданий с уровнем 50 (если не принудительный вызов)
-  if (!force) {
-    if (!save || !save.buildings) {
-      scheduleNextKing();
-      return;
-    }
-    const buildingsWithLevel50 = save.buildings.filter(b => b.level >= 50).length;
-    if (buildingsWithLevel50 < 25) {
-      // Условие не выполнено - переносим появление короля
-      scheduleNextKing();
-      return;
-    }
+  const buildingsWithLevel50 = save.buildings.filter(b => b.level >= 50).length;
+  if (buildingsWithLevel50 < 25) {
+    // Условие не выполнено - переносим появление короля
+    scheduleNextKing();
+    return;
   }
   
   // Инициализируем img элемент один раз (если еще не создан)
   _initKingImage();
   
-  // Размещаем короля случайно
   _placeKingRandom();
-  
-  // Показываем короля (явно устанавливаем display)
   kingEl.classList.add('show');
-  kingEl.style.display = 'flex'; // Явно устанавливаем display
-  kingEl.style.visibility = 'visible';
-  kingEl.style.opacity = '1';
-  kingEl.style.pointerEvents = 'auto';
-  kingEl.style.cursor = 'pointer';
   kingEl.title = 'King — click to start the mini-game';
-  
-  // Добавляем простой и надежный обработчик клика напрямую
-  // Удаляем все старые обработчики
-  const newKingEl = kingEl.cloneNode(true);
-  kingEl.parentNode.replaceChild(newKingEl, kingEl);
-  kingEl = newKingEl;
-  
-  // Восстанавливаем изображение если нужно
-  if (!_kingState.imgCreated) {
-    _initKingImage();
-  }
-  
-  // Добавляем обработчик клика с логированием
-  kingEl.onclick = function(e) {
-    e.stopPropagation();
-    e.preventDefault();
-    openKingMiniGame();
-    
-    // Скрываем короля
-    kingEl.classList.remove('show');
-    kingEl.style.display = 'none';
-    if (_kingState.escapeTimer) {
-      clearTimeout(_kingState.escapeTimer);
-      _kingState.escapeTimer = null;
-    }
-  };
-  
-  // Также добавляем через addEventListener для надежности
-  kingEl.addEventListener('click', function(e) {
-    e.stopPropagation();
-    e.preventDefault();
-    openKingMiniGame();
-    kingEl.classList.remove('show');
-    kingEl.style.display = 'none';
-    if (_kingState.escapeTimer) {
-      clearTimeout(_kingState.escapeTimer);
-      _kingState.escapeTimer = null;
-    }
-  }, true);
-  
-  
-  // Устанавливаем время видимости
-  if (typeof now === 'function') {
-    _kingState.visibleUntil = now() + 23000;
-  } else {
-    _kingState.visibleUntil = Date.now() + 23000;
-  }
+  _kingState.visibleUntil = now() + 23000;
   
   // Воспроизводим звук появления короля
-  if (typeof playSound === 'function') {
-    playSound('king');
-  }
+  playSound('king');
   // auto-escape after 23s
   if (_kingState.escapeTimer) clearTimeout(_kingState.escapeTimer);
   _kingState.escapeTimer = setTimeout(() => {
-    if (kingEl && kingEl.classList.contains('show')) {
+    if (kingEl.classList.contains('show')) {
       kingEl.classList.remove('show');
-      if (typeof toast === 'function') {
-        toast('The King has fled.', 'warn');
-      }
+      toast('The King has fled.', 'warn');
       scheduleNextKing();
     }
   }, 23000);
-}
-
-// Дебаг функция для ручного вызова короля (игнорирует все проверки)
-function debugSpawnKing() {
-  // Убеждаемся, что kingEl существует
-  if (!kingEl) {
-    kingEl = document.getElementById('king');
-  }
-  if (!kingEl) {
-    if (typeof toast === 'function') {
-      toast('King element not found!', 'bad');
-    }
-    return;
-  }
-  spawnKing(true);
-}
-
-// Делаем функции доступными глобально для консоли
-if (typeof window !== 'undefined') {
-  window.spawnKing = spawnKing;
-  window.debugSpawnKing = debugSpawnKing;
 }
 
 // hide king and clear timers
@@ -7583,184 +7355,36 @@ function hideKing() {
 }
 
 // click on king -> open mini-game
-// Инициализируем обработчик после загрузки DOM
-let kingClickHandler = null;
-let kingClickHandlerInitialized = false;
-
-function initKingClickHandler() {
-  // Получаем элемент короля (может быть null при первой загрузке)
-  const newKingEl = document.getElementById('king');
-  if (!newKingEl) {
-    // Если элемент еще не загружен, пробуем снова через небольшую задержку
-    setTimeout(initKingClickHandler, 100);
-    return;
-  }
-  
-  // Обновляем глобальную ссылку на элемент
-  kingEl = newKingEl;
-  
-  // Если обработчик уже был добавлен, удаляем старый перед добавлением нового
-  if (kingClickHandlerInitialized && kingClickHandler) {
-    kingEl.removeEventListener('click', kingClickHandler);
-  }
-  
-  // Создаем новый обработчик клика
-  kingClickHandler = function(e) {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Получаем актуальный элемент короля
-    const currentKingEl = document.getElementById('king');
-    if (!currentKingEl) return;
-    
-    // Открываем мини-игру в любом случае при клике
-    if (typeof resetPassiveBoost === 'function') {
-      resetPassiveBoost(); // Reset passive boost when clicking king
-    }
-    
-    // open mini-game
-    openKingMiniGame();
-    
-    // hide king from screen while mini-game is active
-    currentKingEl.classList.remove('show');
-    currentKingEl.style.display = 'none';
-    if (_kingState.escapeTimer) { 
-      clearTimeout(_kingState.escapeTimer); 
-      _kingState.escapeTimer = null; 
-    }
-  };
-  
-  // Добавляем обработчик клика
-  kingEl.addEventListener('click', kingClickHandler, true); // Используем capture phase
-  kingClickHandlerInitialized = true;
-}
-
-// Инициализируем обработчик при загрузке
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initKingClickHandler);
-} else {
-  // DOM уже загружен
-  setTimeout(initKingClickHandler, 0);
-}
+kingEl.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!kingEl.classList.contains('show')) return;
+  resetPassiveBoost(); // Reset passive boost when clicking king
+  // open mini-game
+  openKingMiniGame();
+  // hide king from screen while mini-game is active
+  kingEl.classList.remove('show');
+  if (_kingState.escapeTimer) { clearTimeout(_kingState.escapeTimer); _kingState.escapeTimer = null; }
+});
 
 // Mini-game implementation
 function openKingMiniGame() {
-  // Получаем элементы модального окна (на случай если они еще не загружены)
-  const elements = getKingModalElements();
-  
-  if (!elements.kingModal || !elements.kingArena || !elements.kingTimerEl || !elements.kingStatusEl) {
-    if (typeof toast === 'function') {
-      toast('King mini-game elements not found!', 'bad');
-    }
-    return;
-  }
-  
   // initialize state
   const durationMs = 8000;
   // Buff 5: Spider Buff - requires one less crown to win
-  const act = save && save.treasury ? save.treasury.actions : null;
-  const spiderBuffActive = act && act.spiderBuffUntil && typeof now === 'function' && act.spiderBuffUntil > now();
+  const act = save.treasury?.actions;
+  const spiderBuffActive = act && act.spiderBuffUntil > now();
   const baseTarget = 12;
   const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
-  
-  // КРИТИЧНО: Перемещаем модальное окно в body, если оно находится в скрытом контейнере
-  if (elements.kingModal.parentElement !== document.body) {
-    const parent = elements.kingModal.parentElement;
-    const parentDisplay = window.getComputedStyle(parent).display;
-    if (parentDisplay === 'none' || parent.classList.contains('hidden')) {
-      document.body.appendChild(elements.kingModal);
-    }
-  }
-  
-  // Сначала устанавливаем базовые стили
-  elements.kingModal.style.cssText = '';
-  elements.kingModal.classList.add('show');
-  
-  // Устанавливаем все стили через cssText для максимального приоритета
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-  
-  elements.kingModal.style.cssText = `
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    z-index: 11000 !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: ${viewportWidth}px !important;
-    height: ${viewportHeight}px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: rgba(0, 0, 0, 0.55) !important;
-  `;
-  
-  // Устанавливаем aria-hidden в false ПЕРЕД установкой фокуса, чтобы избежать ошибки accessibility
-  elements.kingModal.setAttribute('aria-hidden', 'false');
-  
-  // Даем браузеру время на рендеринг перед проверкой размеров
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const computedStyle = window.getComputedStyle(elements.kingModal);
-      const rect = elements.kingModal.getBoundingClientRect();
-      console.log('[KING MINIGAME] Modal computed styles after RAF:', {
-        display: computedStyle.display,
-        width: computedStyle.width,
-        height: computedStyle.height,
-        rect: rect
-      });
-      
-      // Если размеры все еще нулевые, принудительно переустанавливаем
-      if (rect.width === 0 || rect.height === 0) {
-        const vw = window.innerWidth || document.documentElement.clientWidth;
-        const vh = window.innerHeight || document.documentElement.clientHeight;
-        elements.kingModal.style.cssText = `
-          display: flex !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-          z-index: 11000 !important;
-          position: fixed !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: ${vw}px !important;
-          height: ${vh}px !important;
-          align-items: center !important;
-          justify-content: center !important;
-          background: rgba(0, 0, 0, 0.55) !important;
-        `;
-      }
-    });
-  });
-  
-  // Ждем рендеринга перед продолжением
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      // Продолжаем инициализацию
-      elements.kingArena.innerHTML = '';
-      elements.kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
-      
-      // Вызываем spawnCrowns
-      spawnCrowns();
-    });
-  });
-  
+  kingModal.classList.add('show');
+  kingModal.setAttribute('aria-hidden', 'false');
+  kingArena.innerHTML = '';
+  kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
   let clicked = 0;
   const crowns = [];
 
   // spawn crowns randomly inside arena; ensure crowns don't overlap more than 50%
   function spawnCrowns() {
-    const rect = elements.kingArena.getBoundingClientRect();
-    
-    // Если арена имеет нулевые размеры, ждем немного и пробуем снова
-    if (rect.width === 0 || rect.height === 0) {
-      setTimeout(() => {
-        const newRect = elements.kingArena.getBoundingClientRect();
-        if (newRect.width > 0 && newRect.height > 0) {
-          spawnCrowns();
-        }
-      }, 200);
-      return;
-    }
+    const rect = kingArena.getBoundingClientRect();
     const crownWidth = 56;
     const crownHeight = 40;
     const maxOverlap = 0.5; // max 50% overlap allowed
@@ -7802,20 +7426,20 @@ function openKingMiniGame() {
       // click handler
       c.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        if (!elements.kingModal.classList.contains('show')) return;
+        if (!kingModal.classList.contains('show')) return;
         // mark crown as collected and increment count
         if (!c.classList.contains('collected')) {
           c.classList.add('collected');
           c.style.opacity = '0.35';
           clicked++;
-          elements.kingStatusEl.textContent = `Caught: ${clicked} / ${target}`;
+          kingStatusEl.textContent = `Caught: ${clicked} / ${target}`;
           // success check
           if (clicked >= target) {
             endKingMiniGame('success', { clicked, target });
           }
         }
       });
-      elements.kingArena.appendChild(c);
+      kingArena.appendChild(c);
       crowns.push(c);
     }
   }
@@ -7823,19 +7447,19 @@ function openKingMiniGame() {
   // clicking on arena background = miss -> immediate heavy penalty
   function onArenaClick(e) {
     // if click target is arena itself (not a crown), it's a miss
-    if (e.target === elements.kingArena) {
+    if (e.target === kingArena) {
       endKingMiniGame('miss', { clicked, target });
     }
   }
-  elements.kingArena.addEventListener('click', onArenaClick);
+  kingArena.addEventListener('click', onArenaClick);
 
   // timer tick
   let remaining = durationMs;
-  elements.kingTimerEl.textContent = (remaining/1000).toFixed(1) + 's';
+  kingTimerEl.textContent = (remaining/1000).toFixed(1) + 's';
   const tickInterval = 100; // update every 100ms
   const timerId = setInterval(() => {
     remaining -= tickInterval;
-    elements.kingTimerEl.textContent = Math.max(0, (remaining/1000)).toFixed(1) + 's';
+    kingTimerEl.textContent = Math.max(0, (remaining/1000)).toFixed(1) + 's';
     if (remaining <= 0) {
       clearInterval(timerId);
       endKingMiniGame('timeout', { clicked, target });
@@ -7843,42 +7467,26 @@ function openKingMiniGame() {
   }, tickInterval);
 
   // store miniGame state for cleanup if needed
-  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked, target, elements };
+  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked, target };
 
-  // spawnCrowns вызывается изнутри requestAnimationFrame выше
-  // Фокус устанавливается с задержкой после того как aria-hidden установлен в false (исправление accessibility ошибки)
-  setTimeout(() => {
-    // Убеждаемся что aria-hidden все еще false перед установкой фокуса
-    if (elements.kingModal.getAttribute('aria-hidden') !== 'false') {
-      elements.kingModal.setAttribute('aria-hidden', 'false');
-    }
-    elements.kingArena.focus();
-  }, 100);
+  // spawn crowns and focus
+  spawnCrowns();
+  kingArena.focus();
 }
 
 // end mini-game with outcome: 'success' | 'timeout' | 'miss'
 function endKingMiniGame(outcome, info = {}) {
   // cleanup listeners/timers
   if (!_kingState.miniGame) return;
-  const { timerId, crowns, onArenaClick, elements: gameElements } = _kingState.miniGame;
+  const { timerId, crowns, onArenaClick } = _kingState.miniGame;
   clearInterval(timerId);
-  
-  // Получаем элементы (используем из состояния игры или получаем заново)
-  const elements = gameElements || getKingModalElements();
-  if (elements.kingArena && onArenaClick) {
-    elements.kingArena.removeEventListener('click', onArenaClick);
-  }
+  kingArena.removeEventListener('click', onArenaClick);
   _kingState.miniGame = null;
 
   // hide modal
-  if (elements.kingModal) {
-    elements.kingModal.classList.remove('show');
-    elements.kingModal.style.display = 'none'; // Явно скрываем
-    elements.kingModal.setAttribute('aria-hidden', 'true');
-  }
-  if (elements.kingTimerEl) {
-    elements.kingTimerEl.textContent = '15.0s';
-  }
+  kingModal.classList.remove('show');
+  kingModal.setAttribute('aria-hidden', 'true');
+  kingTimerEl.textContent = '15.0s';
 
   // apply effects based on outcome
   const clicked = info.clicked || 0;
@@ -7913,11 +7521,6 @@ function endKingMiniGame(outcome, info = {}) {
     
     // Воспроизводим звук выигрыша в мини-игру короля
     playSound('kingBuff');
-    
-    // XP за успешное прохождение короля
-    if (typeof addXPForKing === 'function') {
-      addXPForKing();
-    }
     
     // Принудительно обновляем уровни зданий после награды короля (немедленно)
     updateBuildingLevels(true);
@@ -7972,45 +7575,19 @@ function endKingMiniGame(outcome, info = {}) {
 }
 
 // allow closing mini-game manually (counts as timeout)
-// Инициализация обработчика закрытия модального окна короля
-function initKingCloseHandler() {
-  const elements = getKingModalElements();
-  if (elements.kingCloseBtn) {
-    elements.kingCloseBtn.addEventListener('click', () => {
-      if (_kingState.miniGame) {
-        const act = save && save.treasury ? save.treasury.actions : null;
-        const spiderBuffActive = act && act.spiderBuffUntil && typeof now === 'function' && act.spiderBuffUntil > now();
-        const baseTarget = 15;
-        const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
-        endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target });
-      } else {
-        const elements = getKingModalElements();
-        if (elements.kingModal) {
-          elements.kingModal.classList.remove('show');
-          elements.kingModal.setAttribute('aria-hidden', 'true');
-        }
-        scheduleNextKing();
-      }
-    });
+kingCloseBtn.addEventListener('click', () => {
+  if (_kingState.miniGame) {
+    const act = save.treasury?.actions;
+    const spiderBuffActive = act && act.spiderBuffUntil > now();
+    const baseTarget = 15;
+    const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
+    endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target });
   } else {
-    // Если элемент еще не загружен, пробуем снова
-    setTimeout(initKingCloseHandler, 100);
+    kingModal.classList.remove('show');
+    kingModal.setAttribute('aria-hidden', 'true');
+    scheduleNextKing();
   }
-}
-
-// Инициализируем обработчик закрытия при загрузке
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initKingCloseHandler);
-} else {
-  setTimeout(initKingCloseHandler, 0);
-}
-
-// Инициализируем обработчик закрытия при загрузке
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initKingCloseHandler);
-} else {
-  setTimeout(initKingCloseHandler, 0);
-}
+});
 
 // If modal is open and user presses Escape -> cancel (timeout)
 document.addEventListener('keydown', (e) => {
@@ -8242,11 +7819,6 @@ if (spiderEl) {
     // Скрываем паука и останавливаем движение
     spiderEl.classList.add('hidden');
     _stopSpiderMovement();
-    
-    // XP за событие паука
-    if (typeof addXPForSpider === 'function') {
-      addXPForSpider();
-    }
   });
 }
 
@@ -8570,11 +8142,6 @@ if (angryBarmatunEl) {
     // Hide angry barmatun and stop movement
     angryBarmatunEl.classList.add('hidden');
     _stopAngryBarmatunMovement();
-    
-    // XP за событие барматуна
-    if (typeof addXPForBarmatun === 'function') {
-      addXPForBarmatun();
-    }
   });
 }
 
@@ -9106,11 +8673,6 @@ if (elfArcherEl) {
     
     toast('Elf archer scared away!', 'info');
     
-    // XP за событие эльфа
-    if (typeof addXPForElfArcher === 'function') {
-      addXPForElfArcher();
-    }
-    
     _elfArcherState.aliveUntil = 0;
     _elfArcherState.moving = false;
     _elfArcherState.position = 'leaving';
@@ -9164,11 +8726,6 @@ function tick() {
     if (_kingState.spawnTimer) {
       clearTimeout(_kingState.spawnTimer);
       scheduleNextKing();
-    }
-    // Сбрасываем таймер генерала
-    if (typeof scheduleNextGeneral === 'function' && save.battlefield) {
-      const resetDelay = _randInt(60000, 180000);
-      save.battlefield.nextGeneralSpawn = t + resetDelay;
     }
     console.log('Large time gap detected, reset spawn timers to prevent simultaneous events');
     return; // Пропускаем проверки спавна в этом тике
@@ -9466,16 +9023,6 @@ function tick() {
   
   // Elf Archer spawn check
   maybeSpawnElfArcher();
-  
-  // Проверка спавна генерала
-  if (typeof checkGeneralSpawn === 'function') {
-    checkGeneralSpawn();
-  }
-  
-  // Обновление бафов
-  if (typeof updateBuffModifiers === 'function') {
-    updateBuffModifiers();
-  }
 
   // Update UI (с дебаунсингом для производительности)
   // НЕ инвалидируем кэш PPS/PPC каждый тик - кэш будет инвалидирован только при реальных изменениях
@@ -9619,11 +9166,6 @@ function checkUberUnlock() {
   if (allBuildings800 && click800) {
     save.uber.unlocked = true;
     toast('Uber Turbo Building unlocked!', 'good');
-    
-    // XP за разблокировку Uber здания
-    if (typeof addXPForUberUnlock === 'function') {
-      addXPForUberUnlock();
-    }
     checkAchievements(); // Проверяем достижения после разблокировки Uber
     // renderUber() будет вызван после этой функции в renderAll()
   }
@@ -9667,13 +9209,7 @@ uberBuyBtn.addEventListener('click', () => {
   if (save.achievements && save.achievements.stats) {
     save.achievements.stats.totalPointsSpent += bulkCost.totalCost;
   }
-  const oldUberLevel = save.uber.level;
   save.uber.level = Math.min(save.uber.level + bulkCost.totalLevels, save.uber.max);
-  
-  // XP за покупку уровня Uber здания
-  if (typeof addXPForUberLevel === 'function') {
-    addXPForUberLevel(oldUberLevel);
-  }
   
   if (bulkCost.totalLevels === 1) {
   toast('Citadel level increased.', 'good');
@@ -9730,12 +9266,6 @@ uberModeBtn.addEventListener('click', () => {
       });
       save.click.max = Math.max(save.click.max, 9999); // Увеличиваем максимальный уровень клика до 9999
       save.uber.max = Math.max(save.uber.max, 1881); // Увеличиваем максимум для убер здания до 1881
-      
-      // XP за вход в Uber Mode
-      if (typeof addXPForUberMode === 'function') {
-        addXPForUberMode();
-      }
-      
       toast('Entered Uber Mode!', 'good');
       saveNow(); // Сохраняем состояние убер мода немедленно
       updateEndgameButtons(); // Скрываем кнопки после перехода в убер мод
@@ -10125,15 +9655,6 @@ function showGame() {
   // Инициализируем таймер короля при входе в игру
   scheduleNextKing();
   
-  // Инициализируем таймер генерала при входе в игру
-  if (typeof scheduleNextGeneral === 'function') {
-    // Проверяем, не установлен ли уже nextGeneralSpawn
-    if (!save.battlefield || !save.battlefield.nextGeneralSpawn || save.battlefield.nextGeneralSpawn === 0) {
-      scheduleNextGeneral();
-    }
-  }
-  
-  
   // Блокируем контекстное меню (ПКМ) на игровом экране
   if (gameScreen) {
     gameScreen.addEventListener('contextmenu', (e) => {
@@ -10141,16 +9662,6 @@ function showGame() {
       return false;
     });
   }
-  
-  // Инициализируем UI для магазина и опыта после показа игры
-  setTimeout(() => {
-    if (typeof initMerchantUI === 'function') {
-      initMerchantUI();
-    }
-    if (typeof initXPUI === 'function') {
-      initXPUI();
-    }
-  }, 200);
 }
 // Offline earnings modal handler
 const offlineEarningsModal = document.getElementById('offline-earnings-modal');
@@ -10441,269 +9952,20 @@ statsModal.addEventListener('click', (ev) => {
 
 // Talent event handlers removed
 
-// ======= Security & Anti-Tampering System =======
-// Защита от редактирования кода через браузер
-
-// Простая функция хеширования (не криптографически стойкая, но достаточная для защиты от простого обхода)
-function simpleHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return Math.abs(hash).toString(16);
-}
-
-// Хеш правильного пароля (1488)
-const DEBUG_PASSWORD_HASH = simpleHash('1488' + 'salt_mpi_debug_2024');
-const DEBUG_AUTH_TOKEN = 'debug_auth_' + Date.now() + '_' + Math.random().toString(36);
-
-// Флаг авторизации (хранится в замыкании, недоступен извне)
-let _debugAuthorized = false;
-let _debugAuthTime = 0;
-const DEBUG_AUTH_TIMEOUT = 30 * 60 * 1000; // 30 минут
-
-// Проверка пароля с хешированием
-function verifyDebugPassword(input) {
-  const inputHash = simpleHash(input + 'salt_mpi_debug_2024');
-  return inputHash === DEBUG_PASSWORD_HASH;
-}
-
-// Проверка авторизации
-function isDebugAuthorized() {
-  if (!_debugAuthorized) return false;
-  // Проверяем таймаут (30 минут)
-  if (Date.now() - _debugAuthTime > DEBUG_AUTH_TIMEOUT) {
-    _debugAuthorized = false;
-    return false;
-  }
-  return true;
-}
-
-// Установка авторизации
-function setDebugAuthorized(authorized) {
-  _debugAuthorized = authorized;
-  _debugAuthTime = Date.now();
-}
-
-// Проверка целостности debug панели
-function verifyDebugPanelIntegrity() {
-  if (!debugLock || !debugTools) return false;
-  
-  // Проверяем, что элементы не были изменены через консоль
-  const lockHidden = debugLock.classList.contains('hidden');
-  const toolsVisible = !debugTools.classList.contains('hidden');
-  
-  // Если tools видимы, но нет авторизации - это обход защиты
-  if (toolsVisible && !isDebugAuthorized()) {
-    // Блокируем доступ
-    debugLock.classList.remove('hidden');
-    debugTools.classList.add('hidden');
-    setDebugAuthorized(false);
-    if (debugPass) debugPass.value = '';
-    toast('Security violation detected. Access denied.', 'bad');
-    return false;
-  }
-  
-  return true;
-}
-
-// Защита от изменения DOM элементов через консоль
-function protectDebugElements() {
-  if (!debugLock || !debugTools) return;
-  
-  // Сохраняем оригинальные методы
-  const originalLockAdd = debugLock.classList.add.bind(debugLock.classList);
-  const originalLockRemove = debugLock.classList.remove.bind(debugLock.classList);
-  const originalToolsAdd = debugTools.classList.add.bind(debugTools.classList);
-  const originalToolsRemove = debugTools.classList.remove.bind(debugTools.classList);
-  
-  // Переопределяем методы с проверкой авторизации
-  debugLock.classList.add = function(...args) {
-    if (args.includes('hidden') && !isDebugAuthorized()) {
-      console.warn('Security: Unauthorized attempt to hide debug lock');
-      return;
-    }
-    return originalLockAdd(...args);
-  };
-  
-  debugLock.classList.remove = function(...args) {
-    if (!args.includes('hidden') && !isDebugAuthorized()) {
-      // Разрешаем удаление других классов, но проверяем при удалении 'hidden'
-      return originalLockRemove(...args);
-    }
-    return originalLockRemove(...args);
-  };
-  
-  debugTools.classList.add = function(...args) {
-    if (!args.includes('hidden') && !isDebugAuthorized()) {
-      // Если пытаются добавить класс (кроме hidden) без авторизации - блокируем
-      if (debugTools.classList.contains('hidden')) {
-        console.warn('Security: Unauthorized attempt to modify debug tools');
-        return;
-      }
-    }
-    return originalToolsAdd(...args);
-  };
-  
-  debugTools.classList.remove = function(...args) {
-    if (args.includes('hidden') && !isDebugAuthorized()) {
-      console.warn('Security: Unauthorized attempt to show debug tools');
-      return;
-    }
-    return originalToolsRemove(...args);
-  };
-  
-  // Периодическая проверка целостности (каждую секунду)
-  setInterval(() => {
-    verifyDebugPanelIntegrity();
-  }, 1000);
-}
-
-// Защита критичных функций от переопределения
-function protectCriticalFunctions() {
-  // Защищаем функцию addPoints
-  const originalAddPoints = window.addPoints;
-  if (originalAddPoints) {
-    Object.defineProperty(window, 'addPoints', {
-      value: originalAddPoints,
-      writable: false,
-      configurable: false
-    });
-  }
-  
-  // Защищаем объект save от полного переопределения (но не от изменения свойств)
-  if (window.save) {
-    Object.seal(window.save);
-  }
-}
-
-// Защита от открытия DevTools (обнаружение через размеры окна)
-function detectDevTools() {
-  let devtools = false;
-  const threshold = 160; // Порог для определения открытия DevTools
-  
-  setInterval(() => {
-    if (window.outerHeight - window.innerHeight > threshold || 
-        window.outerWidth - window.innerWidth > threshold) {
-      if (!devtools) {
-        devtools = true;
-        // Если DevTools открыты и debug панель разблокирована без авторизации - блокируем
-        if (debugTools && !debugTools.classList.contains('hidden') && !isDebugAuthorized()) {
-          setDebugAuthorized(false);
-          if (debugLock) debugLock.classList.remove('hidden');
-          if (debugTools) debugTools.classList.add('hidden');
-          toast('Security: DevTools detected. Debug panel locked.', 'warn');
-        }
-      }
-    } else {
-      devtools = false;
-    }
-  }, 500);
-}
-
-// Дополнительная защита: проверка целостности кода через проверку функций
-function verifyCodeIntegrity() {
-  // Проверяем, что критичные функции не были переопределены
-  if (typeof addPoints !== 'function') {
-    console.error('Security: addPoints function integrity check failed');
-    return false;
-  }
-  
-  // Проверяем, что элементы debug панели существуют и не были изменены
-  if (!debugLock || !debugTools || !debugPass) {
-    console.error('Security: Debug panel elements integrity check failed');
-    return false;
-  }
-  
-  return true;
-}
-
-// Инициализация защиты
-function initSecuritySystem() {
-  // Проверяем наличие элементов перед защитой
-  if (!debugLock || !debugTools || !debugPass) {
-    console.warn('Security: Debug panel elements not found, retrying...');
-    setTimeout(initSecuritySystem, 500);
-    return;
-  }
-  
-  protectDebugElements();
-  protectCriticalFunctions();
-  detectDevTools();
-  
-  // Проверка целостности при загрузке
-  setTimeout(() => {
-    verifyDebugPanelIntegrity();
-    verifyCodeIntegrity();
-  }, 100);
-  
-  // Периодическая проверка целостности кода
-  setInterval(() => {
-    if (!verifyCodeIntegrity()) {
-      // Если целостность нарушена, блокируем debug панель
-      setDebugAuthorized(false);
-      if (debugLock) debugLock.classList.remove('hidden');
-      if (debugTools) debugTools.classList.add('hidden');
-    }
-  }, 2000);
-}
-
 // ======= Debug panel =======
-debugOpen.addEventListener('click', () => {
-  // Проверяем целостность перед открытием
-  if (!verifyDebugPanelIntegrity()) {
-    debugModal.classList.add('hidden');
-    return;
-  }
-  debugModal.classList.remove('hidden');
-  // Сбрасываем авторизацию при открытии модального окна
-  if (!isDebugAuthorized()) {
-    setDebugAuthorized(false);
-    if (debugLock) debugLock.classList.remove('hidden');
-    if (debugTools) debugTools.classList.add('hidden');
-    if (debugPass) debugPass.value = '';
-  }
-});
-
-debugClose.addEventListener('click', () => {
-  debugModal.classList.add('hidden');
-  // Не сбрасываем авторизацию при закрытии, чтобы можно было открыть снова
-});
-
+debugOpen.addEventListener('click', () => debugModal.classList.remove('hidden'));
+debugClose.addEventListener('click', () => debugModal.classList.add('hidden'));
 debugUnlockBtn.addEventListener('click', () => {
-  if (!debugPass || !verifyDebugPanelIntegrity()) {
-    toast('Security error.', 'bad');
-    return;
-  }
-  
-  const input = debugPass.value;
-  if (verifyDebugPassword(input)) {
-    setDebugAuthorized(true);
+  if (debugPass.value === '1488') {
     debugLock.classList.add('hidden');
     debugTools.classList.remove('hidden');
-    debugPass.value = '';
-    toast('Debug panel unlocked.', 'good');
   } else {
     toast('Wrong password.', 'bad');
-    debugPass.value = '';
   }
 });
 debugTools.addEventListener('click', (e) => {
   const action = e.target.dataset.debug;
   if (!action) return;
-  
-  // КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем авторизацию при каждом действии
-  if (!verifyDebugPanelIntegrity() || !isDebugAuthorized()) {
-    toast('Unauthorized access. Please unlock debug panel first.', 'bad');
-    // Блокируем доступ
-    if (debugLock) debugLock.classList.remove('hidden');
-    if (debugTools) debugTools.classList.add('hidden');
-    setDebugAuthorized(false);
-    return;
-  }
-  
   if (!save) { toast('Not logged in.', 'warn'); return; }
   switch(action) {
     case 'addPoints': addPoints(10000); toast('Added 10000 points.', 'good'); break;
@@ -10751,7 +10013,7 @@ debugTools.addEventListener('click', (e) => {
     case 'spawnElfArcher':
       spawnElfArcher(); break;
     case 'spawnKing':
-      spawnKing(true); break; // force = true для дебага
+      spawnKing(); break;
     case 'addUberLevels':
       if (save.uber.unlocked) {
         for (let i = 0; i < 10; i++) {
@@ -10768,47 +10030,6 @@ debugTools.addEventListener('click', (e) => {
     case 'addMillionPoints':
       addPoints(1000000);
       toast('Added 1,000,000 points.', 'good');
-      break;
-    case 'setPoints':
-      const input = prompt('Enter points amount (can be 0 or any large number):', save.points.toString());
-      if (input !== null) {
-        // Парсим ввод, поддерживая очень большие числа
-        let pointsValue;
-        const trimmedInput = input.trim();
-        if (trimmedInput === '') {
-          toast('Invalid input.', 'bad');
-          break;
-        }
-        // Проверяем, является ли ввод валидным числом (может быть очень большим)
-        // Удаляем пробелы и проверяем формат
-        const cleanInput = trimmedInput.replace(/\s/g, '');
-        // Пытаемся распарсить как число
-        const parsed = Number(cleanInput);
-        if (isNaN(parsed)) {
-          toast('Invalid number format.', 'bad');
-          break;
-        }
-        // Если число слишком большое для безопасного представления, используем максимальное безопасное значение
-        if (!isFinite(parsed) || parsed > Number.MAX_SAFE_INTEGER) {
-          pointsValue = Number.MAX_SAFE_INTEGER;
-          toast('Number too large, set to maximum safe integer.', 'warn');
-        } else if (parsed < 0) {
-          pointsValue = 0;
-          toast('Negative numbers not allowed, set to 0.', 'warn');
-        } else {
-          pointsValue = Math.floor(parsed); // Используем целое число
-        }
-        // Устанавливаем поинты напрямую
-        save.points = pointsValue;
-        // Инвалидируем кэш
-        _cachedPPS = null;
-        _cachedPPC = null;
-        _cachedPoints = null;
-        // Обновляем UI
-        updateButtonStates();
-        renderAll();
-        toast(`Points set to ${fmt(pointsValue)}.`, 'good');
-      }
       break;
     case 'cycleSeason':
       cycleSeason();
@@ -10892,14 +10113,6 @@ let _lastEffectsState = '';
 let _lastEffectsUpdate = 0;
 let _effectsDebounceTimeout = null;
 
-// Инициализируем переменные сразу, чтобы избежать ошибок при раннем вызове
-if (typeof _lastEffectsUpdate === 'undefined') {
-  _lastEffectsUpdate = 0;
-}
-if (typeof _effectsDebounceTimeout === 'undefined') {
-  _effectsDebounceTimeout = null;
-}
-
 function renderEffects() {
   const nowTs = now();
   // Обновляем не чаще чем раз в 600мс для производительности
@@ -10931,56 +10144,57 @@ function _renderEffectsInternal() {
     return;
   }
   
+  // Убираем просроченные эффекты
   const tNow = now();
-  let html = '';
+  save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > tNow);
   
-  // Golden click
-  if (save.click && save.click.goldenUntil > tNow) {
-    const remain = Math.ceil((save.click.goldenUntil - tNow) / 1000);
-    html += `<div class="effect good">Golden click: ${remain}s</div>`;
-  }
-  
-  // Spider buff/debuff
-  if (save.modifiers.spiderUntil > tNow) {
-    const remain = Math.ceil((save.modifiers.spiderUntil - tNow) / 1000);
-    const mult = save.modifiers.spiderMult || 1.0;
-    const type = mult > 1 ? 'good' : 'bad';
-    html += `<div class="effect ${type}">Spider ${mult>1?'blessing':'curse'}: ${remain}s</div>`;
-  }
-  
-  // Click debuff
-  if (save.modifiers.clickDebuffLevel > 0) {
-    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(4);
-    html += `<div class="effect bad">Click debuff: -${debuffPercent}% passive income</div>`;
-  }
-  
-  // Убираем просроченные эффекты из activeEffects
-  if (save.modifiers.activeEffects) {
-    save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > tNow);
-    
-    // Добавляем активные эффекты
-    save.modifiers.activeEffects.forEach(e => {
-      const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
-      const effectClass = (
-        e.type.toLowerCase().includes('buff') || e.type.toLowerCase().includes('golden')
-          ? 'good'
-          : e.type.toLowerCase().includes('debuff') || e.type.toLowerCase().includes('broken')
-          ? 'bad'
-          : 'info'
-      );
-      html += `<div class="effect ${effectClass}">${e.type} — ${secondsLeft}s left</div>`;
-    });
-  }
-  
-  // Обновляем только если изменилось
-  if (list.innerHTML !== html) {
-    list.innerHTML = html;
-    _lastEffectsState = html;
-  }
-  
-  if (!html) {
+  if (!save.modifiers.activeEffects || save.modifiers.activeEffects.length === 0) {
+    if (list.children.length > 0) {
+      list.innerHTML = '';
+    }
     _lastEffectsState = '';
+    return;
   }
+
+  // Создаем строку состояния для сравнения
+  const currentState = save.modifiers.activeEffects.map(e => 
+    `${e.type}:${Math.floor((e.until - tNow) / 1000)}`
+  ).join('|');
+
+  // Если состояние не изменилось, обновляем только таймеры
+  if (_lastEffectsState === currentState && list.children.length === save.modifiers.activeEffects.length) {
+    // Обновляем только текст с оставшимся временем
+    const items = Array.from(list.children);
+    save.modifiers.activeEffects.forEach((e, idx) => {
+      if (items[idx]) {
+        const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
+        const newText = `${e.type} — ${secondsLeft}s left`;
+        if (items[idx].textContent !== newText) {
+          items[idx].textContent = newText;
+        }
+      }
+    });
+    return;
+  }
+
+  // Состояние изменилось - пересоздаем список
+  _lastEffectsState = currentState;
+  list.innerHTML = '';
+
+  save.modifiers.activeEffects.forEach(e => {
+    const item = document.createElement('div');
+    item.className = 'effect-item ' + (
+      e.type.toLowerCase().includes('buff') || e.type.toLowerCase().includes('golden')
+        ? 'effect-good'
+        : e.type.toLowerCase().includes('debuff') || e.type.toLowerCase().includes('broken')
+        ? 'effect-bad'
+        : 'effect-info'
+    );
+
+    const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
+    item.textContent = `${e.type} — ${secondsLeft}s left`;
+    list.appendChild(item);
+  });
 }
 
 
@@ -12653,15 +11867,5 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
-
-// ======= Инициализация системы защиты =======
-// Запускаем защиту после загрузки DOM
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(initSecuritySystem, 100);
-  });
-} else {
-  setTimeout(initSecuritySystem, 100);
-}
 
 
