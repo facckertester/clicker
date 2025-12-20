@@ -7277,12 +7277,22 @@ function maybeSpawnSpider() {
 
 // ======= King: behavior + mini-game =======
 
-const kingEl = document.getElementById('king');
-const kingModal = document.getElementById('king-modal');
-const kingArena = document.getElementById('king-arena');
-const kingTimerEl = document.getElementById('king-game-timer');
-const kingStatusEl = document.getElementById('king-game-status');
-const kingCloseBtn = document.getElementById('king-game-close');
+let kingEl = document.getElementById('king');
+let kingModal = document.getElementById('king-modal');
+let kingArena = document.getElementById('king-arena');
+let kingTimerEl = document.getElementById('king-game-timer');
+let kingStatusEl = document.getElementById('king-game-status');
+let kingCloseBtn = document.getElementById('king-game-close');
+
+// Функция для получения элементов модального окна (на случай если они еще не загружены)
+function getKingModalElements() {
+  if (!kingModal) kingModal = document.getElementById('king-modal');
+  if (!kingArena) kingArena = document.getElementById('king-arena');
+  if (!kingTimerEl) kingTimerEl = document.getElementById('king-game-timer');
+  if (!kingStatusEl) kingStatusEl = document.getElementById('king-game-status');
+  if (!kingCloseBtn) kingCloseBtn = document.getElementById('king-game-close');
+  return { kingModal, kingArena, kingTimerEl, kingStatusEl, kingCloseBtn };
+}
 
 let _kingState = {
   spawnTimer: null,
@@ -7332,13 +7342,26 @@ function scheduleNextKing() {
 
 // place king randomly (reuses spider placement logic)
 function _placeKingRandom() {
-  if (!kingEl) return;
-  const { w, h } = _kingState.cachedSize;
+  if (!kingEl) {
+    return;
+  }
+  
+  // Получаем размер короля (используем кэш или вычисляем заново)
+  let { w, h } = _kingState.cachedSize;
+  if (!w || !h || w === 0 || h === 0) {
+    // Если размер не кэширован, получаем его из элемента
+    w = kingEl.offsetWidth || 64;
+    h = kingEl.offsetHeight || 64;
+    _kingState.cachedSize = { w, h };
+  }
+  
   const maxLeft = Math.max(0, window.innerWidth - w);
   const maxTop = Math.max(0, window.innerHeight - h);
   kingEl.style.left = _randInt(0, maxLeft) + 'px';
   kingEl.style.top = _randInt(0, maxTop) + 'px';
   kingEl.style.transform = `rotate(${_randInt(-12,12)}deg)`;
+  kingEl.style.position = 'fixed';
+  kingEl.style.zIndex = '1000';
 }
 
 function drawKing(canvas) {
@@ -7423,40 +7446,137 @@ function drawKing(canvas) {
 }
 
 // spawn king: show for 23s unless clicked
-function spawnKing() {
-  if (!kingEl) return;
+function spawnKing(force = false) {
+  // Получаем элемент короля (на случай если он еще не загружен)
+  if (!kingEl) {
+    kingEl = document.getElementById('king');
+  }
   
-  // Проверяем условие: минимум 25 зданий с уровнем 50
-  if (!save || !save.buildings) {
-    scheduleNextKing();
+  if (!kingEl) {
+    if (typeof toast === 'function') {
+      toast('King element not found!', 'bad');
+    }
     return;
   }
-  const buildingsWithLevel50 = save.buildings.filter(b => b.level >= 50).length;
-  if (buildingsWithLevel50 < 25) {
-    // Условие не выполнено - переносим появление короля
-    scheduleNextKing();
-    return;
+  
+  // Проверяем условие: минимум 25 зданий с уровнем 50 (если не принудительный вызов)
+  if (!force) {
+    if (!save || !save.buildings) {
+      scheduleNextKing();
+      return;
+    }
+    const buildingsWithLevel50 = save.buildings.filter(b => b.level >= 50).length;
+    if (buildingsWithLevel50 < 25) {
+      // Условие не выполнено - переносим появление короля
+      scheduleNextKing();
+      return;
+    }
   }
   
   // Инициализируем img элемент один раз (если еще не создан)
   _initKingImage();
   
+  // Размещаем короля случайно
   _placeKingRandom();
+  
+  // Показываем короля (явно устанавливаем display)
   kingEl.classList.add('show');
+  kingEl.style.display = 'flex'; // Явно устанавливаем display
+  kingEl.style.visibility = 'visible';
+  kingEl.style.opacity = '1';
+  kingEl.style.pointerEvents = 'auto';
+  kingEl.style.cursor = 'pointer';
   kingEl.title = 'King — click to start the mini-game';
-  _kingState.visibleUntil = now() + 23000;
+  
+  // Добавляем простой и надежный обработчик клика напрямую
+  // Удаляем все старые обработчики
+  const newKingEl = kingEl.cloneNode(true);
+  kingEl.parentNode.replaceChild(newKingEl, kingEl);
+  kingEl = newKingEl;
+  
+  // Восстанавливаем изображение если нужно
+  if (!_kingState.imgCreated) {
+    _initKingImage();
+  }
+  
+  // Добавляем обработчик клика с логированием
+  kingEl.onclick = function(e) {
+    console.log('[KING] Click handler called!');
+    e.stopPropagation();
+    e.preventDefault();
+    
+    console.log('[KING] Calling openKingMiniGame()...');
+    openKingMiniGame();
+    
+    // Скрываем короля
+    kingEl.classList.remove('show');
+    kingEl.style.display = 'none';
+    if (_kingState.escapeTimer) {
+      clearTimeout(_kingState.escapeTimer);
+      _kingState.escapeTimer = null;
+    }
+  };
+  
+  // Также добавляем через addEventListener для надежности
+  kingEl.addEventListener('click', function(e) {
+    console.log('[KING] AddEventListener click handler called!');
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('[KING] Calling openKingMiniGame() from addEventListener...');
+    openKingMiniGame();
+    kingEl.classList.remove('show');
+    kingEl.style.display = 'none';
+    if (_kingState.escapeTimer) {
+      clearTimeout(_kingState.escapeTimer);
+      _kingState.escapeTimer = null;
+    }
+  }, true);
+  
+  console.log('[KING] Click handlers added to king element');
+  
+  // Устанавливаем время видимости
+  if (typeof now === 'function') {
+    _kingState.visibleUntil = now() + 23000;
+  } else {
+    _kingState.visibleUntil = Date.now() + 23000;
+  }
   
   // Воспроизводим звук появления короля
-  playSound('king');
+  if (typeof playSound === 'function') {
+    playSound('king');
+  }
   // auto-escape after 23s
   if (_kingState.escapeTimer) clearTimeout(_kingState.escapeTimer);
   _kingState.escapeTimer = setTimeout(() => {
-    if (kingEl.classList.contains('show')) {
+    if (kingEl && kingEl.classList.contains('show')) {
       kingEl.classList.remove('show');
-      toast('The King has fled.', 'warn');
+      if (typeof toast === 'function') {
+        toast('The King has fled.', 'warn');
+      }
       scheduleNextKing();
     }
   }, 23000);
+}
+
+// Дебаг функция для ручного вызова короля (игнорирует все проверки)
+function debugSpawnKing() {
+  // Убеждаемся, что kingEl существует
+  if (!kingEl) {
+    kingEl = document.getElementById('king');
+  }
+  if (!kingEl) {
+    if (typeof toast === 'function') {
+      toast('King element not found!', 'bad');
+    }
+    return;
+  }
+  spawnKing(true);
+}
+
+// Делаем функции доступными глобально для консоли
+if (typeof window !== 'undefined') {
+  window.spawnKing = spawnKing;
+  window.debugSpawnKing = debugSpawnKing;
 }
 
 // hide king and clear timers
@@ -7469,36 +7589,145 @@ function hideKing() {
 }
 
 // click on king -> open mini-game
-kingEl.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (!kingEl.classList.contains('show')) return;
-  resetPassiveBoost(); // Reset passive boost when clicking king
-  // open mini-game
-  openKingMiniGame();
-  // hide king from screen while mini-game is active
-  kingEl.classList.remove('show');
-  if (_kingState.escapeTimer) { clearTimeout(_kingState.escapeTimer); _kingState.escapeTimer = null; }
-});
+// Инициализируем обработчик после загрузки DOM
+let kingClickHandler = null;
+let kingClickHandlerInitialized = false;
+
+function initKingClickHandler() {
+  // Получаем элемент короля (может быть null при первой загрузке)
+  const newKingEl = document.getElementById('king');
+  if (!newKingEl) {
+    // Если элемент еще не загружен, пробуем снова через небольшую задержку
+    setTimeout(initKingClickHandler, 100);
+    return;
+  }
+  
+  // Обновляем глобальную ссылку на элемент
+  kingEl = newKingEl;
+  
+  // Если обработчик уже был добавлен, удаляем старый перед добавлением нового
+  if (kingClickHandlerInitialized && kingClickHandler) {
+    kingEl.removeEventListener('click', kingClickHandler);
+  }
+  
+  // Создаем новый обработчик клика
+  kingClickHandler = function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Получаем актуальный элемент короля
+    const currentKingEl = document.getElementById('king');
+    if (!currentKingEl) return;
+    
+    // Открываем мини-игру в любом случае при клике
+    if (typeof resetPassiveBoost === 'function') {
+      resetPassiveBoost(); // Reset passive boost when clicking king
+    }
+    
+    // open mini-game
+    openKingMiniGame();
+    
+    // hide king from screen while mini-game is active
+    currentKingEl.classList.remove('show');
+    currentKingEl.style.display = 'none';
+    if (_kingState.escapeTimer) { 
+      clearTimeout(_kingState.escapeTimer); 
+      _kingState.escapeTimer = null; 
+    }
+  };
+  
+  // Добавляем обработчик клика
+  kingEl.addEventListener('click', kingClickHandler, true); // Используем capture phase
+  kingClickHandlerInitialized = true;
+}
+
+// Инициализируем обработчик при загрузке
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initKingClickHandler);
+} else {
+  // DOM уже загружен
+  setTimeout(initKingClickHandler, 0);
+}
 
 // Mini-game implementation
 function openKingMiniGame() {
+  console.log('[KING MINIGAME] openKingMiniGame() called');
+  
+  // Получаем элементы модального окна (на случай если они еще не загружены)
+  const elements = getKingModalElements();
+  console.log('[KING MINIGAME] Elements:', {
+    kingModal: !!elements.kingModal,
+    kingArena: !!elements.kingArena,
+    kingTimerEl: !!elements.kingTimerEl,
+    kingStatusEl: !!elements.kingStatusEl
+  });
+  
+  if (!elements.kingModal || !elements.kingArena || !elements.kingTimerEl || !elements.kingStatusEl) {
+    console.error('[KING MINIGAME] Elements not found!', elements);
+    if (typeof toast === 'function') {
+      toast('King mini-game elements not found!', 'bad');
+    }
+    return;
+  }
+  
+  console.log('[KING MINIGAME] All elements found, opening modal...');
+  
   // initialize state
   const durationMs = 8000;
   // Buff 5: Spider Buff - requires one less crown to win
-  const act = save.treasury?.actions;
-  const spiderBuffActive = act && act.spiderBuffUntil > now();
+  const act = save && save.treasury ? save.treasury.actions : null;
+  const spiderBuffActive = act && act.spiderBuffUntil && typeof now === 'function' && act.spiderBuffUntil > now();
   const baseTarget = 12;
   const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
-  kingModal.classList.add('show');
-  kingModal.setAttribute('aria-hidden', 'false');
-  kingArena.innerHTML = '';
-  kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
+  
+  // Показываем модальное окно (явно устанавливаем все стили с !important)
+  console.log('[KING MINIGAME] Setting modal styles...');
+  elements.kingModal.classList.add('show');
+  elements.kingModal.style.setProperty('display', 'flex', 'important');
+  elements.kingModal.style.setProperty('visibility', 'visible', 'important');
+  elements.kingModal.style.setProperty('opacity', '1', 'important');
+  elements.kingModal.style.setProperty('z-index', '11000', 'important');
+  elements.kingModal.style.setProperty('position', 'fixed', 'important');
+  elements.kingModal.setAttribute('aria-hidden', 'false');
+  
+  console.log('[KING MINIGAME] Modal styles set. Computed display:', window.getComputedStyle(elements.kingModal).display);
+  console.log('[KING MINIGAME] Modal element:', elements.kingModal);
+  
+  // Проверяем видимость модального окна
+  const rect = elements.kingModal.getBoundingClientRect();
+  console.log('[KING MINIGAME] Modal bounding rect:', rect);
+  console.log('[KING MINIGAME] Modal computed styles:', {
+    display: window.getComputedStyle(elements.kingModal).display,
+    visibility: window.getComputedStyle(elements.kingModal).visibility,
+    opacity: window.getComputedStyle(elements.kingModal).opacity,
+    zIndex: window.getComputedStyle(elements.kingModal).zIndex,
+    position: window.getComputedStyle(elements.kingModal).position
+  });
+  
+  elements.kingArena.innerHTML = '';
+  elements.kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
+  
+  console.log('[KING MINIGAME] Arena and status text set');
   let clicked = 0;
   const crowns = [];
 
   // spawn crowns randomly inside arena; ensure crowns don't overlap more than 50%
   function spawnCrowns() {
-    const rect = kingArena.getBoundingClientRect();
+    const rect = elements.kingArena.getBoundingClientRect();
+    console.log('[KING MINIGAME] Arena bounding rect:', rect);
+    
+    // Если арена имеет нулевые размеры, ждем немного и пробуем снова
+    if (rect.width === 0 || rect.height === 0) {
+      console.warn('[KING MINIGAME] Arena has zero size! Waiting 100ms and retrying...');
+      setTimeout(() => {
+        const newRect = elements.kingArena.getBoundingClientRect();
+        console.log('[KING MINIGAME] Arena rect after wait:', newRect);
+        if (newRect.width > 0 && newRect.height > 0) {
+          spawnCrowns();
+        }
+      }, 100);
+      return;
+    }
     const crownWidth = 56;
     const crownHeight = 40;
     const maxOverlap = 0.5; // max 50% overlap allowed
@@ -7540,20 +7769,20 @@ function openKingMiniGame() {
       // click handler
       c.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        if (!kingModal.classList.contains('show')) return;
+        if (!elements.kingModal.classList.contains('show')) return;
         // mark crown as collected and increment count
         if (!c.classList.contains('collected')) {
           c.classList.add('collected');
           c.style.opacity = '0.35';
           clicked++;
-          kingStatusEl.textContent = `Caught: ${clicked} / ${target}`;
+          elements.kingStatusEl.textContent = `Caught: ${clicked} / ${target}`;
           // success check
           if (clicked >= target) {
             endKingMiniGame('success', { clicked, target });
           }
         }
       });
-      kingArena.appendChild(c);
+      elements.kingArena.appendChild(c);
       crowns.push(c);
     }
   }
@@ -7561,19 +7790,19 @@ function openKingMiniGame() {
   // clicking on arena background = miss -> immediate heavy penalty
   function onArenaClick(e) {
     // if click target is arena itself (not a crown), it's a miss
-    if (e.target === kingArena) {
+    if (e.target === elements.kingArena) {
       endKingMiniGame('miss', { clicked, target });
     }
   }
-  kingArena.addEventListener('click', onArenaClick);
+  elements.kingArena.addEventListener('click', onArenaClick);
 
   // timer tick
   let remaining = durationMs;
-  kingTimerEl.textContent = (remaining/1000).toFixed(1) + 's';
+  elements.kingTimerEl.textContent = (remaining/1000).toFixed(1) + 's';
   const tickInterval = 100; // update every 100ms
   const timerId = setInterval(() => {
     remaining -= tickInterval;
-    kingTimerEl.textContent = Math.max(0, (remaining/1000)).toFixed(1) + 's';
+    elements.kingTimerEl.textContent = Math.max(0, (remaining/1000)).toFixed(1) + 's';
     if (remaining <= 0) {
       clearInterval(timerId);
       endKingMiniGame('timeout', { clicked, target });
@@ -7581,26 +7810,46 @@ function openKingMiniGame() {
   }, tickInterval);
 
   // store miniGame state for cleanup if needed
-  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked, target };
+  _kingState.miniGame = { timerId, crowns, onArenaClick, clicked, target, elements };
 
   // spawn crowns and focus
+  console.log('[KING MINIGAME] Spawning crowns...');
   spawnCrowns();
-  kingArena.focus();
+  console.log('[KING MINIGAME] Crowns spawned, focusing arena...');
+  elements.kingArena.focus();
+  console.log('[KING MINIGAME] Mini-game initialization complete!');
+  
+  // Финальная проверка видимости
+  setTimeout(() => {
+    const finalRect = elements.kingModal.getBoundingClientRect();
+    console.log('[KING MINIGAME] Final modal check - bounding rect:', finalRect);
+    console.log('[KING MINIGAME] Final modal check - computed display:', window.getComputedStyle(elements.kingModal).display);
+  }, 100);
 }
 
 // end mini-game with outcome: 'success' | 'timeout' | 'miss'
 function endKingMiniGame(outcome, info = {}) {
   // cleanup listeners/timers
   if (!_kingState.miniGame) return;
-  const { timerId, crowns, onArenaClick } = _kingState.miniGame;
+  const { timerId, crowns, onArenaClick, elements: gameElements } = _kingState.miniGame;
   clearInterval(timerId);
-  kingArena.removeEventListener('click', onArenaClick);
+  
+  // Получаем элементы (используем из состояния игры или получаем заново)
+  const elements = gameElements || getKingModalElements();
+  if (elements.kingArena && onArenaClick) {
+    elements.kingArena.removeEventListener('click', onArenaClick);
+  }
   _kingState.miniGame = null;
 
   // hide modal
-  kingModal.classList.remove('show');
-  kingModal.setAttribute('aria-hidden', 'true');
-  kingTimerEl.textContent = '15.0s';
+  if (elements.kingModal) {
+    elements.kingModal.classList.remove('show');
+    elements.kingModal.style.display = 'none'; // Явно скрываем
+    elements.kingModal.setAttribute('aria-hidden', 'true');
+  }
+  if (elements.kingTimerEl) {
+    elements.kingTimerEl.textContent = '15.0s';
+  }
 
   // apply effects based on outcome
   const clicked = info.clicked || 0;
@@ -7694,19 +7943,45 @@ function endKingMiniGame(outcome, info = {}) {
 }
 
 // allow closing mini-game manually (counts as timeout)
-kingCloseBtn.addEventListener('click', () => {
-  if (_kingState.miniGame) {
-    const act = save.treasury?.actions;
-    const spiderBuffActive = act && act.spiderBuffUntil > now();
-    const baseTarget = 15;
-    const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
-    endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target });
+// Инициализация обработчика закрытия модального окна короля
+function initKingCloseHandler() {
+  const elements = getKingModalElements();
+  if (elements.kingCloseBtn) {
+    elements.kingCloseBtn.addEventListener('click', () => {
+      if (_kingState.miniGame) {
+        const act = save && save.treasury ? save.treasury.actions : null;
+        const spiderBuffActive = act && act.spiderBuffUntil && typeof now === 'function' && act.spiderBuffUntil > now();
+        const baseTarget = 15;
+        const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
+        endKingMiniGame('timeout', { clicked: (_kingState.miniGame && _kingState.miniGame.clicked) || 0, target });
+      } else {
+        const elements = getKingModalElements();
+        if (elements.kingModal) {
+          elements.kingModal.classList.remove('show');
+          elements.kingModal.setAttribute('aria-hidden', 'true');
+        }
+        scheduleNextKing();
+      }
+    });
   } else {
-    kingModal.classList.remove('show');
-    kingModal.setAttribute('aria-hidden', 'true');
-    scheduleNextKing();
+    // Если элемент еще не загружен, пробуем снова
+    setTimeout(initKingCloseHandler, 100);
   }
-});
+}
+
+// Инициализируем обработчик закрытия при загрузке
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initKingCloseHandler);
+} else {
+  setTimeout(initKingCloseHandler, 0);
+}
+
+// Инициализируем обработчик закрытия при загрузке
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initKingCloseHandler);
+} else {
+  setTimeout(initKingCloseHandler, 0);
+}
 
 // If modal is open and user presses Escape -> cancel (timeout)
 document.addEventListener('keydown', (e) => {
@@ -10447,7 +10722,7 @@ debugTools.addEventListener('click', (e) => {
     case 'spawnElfArcher':
       spawnElfArcher(); break;
     case 'spawnKing':
-      spawnKing(); break;
+      spawnKing(true); break; // force = true для дебага
     case 'addUberLevels':
       if (save.uber.unlocked) {
         for (let i = 0; i < 10; i++) {
