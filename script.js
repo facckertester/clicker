@@ -10137,20 +10137,269 @@ statsModal.addEventListener('click', (ev) => {
 
 // Talent event handlers removed
 
+// ======= Security & Anti-Tampering System =======
+// Защита от редактирования кода через браузер
+
+// Простая функция хеширования (не криптографически стойкая, но достаточная для защиты от простого обхода)
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+
+// Хеш правильного пароля (1488)
+const DEBUG_PASSWORD_HASH = simpleHash('1488' + 'salt_mpi_debug_2024');
+const DEBUG_AUTH_TOKEN = 'debug_auth_' + Date.now() + '_' + Math.random().toString(36);
+
+// Флаг авторизации (хранится в замыкании, недоступен извне)
+let _debugAuthorized = false;
+let _debugAuthTime = 0;
+const DEBUG_AUTH_TIMEOUT = 30 * 60 * 1000; // 30 минут
+
+// Проверка пароля с хешированием
+function verifyDebugPassword(input) {
+  const inputHash = simpleHash(input + 'salt_mpi_debug_2024');
+  return inputHash === DEBUG_PASSWORD_HASH;
+}
+
+// Проверка авторизации
+function isDebugAuthorized() {
+  if (!_debugAuthorized) return false;
+  // Проверяем таймаут (30 минут)
+  if (Date.now() - _debugAuthTime > DEBUG_AUTH_TIMEOUT) {
+    _debugAuthorized = false;
+    return false;
+  }
+  return true;
+}
+
+// Установка авторизации
+function setDebugAuthorized(authorized) {
+  _debugAuthorized = authorized;
+  _debugAuthTime = Date.now();
+}
+
+// Проверка целостности debug панели
+function verifyDebugPanelIntegrity() {
+  if (!debugLock || !debugTools) return false;
+  
+  // Проверяем, что элементы не были изменены через консоль
+  const lockHidden = debugLock.classList.contains('hidden');
+  const toolsVisible = !debugTools.classList.contains('hidden');
+  
+  // Если tools видимы, но нет авторизации - это обход защиты
+  if (toolsVisible && !isDebugAuthorized()) {
+    // Блокируем доступ
+    debugLock.classList.remove('hidden');
+    debugTools.classList.add('hidden');
+    setDebugAuthorized(false);
+    if (debugPass) debugPass.value = '';
+    toast('Security violation detected. Access denied.', 'bad');
+    return false;
+  }
+  
+  return true;
+}
+
+// Защита от изменения DOM элементов через консоль
+function protectDebugElements() {
+  if (!debugLock || !debugTools) return;
+  
+  // Сохраняем оригинальные методы
+  const originalLockAdd = debugLock.classList.add.bind(debugLock.classList);
+  const originalLockRemove = debugLock.classList.remove.bind(debugLock.classList);
+  const originalToolsAdd = debugTools.classList.add.bind(debugTools.classList);
+  const originalToolsRemove = debugTools.classList.remove.bind(debugTools.classList);
+  
+  // Переопределяем методы с проверкой авторизации
+  debugLock.classList.add = function(...args) {
+    if (args.includes('hidden') && !isDebugAuthorized()) {
+      console.warn('Security: Unauthorized attempt to hide debug lock');
+      return;
+    }
+    return originalLockAdd(...args);
+  };
+  
+  debugLock.classList.remove = function(...args) {
+    if (!args.includes('hidden') && !isDebugAuthorized()) {
+      // Разрешаем удаление других классов, но проверяем при удалении 'hidden'
+      return originalLockRemove(...args);
+    }
+    return originalLockRemove(...args);
+  };
+  
+  debugTools.classList.add = function(...args) {
+    if (!args.includes('hidden') && !isDebugAuthorized()) {
+      // Если пытаются добавить класс (кроме hidden) без авторизации - блокируем
+      if (debugTools.classList.contains('hidden')) {
+        console.warn('Security: Unauthorized attempt to modify debug tools');
+        return;
+      }
+    }
+    return originalToolsAdd(...args);
+  };
+  
+  debugTools.classList.remove = function(...args) {
+    if (args.includes('hidden') && !isDebugAuthorized()) {
+      console.warn('Security: Unauthorized attempt to show debug tools');
+      return;
+    }
+    return originalToolsRemove(...args);
+  };
+  
+  // Периодическая проверка целостности (каждую секунду)
+  setInterval(() => {
+    verifyDebugPanelIntegrity();
+  }, 1000);
+}
+
+// Защита критичных функций от переопределения
+function protectCriticalFunctions() {
+  // Защищаем функцию addPoints
+  const originalAddPoints = window.addPoints;
+  if (originalAddPoints) {
+    Object.defineProperty(window, 'addPoints', {
+      value: originalAddPoints,
+      writable: false,
+      configurable: false
+    });
+  }
+  
+  // Защищаем объект save от полного переопределения (но не от изменения свойств)
+  if (window.save) {
+    Object.seal(window.save);
+  }
+}
+
+// Защита от открытия DevTools (обнаружение через размеры окна)
+function detectDevTools() {
+  let devtools = false;
+  const threshold = 160; // Порог для определения открытия DevTools
+  
+  setInterval(() => {
+    if (window.outerHeight - window.innerHeight > threshold || 
+        window.outerWidth - window.innerWidth > threshold) {
+      if (!devtools) {
+        devtools = true;
+        // Если DevTools открыты и debug панель разблокирована без авторизации - блокируем
+        if (debugTools && !debugTools.classList.contains('hidden') && !isDebugAuthorized()) {
+          setDebugAuthorized(false);
+          if (debugLock) debugLock.classList.remove('hidden');
+          if (debugTools) debugTools.classList.add('hidden');
+          toast('Security: DevTools detected. Debug panel locked.', 'warn');
+        }
+      }
+    } else {
+      devtools = false;
+    }
+  }, 500);
+}
+
+// Дополнительная защита: проверка целостности кода через проверку функций
+function verifyCodeIntegrity() {
+  // Проверяем, что критичные функции не были переопределены
+  if (typeof addPoints !== 'function') {
+    console.error('Security: addPoints function integrity check failed');
+    return false;
+  }
+  
+  // Проверяем, что элементы debug панели существуют и не были изменены
+  if (!debugLock || !debugTools || !debugPass) {
+    console.error('Security: Debug panel elements integrity check failed');
+    return false;
+  }
+  
+  return true;
+}
+
+// Инициализация защиты
+function initSecuritySystem() {
+  // Проверяем наличие элементов перед защитой
+  if (!debugLock || !debugTools || !debugPass) {
+    console.warn('Security: Debug panel elements not found, retrying...');
+    setTimeout(initSecuritySystem, 500);
+    return;
+  }
+  
+  protectDebugElements();
+  protectCriticalFunctions();
+  detectDevTools();
+  
+  // Проверка целостности при загрузке
+  setTimeout(() => {
+    verifyDebugPanelIntegrity();
+    verifyCodeIntegrity();
+  }, 100);
+  
+  // Периодическая проверка целостности кода
+  setInterval(() => {
+    if (!verifyCodeIntegrity()) {
+      // Если целостность нарушена, блокируем debug панель
+      setDebugAuthorized(false);
+      if (debugLock) debugLock.classList.remove('hidden');
+      if (debugTools) debugTools.classList.add('hidden');
+    }
+  }, 2000);
+}
+
 // ======= Debug panel =======
-debugOpen.addEventListener('click', () => debugModal.classList.remove('hidden'));
-debugClose.addEventListener('click', () => debugModal.classList.add('hidden'));
+debugOpen.addEventListener('click', () => {
+  // Проверяем целостность перед открытием
+  if (!verifyDebugPanelIntegrity()) {
+    debugModal.classList.add('hidden');
+    return;
+  }
+  debugModal.classList.remove('hidden');
+  // Сбрасываем авторизацию при открытии модального окна
+  if (!isDebugAuthorized()) {
+    setDebugAuthorized(false);
+    if (debugLock) debugLock.classList.remove('hidden');
+    if (debugTools) debugTools.classList.add('hidden');
+    if (debugPass) debugPass.value = '';
+  }
+});
+
+debugClose.addEventListener('click', () => {
+  debugModal.classList.add('hidden');
+  // Не сбрасываем авторизацию при закрытии, чтобы можно было открыть снова
+});
+
 debugUnlockBtn.addEventListener('click', () => {
-  if (debugPass.value === '1488') {
+  if (!debugPass || !verifyDebugPanelIntegrity()) {
+    toast('Security error.', 'bad');
+    return;
+  }
+  
+  const input = debugPass.value;
+  if (verifyDebugPassword(input)) {
+    setDebugAuthorized(true);
     debugLock.classList.add('hidden');
     debugTools.classList.remove('hidden');
+    debugPass.value = '';
+    toast('Debug panel unlocked.', 'good');
   } else {
     toast('Wrong password.', 'bad');
+    debugPass.value = '';
   }
 });
 debugTools.addEventListener('click', (e) => {
   const action = e.target.dataset.debug;
   if (!action) return;
+  
+  // КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем авторизацию при каждом действии
+  if (!verifyDebugPanelIntegrity() || !isDebugAuthorized()) {
+    toast('Unauthorized access. Please unlock debug panel first.', 'bad');
+    // Блокируем доступ
+    if (debugLock) debugLock.classList.remove('hidden');
+    if (debugTools) debugTools.classList.add('hidden');
+    setDebugAuthorized(false);
+    return;
+  }
+  
   if (!save) { toast('Not logged in.', 'warn'); return; }
   switch(action) {
     case 'addPoints': addPoints(10000); toast('Added 10000 points.', 'good'); break;
@@ -12100,5 +12349,15 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
+
+// ======= Инициализация системы защиты =======
+// Запускаем защиту после загрузки DOM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initSecuritySystem, 100);
+  });
+} else {
+  setTimeout(initSecuritySystem, 100);
+}
 
 
