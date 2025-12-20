@@ -154,6 +154,7 @@
           <button class="btn secondary" data-debug="spawnKing">Spawn king</button>
           <button class="btn secondary" data-debug="addUberLevels">+10 levels to Citadel</button>
           <button class="btn secondary" data-debug="addMillionPoints">+1M points</button>
+          <button class="btn secondary" data-debug="setPoints">Set points manually</button>
           <button class="btn secondary" data-debug="cycleSeason">Cycle season</button>
           <button class="btn secondary" data-debug="breakClick">Break click button</button>
           <button class="btn secondary" data-debug="goldenClick">Make click button golden</button>
@@ -191,6 +192,10 @@
           <span class="stat-label">Points/click</span>
           <span id="ppc" class="stat-value">0.1111</span>
         </div>
+        <div class="stat" id="souls-container">
+          <span class="stat-label">Souls</span>
+          <span id="souls-amount" class="stat-value">0</span>
+        </div>
 
         <div class="userbox">
           <span id="username-display"></span>
@@ -221,6 +226,8 @@
             </div>
           </div>
           <button id="hints-toggle-btn" class="btn tiny" title="Toggle hints">💡</button>
+          <button id="inventory-btn" class="btn tiny" title="Inventory">🎒</button>
+          <button id="merchant-btn" class="btn tiny" title="Merchant">🛒</button>
           <button id="stats-btn" class="btn tiny">Stats</button>
           <button id="debug-open" class="btn tiny secondary">debug</button>
         </div>
@@ -339,6 +346,9 @@
     <!-- ELF ARCHER -->
     <div id="elf-archer" class="elf-archer hidden" title="Elf Archer - click to scare away!"></div>
 
+    <!-- GENERAL -->
+    <div id="general" class="general hidden" title="General - click to enter the battlefield!"></div>
+
   </div>
 
 <!-- Updates button (fixed top-right) -->
@@ -450,6 +460,120 @@
   </div>
 </div>
 
+<!-- Battle modal -->
+<div id="battle-modal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card battle-modal-card" role="document">
+    <div class="modal-header">
+      <h3>Battlefield</h3>
+      <button class="modal-close" id="battle-close" aria-label="Close battle">✕</button>
+    </div>
+    <div class="modal-body battle-body">
+      <div class="battle-info">
+        <div class="battle-boss-info">
+          <div id="battle-boss-level" class="battle-boss-level">Level 1</div>
+          <div class="battle-boss-hp-container">
+            <div class="battle-hp-bar">
+              <div id="battle-boss-hp-bar" class="battle-hp-bar-fill"></div>
+            </div>
+            <div class="battle-hp-text">
+              <span id="battle-boss-hp">500 / 500</span>
+              <span id="battle-boss-hp-percent">100%</span>
+            </div>
+          </div>
+        </div>
+        <div class="battle-player-info">
+          <div class="battle-player-lives-label">Your Lives:</div>
+          <div id="battle-player-lives" class="battle-player-lives"></div>
+        </div>
+      </div>
+      <div id="battle-arena" class="battle-arena">
+        <div class="battle-boss-sprite">👹</div>
+        <button id="battle-attack-btn" class="btn primary battle-attack-btn">Attack</button>
+      </div>
+      <div id="battle-result" class="battle-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory modal -->
+<div id="inventory-modal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card inventory-modal-card" role="document">
+    <div class="modal-header">
+      <h3>Inventory</h3>
+      <button class="modal-close" id="inventory-close" aria-label="Close inventory">✕</button>
+    </div>
+    <div class="modal-body inventory-body">
+      <div class="inventory-layout">
+        <div class="inventory-top-section">
+          <div class="inventory-stats">
+            <h4>Battle Stats</h4>
+            <div id="inventory-stats-content" class="inventory-stats-content"></div>
+          </div>
+          <div class="inventory-equipment">
+            <h4>Equipment</h4>
+            <div class="equipment-slots">
+            <div id="equipment-slot-weapon" class="equipment-slot" data-slot="weapon">
+              <div class="equipment-slot-label">Weapon</div>
+            </div>
+            <div id="equipment-slot-weapon2" class="equipment-slot" data-slot="weapon2">
+              <div class="equipment-slot-label">Offhand (Dagger)</div>
+            </div>
+            <div id="equipment-slot-shield" class="equipment-slot" data-slot="shield">
+              <div class="equipment-slot-label">Shield</div>
+            </div>
+            <div id="equipment-slot-helmet" class="equipment-slot" data-slot="helmet">
+              <div class="equipment-slot-label">Helmet</div>
+            </div>
+            <div id="equipment-slot-chest" class="equipment-slot" data-slot="chest">
+              <div class="equipment-slot-label">Chest</div>
+            </div>
+            <div id="equipment-slot-legs" class="equipment-slot" data-slot="legs">
+              <div class="equipment-slot-label">Legs</div>
+            </div>
+            <div id="equipment-slot-boots" class="equipment-slot" data-slot="boots">
+              <div class="equipment-slot-label">Boots</div>
+            </div>
+            <div id="equipment-slot-ring" class="equipment-slot" data-slot="ring">
+              <div class="equipment-slot-label">Ring</div>
+            </div>
+            <div id="equipment-slot-amulet" class="equipment-slot" data-slot="amulet">
+              <div class="equipment-slot-label">Amulet</div>
+            </div>
+          </div>
+        </div>
+        <div class="inventory-items">
+          <h4>Items</h4>
+          <div id="inventory-list" class="inventory-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Merchant modal -->
+<div id="merchant-modal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card merchant-modal-card" role="document">
+    <div class="modal-header">
+      <h3>Merchant</h3>
+      <button class="modal-close" id="merchant-close" aria-label="Close merchant">✕</button>
+    </div>
+    <div class="modal-body merchant-body">
+      <div class="merchant-tabs">
+        <button class="merchant-tab active" data-tab="items">Items</button>
+        <button class="merchant-tab" data-tab="buffs">Buffs</button>
+      </div>
+      <div class="merchant-content">
+        <div id="merchant-items" class="merchant-tab-content active">
+          <div id="merchant-items-list" class="merchant-items-list"></div>
+        </div>
+        <div id="merchant-buffs" class="merchant-tab-content">
+          <div id="merchant-buffs-list" class="merchant-buffs-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- King mini-game modal -->
 <div id="king-modal" aria-hidden="true">
   <div class="king-game" role="dialog" aria-modal="true" aria-label="King mini game">
@@ -476,6 +600,39 @@
   <audio id="background-music" preload="auto">
     <!-- Файлы будут загружаться динамически через JavaScript -->
   </audio>
+
+  <!-- XP & Level row - Fixed at bottom -->
+  <div id="xp-row" class="xp-row">
+    <div class="xp-bar">
+      <div class="xp-progress">
+        <div id="xp-progress-fill"></div>
+        <div class="xp-divisions">
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+          <div class="xp-division"></div>
+        </div>
+        <div class="xp-overlay">
+          <span class="xp-label">Level <span id="xp-level">1</span></span>
+          <span id="xp-value" class="xp-amount">0 / 110 XP</span>
+          <span id="xp-percent" class="xp-percent">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="xp-system.js"></script>
+  <script src="souls-system.js"></script>
+  <script src="equipment-system.js"></script>
+  <script src="inventory-system.js"></script>
+  <script src="merchant-system.js"></script>
+  <script src="battlefield-system.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

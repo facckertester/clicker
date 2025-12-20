@@ -686,7 +686,14 @@ function newSave(username) {
     },
     lastTick: now(),
     lastActivityTime: now(), // Track last activity (click or page load)
-    buildingSortMode: 0 // Building sort mode (0 = default, 1-4 = various sorts)
+    buildingSortMode: 0, // Building sort mode (0 = default, 1-4 = various sorts)
+    player: {
+      level: 1,
+      xp: 0,
+      xpForNextLevel: 110, // XP для уровня 2 (100 + 10 + 0.5 = 110.5, округляем до 110)
+      totalXP: 0,
+      clicksForXP: 0 // Счетчик кликов для начисления XP
+    }
   };
 }
 
@@ -815,6 +822,53 @@ function ensureTreasury(saveObj) {
   if (saveObj.treasury && saveObj.treasury.actions && saveObj.treasury.actions.lazyClickLevel === undefined) {
     saveObj.treasury.actions.lazyClickLevel = 1;
   }
+  
+  // Миграция для системы XP и уровней
+  if (typeof initXPSystem === 'function') {
+    initXPSystem(saveObj);
+  } else {
+      // Fallback если xp-system.js еще не загружен
+      if (!saveObj.player) {
+        saveObj.player = {
+          level: 1,
+          xp: 0,
+          xpForNextLevel: 110,
+          totalXP: 0,
+          clicksForXP: 0
+        };
+      } else {
+        // Убеждаемся что все поля существуют
+        if (saveObj.player.level === undefined) saveObj.player.level = 1;
+        if (saveObj.player.xp === undefined) saveObj.player.xp = 0;
+        if (saveObj.player.totalXP === undefined) saveObj.player.totalXP = 0;
+        if (saveObj.player.clicksForXP === undefined) saveObj.player.clicksForXP = 0;
+        if (saveObj.player.xpForNextLevel === undefined) {
+          // Пересчитываем XP для следующего уровня (новая формула)
+          saveObj.player.xpForNextLevel = 100 + (saveObj.player.level * 10) + (saveObj.player.level * saveObj.player.level * 0.5);
+        }
+      }
+  }
+  
+  // Инициализация новых систем
+  if (typeof initSoulsSystem === 'function') {
+    initSoulsSystem(saveObj);
+  }
+  if (typeof initBattlefieldSystem === 'function' && saveObj) {
+    initBattlefieldSystem(saveObj);
+    // Планируем первый спавн генерала если нужно
+    if (saveObj && saveObj.battlefield && (!saveObj.battlefield.nextGeneralSpawn || saveObj.battlefield.nextGeneralSpawn === 0)) {
+      if (typeof scheduleNextGeneral === 'function') {
+        scheduleNextGeneral();
+      }
+    }
+  }
+  if (typeof initInventorySystem === 'function') {
+    initInventorySystem(saveObj);
+  }
+  if (typeof updateBuffModifiers === 'function') {
+    updateBuffModifiers();
+  }
+  
   
   // Миграция для новых функций: убеждаемся, что bulk существует (для старых сохранений)
   if (saveObj.bulk === undefined || saveObj.bulk === null) {
@@ -1017,6 +1071,23 @@ function _updateBuildingCountdowns() {
   const nodes = document.querySelectorAll('.building-downnote');
   const t = now();
   let removedAny = false;
+  const repairedBuildings = []; // Список зданий, которые только что отремонтировались
+
+  // Проверяем все здания на завершение ремонта (до удаления нот)
+  if (save && save.buildings) {
+    save.buildings.forEach((b, index) => {
+      // Если здание было сломано (blockedUntil > 0) и теперь отремонтировано (blockedUntil <= t)
+      // И еще не было отмечено как отремонтированное (нет флага _repaired)
+      if (b.blockedUntil && b.blockedUntil > 0 && b.blockedUntil <= t && !b._repaired) {
+        repairedBuildings.push({ building: b, index: index });
+        b._repaired = true; // Помечаем как отремонтированное, чтобы не давать XP повторно
+      }
+      // Сбрасываем флаг если здание снова сломалось
+      if (b.blockedUntil && b.blockedUntil > t) {
+        b._repaired = false;
+      }
+    });
+  }
 
   nodes.forEach(node => {
     const blockedUntil = parseInt(node.dataset.blockedUntil || '0', 10);
@@ -1029,6 +1100,13 @@ function _updateBuildingCountdowns() {
     const remain = Math.ceil((blockedUntil - t) / 1000);
     node.textContent = `Under repair: ${remain}s`;
   });
+  
+  // XP за завершение ремонта (только один раз для каждого здания)
+  if (repairedBuildings.length > 0 && typeof addXPForRepair === 'function') {
+    repairedBuildings.forEach(({ building }) => {
+      addXPForRepair(building.level);
+    });
+  }
 
   // Если хотя бы одна нота исчезла — перерендерим интерфейс, чтобы восстановить кнопки/статусы
   if (removedAny) {
@@ -1040,7 +1118,10 @@ function startCountdownLoop() {
   if (_countdownInterval) return;
   _countdownInterval = setInterval(() => {
     _updateBuildingCountdowns();
-    renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
+    // Проверяем что функция renderEffects существует перед вызовом
+    if (typeof renderEffects === 'function') {
+      renderEffects(); // обновляем эффекты (если там тоже есть оставшееся время)
+    }
     // при необходимости можно обновлять верхнюю панель:
     renderTopStats();
   }, 1000);
@@ -1824,6 +1905,31 @@ function checkAchievements() {
       save.achievements.unlocked[ach.id] = true;
       anyUnlocked = true;
       toast(`Achievement unlocked: ${ach.name} (+${(ach.reward * 100).toFixed(0)}% income)!`, 'good');
+      
+      // XP за достижение (определяем tier на основе типа)
+      if (typeof addXPForAchievement === 'function') {
+        let tier = 0; // Простые по умолчанию
+        let achievementValue = 0;
+        
+        if (ach.type === 'clicks') {
+          achievementValue = ach.value || 0;
+          if (achievementValue >= 1000000) tier = 2; // Сложные
+          else if (achievementValue >= 10000) tier = 1; // Средние
+        } else if (ach.type === 'buildings_level') {
+          achievementValue = ach.level || 0;
+          if (achievementValue >= 800) tier = 2; // Сложные
+          else if (achievementValue >= 100) tier = 1; // Средние
+        } else if (ach.type === 'playtime') {
+          achievementValue = ach.value || 0;
+          if (achievementValue >= 3600000) tier = 2; // Сложные (1 час+)
+          else if (achievementValue >= 300000) tier = 1; // Средние (5 минут+)
+        } else {
+          // Для других типов используем значение если есть
+          achievementValue = ach.value || 0;
+        }
+        
+        addXPForAchievement(tier, achievementValue);
+      }
     }
   });
   
@@ -1985,8 +2091,13 @@ function updateClickHeat() {
   
   // Если перегрев закончился, сбрасываем heat
   if (save.click.cooldownUntil > 0 && save.click.cooldownUntil <= tNow) {
+    const wasOverheated = save.click.cooldownUntil > 0;
     save.click.heat = 0;
     save.click.cooldownUntil = 0;
+    // XP за успешное охлаждение
+    if (wasOverheated && typeof addXPForCooldown === 'function') {
+      addXPForCooldown();
+    }
   }
   
   // Охлаждение: уменьшаем heat на 1 единицу в секунду (только если скорость < 21)
@@ -2549,6 +2660,11 @@ function renderTopStats() {
     const newTreasuryText = `${fmt(value)} / ${fmt(baseMax)}`;
     if (treasuryValueEl.textContent !== newTreasuryText) {
       treasuryValueEl.textContent = newTreasuryText;
+    }
+    
+    // XP Bar
+    if (typeof renderXPBar === 'function') {
+      renderXPBar();
     }
     
     const newRegenText = `+${baseRegen.toFixed(0)} /s`;
@@ -5535,37 +5651,7 @@ function renderUber() {
 }
 
 
-function renderEffects() {
-  const list = document.getElementById('effects-list');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const t = now();
-
-  // Кнопка больше не может сломаться - убираем отображение эффекта поломки
-
-  // Golden click
-  if (save.click.goldenUntil > t) {
-    const remain = Math.ceil((save.click.goldenUntil - t) / 1000);
-    list.innerHTML += `<div class="effect good">Golden click: ${remain}s</div>`;
-  }
-
-  // Spider buff/debuff
-  if (save.modifiers.spiderUntil > t) {
-    const remain = Math.ceil((save.modifiers.spiderUntil - t) / 1000);
-    const mult = save.modifiers.spiderMult;
-    const type = mult > 1 ? 'good' : 'bad';
-    list.innerHTML += `<div class="effect ${type}">Spider ${mult>1?'blessing':'curse'}: ${remain}s</div>`;
-  }
-
-  // Click debuff: отображение дебафа от кликов (максимум -100%)
-  // НЕ восстанавливаем здесь - восстановление происходит только в tick() для плавности
-  // Просто читаем текущее значение для отображения
-  if (save.modifiers && save.modifiers.clickDebuffLevel > 0) {
-    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(4);
-    list.innerHTML += `<div class="effect bad">Click debuff: -${debuffPercent}% passive income</div>`;
-  }
-}
+// Старая функция renderEffects удалена - используется оптимизированная версия ниже
 
 
 // Рисует пиксельную иконку для достижения
@@ -5981,6 +6067,11 @@ function renderAll() {
   updateBulkButtons(); // Обновляем активное состояние кнопок bulk (работают для всех)
   updateSeason(); // Обновляем сезонную тему
   startAutosave();
+  
+  // XP Bar
+  if (typeof renderXPBar === 'function') {
+    renderXPBar();
+  }
 
   updateEndgameButtons();
 }
@@ -6289,6 +6380,10 @@ function buyClickLevels() {
   });
   if (bought) {
     triggerUpgradeEffect(clickBtn, 'Level Up!');
+    // XP за покупку уровня клика
+    if (typeof addXPForClickLevel === 'function') {
+      addXPForClickLevel(save.click.level);
+    }
     // Обновляем только критичные элементы сразу, остальное через scheduleRender
     renderClick();
     renderTopStats();
@@ -6319,6 +6414,11 @@ function buyClickSegmentUpgrade(segIndex) {
   save.click.upgradeBonus += 1; // 3% per upgrade (count stack)
   toast('Click segment upgraded: +3% income.', 'good');
   triggerUpgradeEffect(clickBtn, 'Upgrade!');
+  
+  // XP за сегментный апгрейд клика
+  if (typeof addXPForClickUpgrade === 'function') {
+    addXPForClickUpgrade(segIndex);
+  }
   
   // Обновляем только критичные элементы сразу
   renderClick();
@@ -6412,6 +6512,10 @@ function buyBuildingLevels(i) {
   const bought = buyBulkLevels('building', computeFn, applyFn, i);
   if (bought) {
     triggerBuildingUpgradeEffect(i, 'Level Up!');
+    // XP за покупку уровня здания
+    if (typeof addXPForBuildingLevel === 'function') {
+      addXPForBuildingLevel(b.level);
+    }
   }
   // Проверяем достижения и разблокировку асинхронно (не блокируем рендеринг)
   requestAnimationFrame(() => {
@@ -6443,6 +6547,11 @@ function buyBuildingSegUpgrade(i, segIndex) {
   b.upgradeBonus += 1;
     toast(`${b.name} segment UP: +3% income.`, 'good');
   triggerBuildingUpgradeEffect(i, 'Upgrade!');
+  
+  // XP за сегментный апгрейд здания
+  if (typeof addXPForBuildingUpgrade === 'function') {
+    addXPForBuildingUpgrade(segIndex);
+  }
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
   _lastSortMode = -1;
@@ -6879,6 +6988,11 @@ clickBtn.addEventListener('click', (event) => {
   if (save.achievements) {
     save.achievements.stats.totalClicks += 1;
     checkAchievements();
+  }
+  
+  // XP за клики
+  if (typeof addXPForClicks === 'function') {
+    addXPForClicks(1);
   }
 
   // Клик Безумия: шанс потерять уровни
@@ -7522,6 +7636,11 @@ function endKingMiniGame(outcome, info = {}) {
     // Воспроизводим звук выигрыша в мини-игру короля
     playSound('kingBuff');
     
+    // XP за успешное прохождение короля
+    if (typeof addXPForKing === 'function') {
+      addXPForKing();
+    }
+    
     // Принудительно обновляем уровни зданий после награды короля (немедленно)
     updateBuildingLevels(true);
     // Обновляем состояние кнопок
@@ -7819,6 +7938,11 @@ if (spiderEl) {
     // Скрываем паука и останавливаем движение
     spiderEl.classList.add('hidden');
     _stopSpiderMovement();
+    
+    // XP за событие паука
+    if (typeof addXPForSpider === 'function') {
+      addXPForSpider();
+    }
   });
 }
 
@@ -8142,6 +8266,11 @@ if (angryBarmatunEl) {
     // Hide angry barmatun and stop movement
     angryBarmatunEl.classList.add('hidden');
     _stopAngryBarmatunMovement();
+    
+    // XP за событие барматуна
+    if (typeof addXPForBarmatun === 'function') {
+      addXPForBarmatun();
+    }
   });
 }
 
@@ -8673,6 +8802,11 @@ if (elfArcherEl) {
     
     toast('Elf archer scared away!', 'info');
     
+    // XP за событие эльфа
+    if (typeof addXPForElfArcher === 'function') {
+      addXPForElfArcher();
+    }
+    
     _elfArcherState.aliveUntil = 0;
     _elfArcherState.moving = false;
     _elfArcherState.position = 'leaving';
@@ -8726,6 +8860,11 @@ function tick() {
     if (_kingState.spawnTimer) {
       clearTimeout(_kingState.spawnTimer);
       scheduleNextKing();
+    }
+    // Сбрасываем таймер генерала
+    if (typeof scheduleNextGeneral === 'function' && save.battlefield) {
+      const resetDelay = _randInt(60000, 180000);
+      save.battlefield.nextGeneralSpawn = t + resetDelay;
     }
     console.log('Large time gap detected, reset spawn timers to prevent simultaneous events');
     return; // Пропускаем проверки спавна в этом тике
@@ -9023,6 +9162,16 @@ function tick() {
   
   // Elf Archer spawn check
   maybeSpawnElfArcher();
+  
+  // Проверка спавна генерала
+  if (typeof checkGeneralSpawn === 'function') {
+    checkGeneralSpawn();
+  }
+  
+  // Обновление бафов
+  if (typeof updateBuffModifiers === 'function') {
+    updateBuffModifiers();
+  }
 
   // Update UI (с дебаунсингом для производительности)
   // НЕ инвалидируем кэш PPS/PPC каждый тик - кэш будет инвалидирован только при реальных изменениях
@@ -9166,6 +9315,11 @@ function checkUberUnlock() {
   if (allBuildings800 && click800) {
     save.uber.unlocked = true;
     toast('Uber Turbo Building unlocked!', 'good');
+    
+    // XP за разблокировку Uber здания
+    if (typeof addXPForUberUnlock === 'function') {
+      addXPForUberUnlock();
+    }
     checkAchievements(); // Проверяем достижения после разблокировки Uber
     // renderUber() будет вызван после этой функции в renderAll()
   }
@@ -9209,7 +9363,13 @@ uberBuyBtn.addEventListener('click', () => {
   if (save.achievements && save.achievements.stats) {
     save.achievements.stats.totalPointsSpent += bulkCost.totalCost;
   }
+  const oldUberLevel = save.uber.level;
   save.uber.level = Math.min(save.uber.level + bulkCost.totalLevels, save.uber.max);
+  
+  // XP за покупку уровня Uber здания
+  if (typeof addXPForUberLevel === 'function') {
+    addXPForUberLevel(oldUberLevel);
+  }
   
   if (bulkCost.totalLevels === 1) {
   toast('Citadel level increased.', 'good');
@@ -9266,6 +9426,12 @@ uberModeBtn.addEventListener('click', () => {
       });
       save.click.max = Math.max(save.click.max, 9999); // Увеличиваем максимальный уровень клика до 9999
       save.uber.max = Math.max(save.uber.max, 1881); // Увеличиваем максимум для убер здания до 1881
+      
+      // XP за вход в Uber Mode
+      if (typeof addXPForUberMode === 'function') {
+        addXPForUberMode();
+      }
+      
       toast('Entered Uber Mode!', 'good');
       saveNow(); // Сохраняем состояние убер мода немедленно
       updateEndgameButtons(); // Скрываем кнопки после перехода в убер мод
@@ -9655,6 +9821,15 @@ function showGame() {
   // Инициализируем таймер короля при входе в игру
   scheduleNextKing();
   
+  // Инициализируем таймер генерала при входе в игру
+  if (typeof scheduleNextGeneral === 'function') {
+    // Проверяем, не установлен ли уже nextGeneralSpawn
+    if (!save.battlefield || !save.battlefield.nextGeneralSpawn || save.battlefield.nextGeneralSpawn === 0) {
+      scheduleNextGeneral();
+    }
+  }
+  
+  
   // Блокируем контекстное меню (ПКМ) на игровом экране
   if (gameScreen) {
     gameScreen.addEventListener('contextmenu', (e) => {
@@ -9662,6 +9837,16 @@ function showGame() {
       return false;
     });
   }
+  
+  // Инициализируем UI для магазина и опыта после показа игры
+  setTimeout(() => {
+    if (typeof initMerchantUI === 'function') {
+      initMerchantUI();
+    }
+    if (typeof initXPUI === 'function') {
+      initXPUI();
+    }
+  }, 200);
 }
 // Offline earnings modal handler
 const offlineEarningsModal = document.getElementById('offline-earnings-modal');
@@ -10031,6 +10216,47 @@ debugTools.addEventListener('click', (e) => {
       addPoints(1000000);
       toast('Added 1,000,000 points.', 'good');
       break;
+    case 'setPoints':
+      const input = prompt('Enter points amount (can be 0 or any large number):', save.points.toString());
+      if (input !== null) {
+        // Парсим ввод, поддерживая очень большие числа
+        let pointsValue;
+        const trimmedInput = input.trim();
+        if (trimmedInput === '') {
+          toast('Invalid input.', 'bad');
+          break;
+        }
+        // Проверяем, является ли ввод валидным числом (может быть очень большим)
+        // Удаляем пробелы и проверяем формат
+        const cleanInput = trimmedInput.replace(/\s/g, '');
+        // Пытаемся распарсить как число
+        const parsed = Number(cleanInput);
+        if (isNaN(parsed)) {
+          toast('Invalid number format.', 'bad');
+          break;
+        }
+        // Если число слишком большое для безопасного представления, используем максимальное безопасное значение
+        if (!isFinite(parsed) || parsed > Number.MAX_SAFE_INTEGER) {
+          pointsValue = Number.MAX_SAFE_INTEGER;
+          toast('Number too large, set to maximum safe integer.', 'warn');
+        } else if (parsed < 0) {
+          pointsValue = 0;
+          toast('Negative numbers not allowed, set to 0.', 'warn');
+        } else {
+          pointsValue = Math.floor(parsed); // Используем целое число
+        }
+        // Устанавливаем поинты напрямую
+        save.points = pointsValue;
+        // Инвалидируем кэш
+        _cachedPPS = null;
+        _cachedPPC = null;
+        _cachedPoints = null;
+        // Обновляем UI
+        updateButtonStates();
+        renderAll();
+        toast(`Points set to ${fmt(pointsValue)}.`, 'good');
+      }
+      break;
     case 'cycleSeason':
       cycleSeason();
       break;
@@ -10113,6 +10339,14 @@ let _lastEffectsState = '';
 let _lastEffectsUpdate = 0;
 let _effectsDebounceTimeout = null;
 
+// Инициализируем переменные сразу, чтобы избежать ошибок при раннем вызове
+if (typeof _lastEffectsUpdate === 'undefined') {
+  _lastEffectsUpdate = 0;
+}
+if (typeof _effectsDebounceTimeout === 'undefined') {
+  _effectsDebounceTimeout = null;
+}
+
 function renderEffects() {
   const nowTs = now();
   // Обновляем не чаще чем раз в 600мс для производительности
@@ -10144,57 +10378,56 @@ function _renderEffectsInternal() {
     return;
   }
   
-  // Убираем просроченные эффекты
   const tNow = now();
-  save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > tNow);
+  let html = '';
   
-  if (!save.modifiers.activeEffects || save.modifiers.activeEffects.length === 0) {
-    if (list.children.length > 0) {
-      list.innerHTML = '';
-    }
-    _lastEffectsState = '';
-    return;
+  // Golden click
+  if (save.click && save.click.goldenUntil > tNow) {
+    const remain = Math.ceil((save.click.goldenUntil - tNow) / 1000);
+    html += `<div class="effect good">Golden click: ${remain}s</div>`;
   }
-
-  // Создаем строку состояния для сравнения
-  const currentState = save.modifiers.activeEffects.map(e => 
-    `${e.type}:${Math.floor((e.until - tNow) / 1000)}`
-  ).join('|');
-
-  // Если состояние не изменилось, обновляем только таймеры
-  if (_lastEffectsState === currentState && list.children.length === save.modifiers.activeEffects.length) {
-    // Обновляем только текст с оставшимся временем
-    const items = Array.from(list.children);
-    save.modifiers.activeEffects.forEach((e, idx) => {
-      if (items[idx]) {
-        const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
-        const newText = `${e.type} — ${secondsLeft}s left`;
-        if (items[idx].textContent !== newText) {
-          items[idx].textContent = newText;
-        }
-      }
+  
+  // Spider buff/debuff
+  if (save.modifiers.spiderUntil > tNow) {
+    const remain = Math.ceil((save.modifiers.spiderUntil - tNow) / 1000);
+    const mult = save.modifiers.spiderMult || 1.0;
+    const type = mult > 1 ? 'good' : 'bad';
+    html += `<div class="effect ${type}">Spider ${mult>1?'blessing':'curse'}: ${remain}s</div>`;
+  }
+  
+  // Click debuff
+  if (save.modifiers.clickDebuffLevel > 0) {
+    const debuffPercent = Math.min(100, save.modifiers.clickDebuffLevel).toFixed(4);
+    html += `<div class="effect bad">Click debuff: -${debuffPercent}% passive income</div>`;
+  }
+  
+  // Убираем просроченные эффекты из activeEffects
+  if (save.modifiers.activeEffects) {
+    save.modifiers.activeEffects = save.modifiers.activeEffects.filter(e => e.until > tNow);
+    
+    // Добавляем активные эффекты
+    save.modifiers.activeEffects.forEach(e => {
+      const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
+      const effectClass = (
+        e.type.toLowerCase().includes('buff') || e.type.toLowerCase().includes('golden')
+          ? 'good'
+          : e.type.toLowerCase().includes('debuff') || e.type.toLowerCase().includes('broken')
+          ? 'bad'
+          : 'info'
+      );
+      html += `<div class="effect ${effectClass}">${e.type} — ${secondsLeft}s left</div>`;
     });
-    return;
   }
-
-  // Состояние изменилось - пересоздаем список
-  _lastEffectsState = currentState;
-  list.innerHTML = '';
-
-  save.modifiers.activeEffects.forEach(e => {
-    const item = document.createElement('div');
-    item.className = 'effect-item ' + (
-      e.type.toLowerCase().includes('buff') || e.type.toLowerCase().includes('golden')
-        ? 'effect-good'
-        : e.type.toLowerCase().includes('debuff') || e.type.toLowerCase().includes('broken')
-        ? 'effect-bad'
-        : 'effect-info'
-    );
-
-    const secondsLeft = ((e.until - tNow)/1000).toFixed(1);
-    item.textContent = `${e.type} — ${secondsLeft}s left`;
-    list.appendChild(item);
-  });
+  
+  // Обновляем только если изменилось
+  if (list.innerHTML !== html) {
+    list.innerHTML = html;
+    _lastEffectsState = html;
+  }
+  
+  if (!html) {
+    _lastEffectsState = '';
+  }
 }
 
 
