@@ -720,7 +720,7 @@ function ensureTreasury(saveObj) {
         fastRepairUntil: 0, // Buff 3: Buildings repair 2x faster, break 9x more
         passiveBoostUntil: 0, // Buff 4: Passive income boost (resets on click)
         passiveBoostLevel: 0, // Current boost level (0-56%)
-        passiveBoostLastTick: 0, // Last 7-minute tick
+        passiveBoostLastTick: 0, // Last 7-second tick
         spiderBuffUntil: 0, // Buff 5: Spider buff, click gives treasury
         treasuryNoPassiveUntil: 0, // Treasury doesn't fill passively during buff 5
         noBreakUntil: 0, // Buff 6: Buildings can't break, but cost 7x more
@@ -2799,6 +2799,8 @@ function renderTreasuryActions() {
       header: `REPAIR LEVEL ${nextRepairLevelToUpgrade - 1}`,
       effect: `Accelerate all building repairs by ${Math.round(currentR.percent*100)}% of original time.`,
       details: `This is your current repair level. Use it to speed up building repairs.`,
+      duringWarning: `Building costs +25% for ${currentR.cdSec} seconds.`,
+      afterWarning: `Passive income -15% for 45 seconds.`,
       cost: currentR.cost,
       cooldown: currentR.cdSec,
       upgradeCost: upgradeCost
@@ -2813,7 +2815,7 @@ function renderTreasuryActions() {
       save.modifiers.repairDebuffCostMult = 1.25;
       toast(`Repair Level ${nextRepairLevelToUpgrade - 1} applied!`, 'good');
       renderTreasuryActions();
-    }, cdUntil, true, 0, repairUpgradeOnClick);
+    }, cdUntil, true, cdUntil, repairUpgradeOnClick);
   } else if (currentRepairLevel > 0) {
     const r = repairLevels[currentRepairLevel - 1];
     const cdUntil = act.repairCd || 0;
@@ -2823,6 +2825,8 @@ function renderTreasuryActions() {
       header: `REPAIR LEVEL ${currentRepairLevel}`,
       effect: `Accelerate all building repairs by ${Math.round(r.percent*100)}% of original time.`,
       details: `This is your current repair level. Use it to speed up building repairs.`,
+      duringWarning: `Building costs +25% for ${r.cdSec} seconds.`,
+      afterWarning: `Passive income -15% for 45 seconds.`,
       cost: r.cost,
       cooldown: r.cdSec
     };
@@ -2835,7 +2839,7 @@ function renderTreasuryActions() {
       save.modifiers.repairDebuffCostMult = 1.25;
       toast(`Repair Level ${currentRepairLevel} applied!`, 'good');
       renderTreasuryActions();
-    }, cdUntil);
+    }, cdUntil, false, cdUntil);
   }
 
   // Lazy click - одна кнопка с 4 уровнями апгрейда
@@ -2884,6 +2888,8 @@ function renderTreasuryActions() {
         header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
         effect: `Performs ${currentLevelData.clicks} passive clicks with x${currentLevelData.multiplier} multiplier over ${currentLevelData.durationMs/1000} seconds.`,
         details: `This is your current lazy click level.`,
+        duringWarning: `Passive income -${currentLazyClickLevel === 1 ? 10 : currentLazyClickLevel === 2 ? 15 : 20}%.`,
+        afterWarning: `Click income -25% for 60 seconds.`,
         cost: currentLevelData.cost,
         cooldown: 54,
         upgradeCost: nextLevelData.breakDuration
@@ -2920,6 +2926,8 @@ function renderTreasuryActions() {
       header: `LAZY CLICK LEVEL ${currentLazyClickLevel}`,
       effect: `Performs ${l.clicks} passive clicks with x${l.multiplier} multiplier over ${l.durationMs/1000} seconds.`,
       note: `These clicks do not count towards your total clicks.`,
+      duringWarning: `Passive income -${currentLazyClickLevel === 1 ? 10 : currentLazyClickLevel === 2 ? 15 : 20}%.`,
+      afterWarning: `Click income -25% for 60 seconds.`,
       cost: l.cost,
       cooldown: 54,
       duration: l.durationMs / 1000
@@ -2944,7 +2952,7 @@ function renderTreasuryActions() {
     const desc = {
       header: 'PROFIT WITHOUT TAXES',
       effect: 'All building income x11 for 32 seconds.',
-      warning: 'Five random buildings break for 936 seconds.',
+      afterWarning: 'Passive income -30% for 60 seconds. Five random buildings break for 936 seconds.',
       cost: 200,
       cooldown: 32,
       duration: 32
@@ -2973,16 +2981,17 @@ function renderTreasuryActions() {
     const desc = {
       header: 'CHIEF ENGINEER',
       effect: 'Buildings break 66% less often.',
-      warning: 'Repair time increases x2.',
+      duringWarning: 'Repair time x2.',
+      afterWarning: 'Passive income -25% for 90 seconds.',
       cost: 1000,
-      duration: 21666
+      duration: 216
     };
     mkBtn('engineer','Chief Engineer', desc, ready && save.treasury.value >= 1000, () => {
       if (!ready) { toast('On cooldown.', 'warn'); return; }
       if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
-      applyEngineer(21666*1000);
-      act.engineerCd = now() + 21666*1000;
-      act.engineerUntil = now() + 21666*1000;
+      applyEngineer(216*1000);
+      act.engineerCd = now() + 216*1000;
+      act.engineerUntil = now() + 216*1000;
       toast('Chief Engineer activated.', 'good');
       renderTreasuryActions();
     }, cdUntil, false, engineerUntil);
@@ -2997,8 +3006,8 @@ function renderTreasuryActions() {
     const desc = {
       header: 'CLICK MADNESS!',
       effect: 'Click income x99.9999.',
-      warning: 'There is a chance to lose 3 Click levels per click.',
-      note: 'Click button cannot become golden or broken during effect.',
+      duringWarning: 'There is a chance to lose 3 Click levels per click.',
+      afterWarning: 'Click income -50% for 120 seconds. 3-5 random buildings break for 180 seconds.',
       cost: 350,
       cooldown: 36,
       duration: 36
@@ -3109,7 +3118,24 @@ function renderTreasuryActions() {
         body.appendChild(noteLine);
       }
       
-      if (btn.desc.warning) {
+      if (btn.desc.duringWarning) {
+        const duringWarningLine = document.createElement('div');
+        duringWarningLine.style.color = '#ff6b6b';
+        duringWarningLine.style.marginTop = '6px';
+        duringWarningLine.textContent = `During effect: ${btn.desc.duringWarning}`;
+        body.appendChild(duringWarningLine);
+      }
+      
+      if (btn.desc.afterWarning) {
+        const afterWarningLine = document.createElement('div');
+        afterWarningLine.style.color = '#ff6b6b';
+        afterWarningLine.style.marginTop = btn.desc.duringWarning ? '4px' : '6px';
+        afterWarningLine.textContent = `After effect: ${btn.desc.afterWarning}`;
+        body.appendChild(afterWarningLine);
+      }
+      
+      // Старый формат warning для обратной совместимости
+      if (btn.desc.warning && !btn.desc.duringWarning && !btn.desc.afterWarning) {
         const warningLine = document.createElement('div');
         warningLine.style.color = '#ff6b6b';
         warningLine.style.marginTop = '6px';
@@ -3549,11 +3575,11 @@ function renderTreasuryActions() {
     treasuryActionsEl.appendChild(el);
   });
   
-  // Second row for Uber mode buffs (3 hours duration, cost treasury coins)
+  // Second row for Uber mode buffs (108 seconds duration, cost treasury coins)
   const isInUberMode = save.uber && save.uber.max !== 19;
   if (isInUberMode) {
     const secondRowButtons = [];
-    const hourMs = 10800000; // 3 hours
+    const hourMs = 108000; // 108 seconds
     
     // Check if any buff is currently active - if so, disable all buttons
     const anyBuffActive = (act.noGoldenUntil > nowTs) || 
@@ -3569,9 +3595,10 @@ function renderTreasuryActions() {
       const desc = {
         header: 'NO GOLDEN CLICK',
         effect: 'Click button cannot become golden.',
-        warning: 'Click button brings 17% less income.',
+        duringWarning: 'Click income -83%.',
+        afterWarning: '2-3 random buildings break for 120 seconds.',
         cost: 1000,
-        duration: 10800
+        duration: 108
       };
       secondRowButtons.push({
         id: 'noGolden',
@@ -3582,7 +3609,7 @@ function renderTreasuryActions() {
           if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
           if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
           act.noGoldenUntil = now() + hourMs;
-          toast('No Golden Click activated for 3 hours.', 'good');
+          toast('No Golden Click activated for 108 seconds.', 'good');
           renderTreasuryActions();
         },
         buffUntil: act.noGoldenUntil
@@ -3595,8 +3622,9 @@ function renderTreasuryActions() {
       const desc = {
         header: 'ALWAYS GOLDEN',
         effect: 'Click button is always golden.',
+        afterWarning: 'Click button cannot become golden for 120 seconds. Click income -35% for 90 seconds.',
         cost: 1000,
-        duration: 10800
+        duration: 108
       };
       secondRowButtons.push({
         id: 'alwaysGolden',
@@ -3608,7 +3636,7 @@ function renderTreasuryActions() {
           if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
           act.alwaysGoldenUntil = now() + hourMs;
           save.click.goldenUntil = now() + hourMs; // Set golden immediately
-          toast('Always Golden Click activated for 3 hours.', 'good');
+          toast('Always Golden Click activated for 108 seconds.', 'good');
           
           // Воспроизводим звук золотой кнопки
           playSound('clickGold');
@@ -3624,9 +3652,10 @@ function renderTreasuryActions() {
       const desc = {
         header: 'FAST REPAIR',
         effect: 'Buildings repair 2 times faster.',
-        warning: 'Buildings break 9 times more often.',
+        duringWarning: 'Buildings break 9x more often.',
+        afterWarning: 'Repair time +50%. 3-4 random buildings break for 150 seconds.',
         cost: 1000,
-        duration: 10800
+        duration: 108
       };
       secondRowButtons.push({
         id: 'fastRepair',
@@ -3645,23 +3674,24 @@ function renderTreasuryActions() {
               b.blockedUntil = nowTs + (remaining * 0.5); // Уменьшаем оставшееся время в 2 раза
             }
           });
-          toast('Fast Repair activated for 3 hours.', 'good');
+          toast('Fast Repair activated for 108 seconds.', 'good');
           renderTreasuryActions();
         },
         buffUntil: act.fastRepairUntil
       });
     }
     
-    // Buff 4: Passive income boost (1% every 7 min, up to 56%, resets on various actions)
+    // Buff 4: Passive income boost (1% every 7 seconds, up to 56%, resets on various actions)
     {
       const active = act.passiveBoostUntil > nowTs;
       const currentBoost = Math.min(act.passiveBoostLevel || 0, 56);
       const desc = {
         header: 'PASSIVE BOOST',
-        effect: `Passive income increases by 1% every 7 minutes (current: +${currentBoost}%).`,
-        warning: 'Clicking click button, spider, king, barmatun, elf, buying click levels, or upgrading click resets this bonus.',
+        effect: `Passive income increases by 1% every 7 seconds (current: +${currentBoost}%).`,
+        note: 'Clicking click button, spider, king, barmatun, elf, buying click levels, or upgrading click resets this bonus.',
+        afterWarning: 'Passive income -30% for 120 seconds. Click income -25% for 90 seconds. 2-3 random buildings break for 180 seconds.',
         cost: 1000,
-        duration: 10800
+        duration: 108
       };
       secondRowButtons.push({
         id: 'passiveBoost',
@@ -3675,7 +3705,7 @@ function renderTreasuryActions() {
           act.passiveBoostLevel = 0;
           act.passiveBoostLastTick = now();
           _cachedPPS = null;
-          toast('Passive Boost activated for 3 hours.', 'good');
+          toast('Passive Boost activated for 108 seconds.', 'good');
           renderTreasuryActions();
         },
         buffUntil: act.passiveBoostUntil
@@ -3688,9 +3718,10 @@ function renderTreasuryActions() {
       const desc = {
         header: 'MASTER BUILDER',
         effect: 'Buildings cannot break.',
-        warning: 'Buildings and upgrades cost 7 times more.',
+        duringWarning: 'Buildings and upgrades cost 7x more.',
+        afterWarning: 'Passive income -40% for 120 seconds. Click income -30% for 90 seconds.',
         cost: 1000,
-        duration: 10800
+        duration: 108
       };
       secondRowButtons.push({
         id: 'noBreak',
@@ -3701,7 +3732,7 @@ function renderTreasuryActions() {
           if (anyBuffActive) { toast('Another buff is already active.', 'warn'); return; }
           if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
           act.noBreakUntil = now() + hourMs;
-          toast('Master Builder activated for 3 hours.', 'good');
+          toast('Master Builder activated for 108 seconds.', 'good');
           renderTreasuryActions();
         },
         buffUntil: act.noBreakUntil
@@ -3715,8 +3746,9 @@ function renderTreasuryActions() {
         header: 'SPIDER BUFF',
         effect: 'Spider increases chance for positive effects and decreases negative effects. Buff duration: 4s, Debuff duration: 12s.',
         note: 'Each click gives 0.2 treasury coins. Treasury no longer fills passively. King mini-game requires one less crown to win.',
+        afterWarning: 'Passive income -20% for 90 seconds. Click income -25% for 60 seconds. 2-3 random buildings break for 150 seconds.',
         cost: 1000,
-        duration: 10800
+        duration: 108
       };
       secondRowButtons.push({
         id: 'spiderBuff',
@@ -3728,7 +3760,7 @@ function renderTreasuryActions() {
           if (!spendTreasury(1000)) { toast('Not enough treasury.', 'warn'); return; }
           act.spiderBuffUntil = now() + hourMs;
           act.treasuryNoPassiveUntil = now() + hourMs;
-          toast('Spider Buff activated for 3 hours.', 'good');
+          toast('Spider Buff activated for 108 seconds.', 'good');
           renderTreasuryActions();
         },
         buffUntil: act.spiderBuffUntil
@@ -3793,7 +3825,24 @@ function renderTreasuryActions() {
         body.appendChild(effectLine);
       }
       
-      if (btn.desc.warning) {
+      if (btn.desc.duringWarning) {
+        const duringWarningLine = document.createElement('div');
+        duringWarningLine.style.color = '#ff6b6b';
+        duringWarningLine.style.marginTop = '6px';
+        duringWarningLine.textContent = `During effect: ${btn.desc.duringWarning}`;
+        body.appendChild(duringWarningLine);
+      }
+      
+      if (btn.desc.afterWarning) {
+        const afterWarningLine = document.createElement('div');
+        afterWarningLine.style.color = '#ff6b6b';
+        afterWarningLine.style.marginTop = btn.desc.duringWarning ? '4px' : '6px';
+        afterWarningLine.textContent = `After effect: ${btn.desc.afterWarning}`;
+        body.appendChild(afterWarningLine);
+      }
+      
+      // Старый формат warning для обратной совместимости
+      if (btn.desc.warning && !btn.desc.duringWarning && !btn.desc.afterWarning) {
         const warningLine = document.createElement('div');
         warningLine.style.color = '#ff6b6b';
         warningLine.style.marginTop = '6px';
@@ -6213,7 +6262,7 @@ function resetPassiveBoost() {
           if (tooltip) {
             const effectLine = tooltip.querySelector('.tooltip-line > div');
             if (effectLine) {
-              effectLine.textContent = `Passive income increases by 1% every 7 minutes (current: +0%).`;
+              effectLine.textContent = `Passive income increases by 1% every 7 seconds (current: +0%).`;
             }
           }
         }
@@ -8697,13 +8746,13 @@ function tick() {
       }
     }
     
-    // Buff 4: Passive income boost (1% every 7 minutes, up to 56%)
+    // Buff 4: Passive income boost (1% every 7 seconds, up to 56%)
     let passiveBoostChanged = false;
     if (act && act.passiveBoostUntil > t) {
-      const sevenMinMs = 420000; // 7 minutes
+      const sevenSecMs = 7000; // 7 seconds
       const lastTick = act.passiveBoostLastTick || t;
       const oldLevel = act.passiveBoostLevel || 0;
-      if (t - lastTick >= sevenMinMs) {
+      if (t - lastTick >= sevenSecMs) {
         act.passiveBoostLevel = Math.min((act.passiveBoostLevel || 0) + 1, 56);
         act.passiveBoostLastTick = t;
         if (act.passiveBoostLevel !== oldLevel) {
@@ -8997,7 +9046,7 @@ function tick() {
         const effectLine = tooltip.querySelector('.tooltip-line > div');
         if (effectLine) {
           const currentBoost = Math.min(act.passiveBoostLevel || 0, 56);
-          effectLine.textContent = `Passive income increases by 1% every 7 minutes (current: +${currentBoost}%).`;
+          effectLine.textContent = `Passive income increases by 1% every 7 seconds (current: +${currentBoost}%).`;
         }
       }
     }
@@ -9168,8 +9217,23 @@ uberBuyBtn.addEventListener('click', () => {
     toast(`Citadel level increased by ${bulkCost.totalLevels}.`, 'good');
   }
   
-  checkAchievements(); // Проверяем достижения после покупки уровня Uber
-  renderAll();
+  // Инвалидируем кэш PPS/PPC при изменении уровня Uber здания
+  _cachedPPS = null;
+  _cachedPPC = null;
+  
+  // Критичные обновления сразу (синхронно) - для мгновенного отображения изменений
+  renderTopStats();
+  renderUber(); // Обновляем Uber здание сразу (включая уровень, доход, стоимость)
+  renderClick(); // Обновляем кнопку клика (может показывать информацию о Uber здании)
+  updateButtonStates(); // Обновляем состояние кнопок сразу для плавности
+  
+  // Тяжелые операции откладываем на следующий кадр для плавности
+  requestAnimationFrame(() => {
+    scheduleRender({ click: true, buildings: true });
+    // Проверяем достижения и разблокировку асинхронно (не блокируем рендеринг)
+    checkAchievements();
+    checkUberUnlock();
+  });
 });
 
 if (endgameBtn) {
