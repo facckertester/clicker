@@ -923,7 +923,13 @@ async function saveNow() {
 }
 
 function autosaveLoop() {
-  setInterval(saveNow, 1000);
+  setInterval(() => {
+    saveNow();
+    // Also save combat state
+    if (window.combatSystem && window.combatSystem.save) {
+      window.combatSystem.save();
+    }
+  }, 1000);
 }
 
 // --- Autosave: надежный автосейв каждую секунду ---
@@ -1824,6 +1830,11 @@ function checkAchievements() {
       save.achievements.unlocked[ach.id] = true;
       anyUnlocked = true;
       toast(`Achievement unlocked: ${ach.name} (+${(ach.reward * 100).toFixed(0)}% income)!`, 'good');
+      
+      // Experience: Add experience for achievement unlock
+      if (window.experienceSystem && window.experienceSystem.hooks) {
+        window.experienceSystem.hooks.achievement();
+      }
     }
   });
   
@@ -5983,6 +5994,21 @@ function renderAll() {
   startAutosave();
 
   updateEndgameButtons();
+  
+  // Initialize and render experience system
+  if (window.experienceSystem && window.experienceSystem.init) {
+    window.experienceSystem.init();
+  }
+  
+  // Initialize inventory system
+  if (window.experienceSystem && window.experienceSystem.inventory && window.experienceSystem.inventory.init) {
+    window.experienceSystem.inventory.init();
+  }
+  
+  // Initialize combat system
+  if (window.combatSystem && window.combatSystem.init) {
+    window.combatSystem.init();
+  }
 }
 
 // ======= Actions =======
@@ -6277,6 +6303,7 @@ function buyClickLevels() {
   // Инвалидируем кэш перед покупкой
   _cachedPPC = null;
   const segStartLevel = save.click.level;
+  let levelsBought = 0;
   const bought = buyBulkLevels('click', computeBulkCostForClick, () => {
     const lvl = save.click.level;
     const cost = clickLevelCostAt(lvl);
@@ -6286,6 +6313,12 @@ function buyClickLevels() {
     // Golden click chance on continuous clicks (handled in clicking, not leveling)
     // Level up gating check (3% fail chance for buildings only, not for click)
     save.click.level = Math.min(save.click.level + 1, save.click.max);
+    levelsBought++;
+    
+    // Experience: Add experience for each level up
+    if (window.experienceSystem && window.experienceSystem.hooks) {
+      window.experienceSystem.hooks.clickLevelUp();
+    }
   });
   if (bought) {
     triggerUpgradeEffect(clickBtn, 'Level Up!');
@@ -6325,6 +6358,11 @@ function buyClickSegmentUpgrade(segIndex) {
   renderTopStats();
   // Остальное откладываем на следующий кадр (если нужно)
   scheduleRender({ click: true, topStats: true });
+  
+  // Experience: Add experience for click upgrade
+  if (window.experienceSystem && window.experienceSystem.hooks) {
+    window.experienceSystem.hooks.clickUpgrade();
+  }
 }
 
 clickBuyBtn.addEventListener('click', buyClickLevels);
@@ -6358,6 +6396,10 @@ function buyBuildingLevels(i) {
     if (save.modifiers.goodLuckMode) {
       // Apply level without break check
       b.level = Math.min(b.level + 1, b.max);
+      // Experience: Add experience for each building level up
+      if (window.experienceSystem && window.experienceSystem.hooks) {
+        window.experienceSystem.hooks.buildingLevelUp();
+      }
       return true; // Success, continue buying
     }
 
@@ -6367,6 +6409,10 @@ function buyBuildingLevels(i) {
     if (noBreakActive) {
       // Apply level without break check
       b.level = Math.min(b.level + 1, b.max);
+      // Experience: Add experience for each building level up
+      if (window.experienceSystem && window.experienceSystem.hooks) {
+        window.experienceSystem.hooks.buildingLevelUp();
+      }
       return true; // Success, continue buying
     }
 
@@ -6396,6 +6442,10 @@ function buyBuildingLevels(i) {
         save.achievements.stats.totalDestructions += 1;
         checkAchievements();
       }
+      // Experience: Add experience even if building broke (level was applied)
+      if (window.experienceSystem && window.experienceSystem.hooks) {
+        window.experienceSystem.hooks.buildingLevelUp();
+      }
       return false; // Signal that building broke, stop buying more levels
     }
     
@@ -6405,6 +6455,11 @@ function buyBuildingLevels(i) {
       checkAchievements();
     }
     
+    // Experience: Add experience for each building level up
+    if (window.experienceSystem && window.experienceSystem.hooks) {
+      window.experienceSystem.hooks.buildingLevelUp();
+    }
+    
     // Return true to indicate level was successfully applied
     // (Master Builder free levels are handled elsewhere if needed)
     return true;
@@ -6412,6 +6467,7 @@ function buyBuildingLevels(i) {
   const bought = buyBulkLevels('building', computeFn, applyFn, i);
   if (bought) {
     triggerBuildingUpgradeEffect(i, 'Level Up!');
+    // Experience is now handled inside applyFn for each level
   }
   // Проверяем достижения и разблокировку асинхронно (не блокируем рендеринг)
   requestAnimationFrame(() => {
@@ -6459,6 +6515,11 @@ function buyBuildingSegUpgrade(i, segIndex) {
   requestAnimationFrame(() => {
     scheduleRender({ buildings: true });
   });
+  
+  // Experience: Add experience for building upgrade
+  if (window.experienceSystem && window.experienceSystem.hooks) {
+    window.experienceSystem.hooks.buildingUpgrade();
+  }
 }
 
 // ======= Clicking mechanics =======
@@ -6879,6 +6940,11 @@ clickBtn.addEventListener('click', (event) => {
   if (save.achievements) {
     save.achievements.stats.totalClicks += 1;
     checkAchievements();
+  }
+  
+  // Experience: Add experience for click
+  if (window.experienceSystem && window.experienceSystem.hooks) {
+    window.experienceSystem.hooks.click();
   }
 
   // Клик Безумия: шанс потерять уровни
@@ -7359,6 +7425,12 @@ kingEl.addEventListener('click', (e) => {
   e.stopPropagation();
   if (!kingEl.classList.contains('show')) return;
   resetPassiveBoost(); // Reset passive boost when clicking king
+  
+  // Experience: Add experience for king click
+  if (window.experienceSystem && window.experienceSystem.hooks) {
+    window.experienceSystem.hooks.kingClick();
+  }
+  
   // open mini-game
   openKingMiniGame();
   // hide king from screen while mini-game is active
@@ -7746,6 +7818,12 @@ if (spiderEl) {
 
   spiderEl.addEventListener('click', () => {
     resetPassiveBoost(); // Reset passive boost when clicking spider
+    
+    // Experience: Add experience for spider click
+    if (window.experienceSystem && window.experienceSystem.hooks) {
+      window.experienceSystem.hooks.spiderClick();
+    }
+    
     // отменяем таймер "убежал", если он есть
     if (_spiderState.escapeTimer) {
       clearTimeout(_spiderState.escapeTimer);
@@ -8106,6 +8184,12 @@ if (angryBarmatunEl) {
   
   angryBarmatunEl.addEventListener('click', () => {
     resetPassiveBoost(); // Reset passive boost when clicking angry barmatun
+    
+    // Experience: Add experience for barmatun click
+    if (window.experienceSystem && window.experienceSystem.hooks) {
+      window.experienceSystem.hooks.barmatunClick();
+    }
+    
     // cancel escape timer
     if (_angryBarmatunState.escapeTimer) {
       clearTimeout(_angryBarmatunState.escapeTimer);
@@ -8661,6 +8745,11 @@ if (elfArcherEl) {
     if (_elfArcherState.shooting) return; // Can't interact while shooting
     resetPassiveBoost(); // Reset passive boost when clicking elf archer
     
+    // Experience: Add experience for elf click
+    if (window.experienceSystem && window.experienceSystem.hooks) {
+      window.experienceSystem.hooks.elfClick();
+    }
+    
     // Cancel any timers
     if (_elfArcherState.shootTimer) {
       clearTimeout(_elfArcherState.shootTimer);
@@ -9166,6 +9255,12 @@ function checkUberUnlock() {
   if (allBuildings800 && click800) {
     save.uber.unlocked = true;
     toast('Uber Turbo Building unlocked!', 'good');
+    
+    // Experience: Add experience for uber unlock
+    if (window.experienceSystem && window.experienceSystem.hooks) {
+      window.experienceSystem.hooks.uberUnlock();
+    }
+    
     checkAchievements(); // Проверяем достижения после разблокировки Uber
     // renderUber() будет вызван после этой функции в renderAll()
   }
@@ -9226,6 +9321,13 @@ uberBuyBtn.addEventListener('click', () => {
   renderUber(); // Обновляем Uber здание сразу (включая уровень, доход, стоимость)
   renderClick(); // Обновляем кнопку клика (может показывать информацию о Uber здании)
   updateButtonStates(); // Обновляем состояние кнопок сразу для плавности
+  
+  // Experience: Add experience for uber level up (per level)
+  if (window.experienceSystem && window.experienceSystem.hooks) {
+    for (let i = 0; i < bulkCost.totalLevels; i++) {
+      window.experienceSystem.hooks.uberLevelUp();
+    }
+  }
   
   // Тяжелые операции откладываем на следующий кадр для плавности
   requestAnimationFrame(() => {
@@ -10088,6 +10190,28 @@ debugTools.addEventListener('click', (e) => {
       _cachedPPC = null;
       _cachedPoints = null;
       _cachedPointsText = null;
+      
+      // Reset combat system
+      if (window.combatSystem) {
+        // Stop any active combat or countdown
+        if (combatSystem.countdownTimer !== null) {
+          clearInterval(combatSystem.countdownTimer);
+          combatSystem.countdownTimer = null;
+        }
+        combatSystem.bossWave = 0;
+        combatSystem.boss = null;
+        combatSystem.active = false;
+        combatSystem.souls = 0;
+        combatSystem.countdownSeconds = 0;
+        if (save.combat) {
+          save.combat.bossWave = 0;
+          save.combat.souls = 0;
+        }
+        if (window.combatSystem.render) {
+          window.combatSystem.render();
+        }
+      }
+      
       // Полностью перерисовываем все
       renderAll();
       toast('Reset complete.', 'warn');

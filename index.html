@@ -191,6 +191,10 @@
           <span class="stat-label">Points/click</span>
           <span id="ppc" class="stat-value">0.1111</span>
         </div>
+        <div class="stat">
+          <span class="stat-label">Souls</span>
+          <span id="souls-display" class="stat-value">0</span>
+        </div>
 
         <div class="userbox">
           <span id="username-display"></span>
@@ -222,6 +226,8 @@
           </div>
           <button id="hints-toggle-btn" class="btn tiny" title="Toggle hints">💡</button>
           <button id="stats-btn" class="btn tiny">Stats</button>
+          <button id="inventory-btn" class="btn tiny" title="Inventory">🎒</button>
+          <button id="general-btn" class="btn tiny" title="Call General for Defense">⚔️</button>
           <button id="debug-open" class="btn tiny secondary">debug</button>
         </div>
       </div>
@@ -339,6 +345,31 @@
     <!-- ELF ARCHER -->
     <div id="elf-archer" class="elf-archer hidden" title="Elf Archer - click to scare away!"></div>
 
+    <!-- EXPERIENCE BAR -->
+    <div id="experience-bar-container" class="experience-bar-container">
+      <div class="experience-bar-wrapper">
+        <div class="experience-bar">
+          <div class="experience-segments">
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+            <div class="experience-segment"></div>
+          </div>
+          <div id="experience-bar-fill" class="experience-bar-fill"></div>
+          <div class="experience-bar-content">
+            <span id="experience-level" class="experience-level">Level 1</span>
+            <span id="experience-bar-text" class="experience-bar-text">0 / 100 XP (0%)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 <!-- Updates button (fixed top-right) -->
@@ -384,6 +415,186 @@
     </div>
     <div class="modal-body" id="stats-body">
       <!-- Statistics will be rendered here -->
+    </div>
+  </div>
+</div>
+
+<!-- Inventory modal -->
+<div id="inventory-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card inventory-modal-card" role="document" aria-labelledby="inventory-title">
+    <div class="modal-header">
+      <h3 id="inventory-title">Inventory</h3>
+      <button class="modal-close" id="inventory-close" aria-label="Close inventory">✕</button>
+    </div>
+    <div class="inventory-body">
+      <!-- Top section: Equipment and Stats -->
+      <div class="inventory-top-section">
+        <!-- Left: Equipment -->
+        <div class="inventory-equipment">
+          <h4 class="inventory-section-title">Equipment</h4>
+          <div class="equipment-grid">
+            <!-- Row 1: Helmet (centered) -->
+            <div class="equipment-slot equipment-slot-center" data-slot="helmet" title="Helmet">
+              <div class="equipment-slot-icon">⛑️</div>
+              <div class="equipment-slot-label">Head</div>
+            </div>
+            <!-- Row 2: Shoulders, Chest, Necklace -->
+            <div class="equipment-slot" data-slot="shoulders" title="Shoulders">
+              <div class="equipment-slot-icon">🛡️</div>
+              <div class="equipment-slot-label">Shoulder</div>
+            </div>
+            <div class="equipment-slot" data-slot="chest" title="Chest">
+              <div class="equipment-slot-icon">🦺</div>
+              <div class="equipment-slot-label">Chest</div>
+            </div>
+            <div class="equipment-slot" data-slot="necklace" title="Necklace">
+              <div class="equipment-slot-icon">📿</div>
+              <div class="equipment-slot-label">Necklace</div>
+            </div>
+            <!-- Row 3: Ring, Gloves, Ring -->
+            <div class="equipment-slot" data-slot="ring1" title="Ring 1">
+              <div class="equipment-slot-icon">💍</div>
+              <div class="equipment-slot-label">Ring</div>
+            </div>
+            <div class="equipment-slot" data-slot="gloves" title="Gloves">
+              <div class="equipment-slot-icon">🧤</div>
+              <div class="equipment-slot-label">Gloves</div>
+            </div>
+            <div class="equipment-slot" data-slot="ring2" title="Ring 2">
+              <div class="equipment-slot-icon">💍</div>
+              <div class="equipment-slot-label">Ring</div>
+            </div>
+            <!-- Row 4: Accessory x3 -->
+            <div class="equipment-slot" data-slot="accessory1" title="Accessory 1">
+              <div class="equipment-slot-icon">✨</div>
+              <div class="equipment-slot-label">Accessory</div>
+            </div>
+            <div class="equipment-slot" data-slot="accessory2" title="Accessory 2">
+              <div class="equipment-slot-icon">✨</div>
+              <div class="equipment-slot-label">Accessory</div>
+            </div>
+            <div class="equipment-slot" data-slot="accessory3" title="Accessory 3">
+              <div class="equipment-slot-icon">✨</div>
+              <div class="equipment-slot-label">Accessory</div>
+            </div>
+            <!-- Row 5: Weapon, Legs, Shield -->
+            <div class="equipment-slot" data-slot="weapon-right" title="Right Hand Weapon">
+              <div class="equipment-slot-icon">⚔️</div>
+              <div class="equipment-slot-label">Weapon</div>
+            </div>
+            <div class="equipment-slot" data-slot="legs" title="Legs">
+              <div class="equipment-slot-icon">👖</div>
+              <div class="equipment-slot-label">Legs</div>
+            </div>
+            <div class="equipment-slot" data-slot="weapon-left" title="Left Hand Weapon/Shield">
+              <div class="equipment-slot-icon">🛡️</div>
+              <div class="equipment-slot-label">Shield</div>
+            </div>
+            <!-- Row 6: Boots (centered) -->
+            <div class="equipment-slot equipment-slot-center" data-slot="boots" title="Boots">
+              <div class="equipment-slot-icon">👢</div>
+              <div class="equipment-slot-label">Boots</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right: Stats -->
+        <div class="inventory-stats">
+          <h4 class="inventory-section-title">Stats</h4>
+          <div class="stats-list">
+            <div class="stat-item">
+              <span class="stat-label">HP:</span>
+              <span class="stat-value" id="inv-hp">100 / 100</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Damage:</span>
+              <span class="stat-value" id="inv-damage">10</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Armor:</span>
+              <span class="stat-value" id="inv-armor">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Crit Chance:</span>
+              <span class="stat-value" id="inv-crit-chance">5%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Crit Multiplier:</span>
+              <span class="stat-value" id="inv-crit-mult">2.0x</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Dodge Chance:</span>
+              <span class="stat-value" id="inv-dodge">0%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">HP Regen:</span>
+              <span class="stat-value" id="inv-hp-regen">0 /s</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Mana:</span>
+              <span class="stat-value" id="inv-mana">50 / 50</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Bottom section: Inventory Grid -->
+      <div class="inventory-bottom-section">
+        <h4 class="inventory-section-title">Inventory</h4>
+        <div class="inventory-grid" id="inventory-grid">
+          <!-- 10x4 = 40 slots -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Combat Screen -->
+<div id="combat-screen" class="combat-screen hidden">
+  <div class="combat-container">
+    <div class="combat-header">
+      <h3>City Defense - Boss Wave <span id="boss-wave-number">1</span></h3>
+      <button id="combat-close" class="btn tiny">✕</button>
+    </div>
+    
+    <div class="combat-arena">
+      <!-- Boss Section -->
+      <div class="combat-boss">
+        <div class="combat-entity-name" id="boss-name">Boss</div>
+        <div class="combat-hp-bar-container">
+          <div class="combat-hp-bar" id="boss-hp-bar"></div>
+          <div class="combat-hp-text" id="boss-hp-text">100 / 100</div>
+        </div>
+        <div class="combat-entity-icon">👹</div>
+      </div>
+      
+      <!-- Player Section -->
+      <div class="combat-player">
+        <div class="combat-entity-icon">🛡️</div>
+        <div class="combat-hp-bar-container">
+          <div class="combat-hp-bar player-hp-bar" id="player-hp-bar"></div>
+          <div class="combat-hp-text" id="player-hp-text">100 / 100</div>
+        </div>
+        <div class="combat-entity-name">Player</div>
+      </div>
+    </div>
+    
+    <div class="combat-controls">
+      <button id="combat-attack-btn" class="btn primary">Attack</button>
+      <div class="combat-stats">
+        <div class="combat-stat-item">
+          <span>Damage:</span>
+          <span id="combat-damage">10</span>
+        </div>
+        <div class="combat-stat-item">
+          <span>Armor:</span>
+          <span id="combat-armor">0</span>
+        </div>
+        <div class="combat-stat-item">
+          <span>Dodge:</span>
+          <span id="combat-dodge">0%</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -476,6 +687,8 @@
   <audio id="background-music" preload="auto">
     <!-- Файлы будут загружаться динамически через JavaScript -->
   </audio>
+  <script src="experience.js"></script>
+  <script src="combat.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
