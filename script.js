@@ -7501,11 +7501,8 @@ function spawnKing(force = false) {
   
   // Добавляем обработчик клика с логированием
   kingEl.onclick = function(e) {
-    console.log('[KING] Click handler called!');
     e.stopPropagation();
     e.preventDefault();
-    
-    console.log('[KING] Calling openKingMiniGame()...');
     openKingMiniGame();
     
     // Скрываем короля
@@ -7519,10 +7516,8 @@ function spawnKing(force = false) {
   
   // Также добавляем через addEventListener для надежности
   kingEl.addEventListener('click', function(e) {
-    console.log('[KING] AddEventListener click handler called!');
     e.stopPropagation();
     e.preventDefault();
-    console.log('[KING] Calling openKingMiniGame() from addEventListener...');
     openKingMiniGame();
     kingEl.classList.remove('show');
     kingEl.style.display = 'none';
@@ -7532,7 +7527,6 @@ function spawnKing(force = false) {
     }
   }, true);
   
-  console.log('[KING] Click handlers added to king element');
   
   // Устанавливаем время видимости
   if (typeof now === 'function') {
@@ -7651,26 +7645,15 @@ if (document.readyState === 'loading') {
 
 // Mini-game implementation
 function openKingMiniGame() {
-  console.log('[KING MINIGAME] openKingMiniGame() called');
-  
   // Получаем элементы модального окна (на случай если они еще не загружены)
   const elements = getKingModalElements();
-  console.log('[KING MINIGAME] Elements:', {
-    kingModal: !!elements.kingModal,
-    kingArena: !!elements.kingArena,
-    kingTimerEl: !!elements.kingTimerEl,
-    kingStatusEl: !!elements.kingStatusEl
-  });
   
   if (!elements.kingModal || !elements.kingArena || !elements.kingTimerEl || !elements.kingStatusEl) {
-    console.error('[KING MINIGAME] Elements not found!', elements);
     if (typeof toast === 'function') {
       toast('King mini-game elements not found!', 'bad');
     }
     return;
   }
-  
-  console.log('[KING MINIGAME] All elements found, opening modal...');
   
   // initialize state
   const durationMs = 8000;
@@ -7680,52 +7663,102 @@ function openKingMiniGame() {
   const baseTarget = 12;
   const target = spiderBuffActive ? (baseTarget - 1) : baseTarget;
   
-  // Показываем модальное окно (явно устанавливаем все стили с !important)
-  console.log('[KING MINIGAME] Setting modal styles...');
+  // КРИТИЧНО: Перемещаем модальное окно в body, если оно находится в скрытом контейнере
+  if (elements.kingModal.parentElement !== document.body) {
+    const parent = elements.kingModal.parentElement;
+    const parentDisplay = window.getComputedStyle(parent).display;
+    if (parentDisplay === 'none' || parent.classList.contains('hidden')) {
+      document.body.appendChild(elements.kingModal);
+    }
+  }
+  
+  // Сначала устанавливаем базовые стили
+  elements.kingModal.style.cssText = '';
   elements.kingModal.classList.add('show');
-  elements.kingModal.style.setProperty('display', 'flex', 'important');
-  elements.kingModal.style.setProperty('visibility', 'visible', 'important');
-  elements.kingModal.style.setProperty('opacity', '1', 'important');
-  elements.kingModal.style.setProperty('z-index', '11000', 'important');
-  elements.kingModal.style.setProperty('position', 'fixed', 'important');
+  
+  // Устанавливаем все стили через cssText для максимального приоритета
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  
+  elements.kingModal.style.cssText = `
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 11000 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: ${viewportWidth}px !important;
+    height: ${viewportHeight}px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(0, 0, 0, 0.55) !important;
+  `;
+  
+  // Устанавливаем aria-hidden в false ПЕРЕД установкой фокуса, чтобы избежать ошибки accessibility
   elements.kingModal.setAttribute('aria-hidden', 'false');
   
-  console.log('[KING MINIGAME] Modal styles set. Computed display:', window.getComputedStyle(elements.kingModal).display);
-  console.log('[KING MINIGAME] Modal element:', elements.kingModal);
-  
-  // Проверяем видимость модального окна
-  const rect = elements.kingModal.getBoundingClientRect();
-  console.log('[KING MINIGAME] Modal bounding rect:', rect);
-  console.log('[KING MINIGAME] Modal computed styles:', {
-    display: window.getComputedStyle(elements.kingModal).display,
-    visibility: window.getComputedStyle(elements.kingModal).visibility,
-    opacity: window.getComputedStyle(elements.kingModal).opacity,
-    zIndex: window.getComputedStyle(elements.kingModal).zIndex,
-    position: window.getComputedStyle(elements.kingModal).position
+  // Даем браузеру время на рендеринг перед проверкой размеров
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const computedStyle = window.getComputedStyle(elements.kingModal);
+      const rect = elements.kingModal.getBoundingClientRect();
+      console.log('[KING MINIGAME] Modal computed styles after RAF:', {
+        display: computedStyle.display,
+        width: computedStyle.width,
+        height: computedStyle.height,
+        rect: rect
+      });
+      
+      // Если размеры все еще нулевые, принудительно переустанавливаем
+      if (rect.width === 0 || rect.height === 0) {
+        const vw = window.innerWidth || document.documentElement.clientWidth;
+        const vh = window.innerHeight || document.documentElement.clientHeight;
+        elements.kingModal.style.cssText = `
+          display: flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          z-index: 11000 !important;
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: ${vw}px !important;
+          height: ${vh}px !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: rgba(0, 0, 0, 0.55) !important;
+        `;
+      }
+    });
   });
   
-  elements.kingArena.innerHTML = '';
-  elements.kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
+  // Ждем рендеринга перед продолжением
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      // Продолжаем инициализацию
+      elements.kingArena.innerHTML = '';
+      elements.kingStatusEl.textContent = `Click ${target} crowns in ${durationMs/1000} seconds. Clicking the background is an instant miss.`;
+      
+      // Вызываем spawnCrowns
+      spawnCrowns();
+    });
+  });
   
-  console.log('[KING MINIGAME] Arena and status text set');
   let clicked = 0;
   const crowns = [];
 
   // spawn crowns randomly inside arena; ensure crowns don't overlap more than 50%
   function spawnCrowns() {
     const rect = elements.kingArena.getBoundingClientRect();
-    console.log('[KING MINIGAME] Arena bounding rect:', rect);
     
     // Если арена имеет нулевые размеры, ждем немного и пробуем снова
     if (rect.width === 0 || rect.height === 0) {
-      console.warn('[KING MINIGAME] Arena has zero size! Waiting 100ms and retrying...');
       setTimeout(() => {
         const newRect = elements.kingArena.getBoundingClientRect();
-        console.log('[KING MINIGAME] Arena rect after wait:', newRect);
         if (newRect.width > 0 && newRect.height > 0) {
           spawnCrowns();
         }
-      }, 100);
+      }, 200);
       return;
     }
     const crownWidth = 56;
@@ -7812,18 +7845,14 @@ function openKingMiniGame() {
   // store miniGame state for cleanup if needed
   _kingState.miniGame = { timerId, crowns, onArenaClick, clicked, target, elements };
 
-  // spawn crowns and focus
-  console.log('[KING MINIGAME] Spawning crowns...');
-  spawnCrowns();
-  console.log('[KING MINIGAME] Crowns spawned, focusing arena...');
-  elements.kingArena.focus();
-  console.log('[KING MINIGAME] Mini-game initialization complete!');
-  
-  // Финальная проверка видимости
+  // spawnCrowns вызывается изнутри requestAnimationFrame выше
+  // Фокус устанавливается с задержкой после того как aria-hidden установлен в false (исправление accessibility ошибки)
   setTimeout(() => {
-    const finalRect = elements.kingModal.getBoundingClientRect();
-    console.log('[KING MINIGAME] Final modal check - bounding rect:', finalRect);
-    console.log('[KING MINIGAME] Final modal check - computed display:', window.getComputedStyle(elements.kingModal).display);
+    // Убеждаемся что aria-hidden все еще false перед установкой фокуса
+    if (elements.kingModal.getAttribute('aria-hidden') !== 'false') {
+      elements.kingModal.setAttribute('aria-hidden', 'false');
+    }
+    elements.kingArena.focus();
   }, 100);
 }
 

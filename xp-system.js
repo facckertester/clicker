@@ -116,15 +116,15 @@ function addXPForClicks(clickCount) {
 
 // 2. Покупка уровня клика
 function addXPForClickLevel(clickLevel) {
-  // Уменьшаем XP за покупку уровней в начале
-  const xpAmount = 1 + (clickLevel / 100); // Было 2 + (clickLevel / 50)
+  // Уменьшаем XP за покупку уровней в начале (уменьшено в 3 раза)
+  const xpAmount = (1 + (clickLevel / 100)) / 3; // Было 2 + (clickLevel / 50), затем 1 + (clickLevel / 100)
   addXP(xpAmount, 'click_level');
 }
 
 // 3. Покупка уровня здания
 function addXPForBuildingLevel(buildingLevel) {
-  // Уменьшаем XP за покупку уровней в начале
-  const xpAmount = 0.5 + (buildingLevel / 120); // Было 1.5 + (buildingLevel / 60)
+  // Уменьшаем XP за покупку уровней в начале (уменьшено в 3 раза)
+  const xpAmount = (0.5 + (buildingLevel / 120)) / 3; // Было 1.5 + (buildingLevel / 60), затем 0.5 + (buildingLevel / 120)
   addXP(xpAmount, 'building_level');
 }
 
@@ -147,13 +147,13 @@ function addXPForUberLevel(uberLevel) {
 
 // 7. Сегментный апгрейд клика (UP)
 function addXPForClickUpgrade(segmentIndex) {
-  const xpAmount = 50 + (segmentIndex * 5);
+  const xpAmount = (50 + (segmentIndex * 5)) / 3; // Уменьшено в 3 раза
   addXP(xpAmount, 'click_upgrade');
 }
 
 // 8. Сегментный апгрейд здания (UP)
 function addXPForBuildingUpgrade(segmentIndex) {
-  const xpAmount = 40 + (segmentIndex * 4);
+  const xpAmount = (40 + (segmentIndex * 4)) / 3; // Уменьшено в 3 раза
   addXP(xpAmount, 'building_upgrade');
 }
 
