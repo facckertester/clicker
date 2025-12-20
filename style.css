@@ -539,18 +539,27 @@ a:hover { color: var(--poe-orange-bright); }
   z-index:2;
   /* Улучшенное качество рендеринга изображений - предотвращаем размытие */
   /* Используем правильную последовательность для разных браузеров */
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  -ms-interpolation-mode: nearest-neighbor;
+  image-rendering: crisp-edges !important;
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  image-rendering: -webkit-optimize-contrast !important;
+  -ms-interpolation-mode: nearest-neighbor !important;
+  /* Масштабируем изображение с сохранением пропорций, но с четким рендерингом */
+  object-fit: contain !important;
+  object-position: center !important;
   /* Дополнительные свойства для четкости и производительности */
-  backface-visibility: hidden;
-  transform: translateZ(0);
-  will-change: transform;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  -moz-backface-visibility: hidden !important;
+  -ms-backface-visibility: hidden !important;
+  transform: translateZ(0) !important;
+  will-change: transform, opacity !important;
   /* Предотвращаем сглаживание браузером */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: unset !important;
+  /* Принудительно отключаем любые фильтры и эффекты */
+  filter: none !important;
+  -webkit-filter: none !important;
 }
 .treasury-actions .btn:has(img)::before{
   display:none;

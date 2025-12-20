@@ -3043,17 +3043,29 @@ function renderTreasuryActions() {
       iconImg.src = iconPath;
       iconImg.style.width = '60px';
       iconImg.style.height = '60px';
-      iconImg.style.objectFit = 'contain';
+      iconImg.style.objectFit = 'contain'; // Масштабируем с сохранением пропорций, но с четким рендерингом
+      iconImg.style.objectPosition = 'center'; // Центрируем изображение
       iconImg.style.pointerEvents = 'none';
-      // Используем правильные свойства для четкого рендеринга без размытия
-      iconImg.style.imageRendering = '-webkit-optimize-contrast';
+      iconImg.style.userSelect = 'none';
+      iconImg.setAttribute('draggable', 'false');
+      // Используем правильные свойства для четкого рендеринга без размытия (в правильном порядке)
+      // Применяем свойства для четкого рендеринга пиксельной графики
+      // Важно: применяем в правильном порядке для максимальной совместимости
       iconImg.style.imageRendering = 'crisp-edges';
       iconImg.style.imageRendering = 'pixelated';
       iconImg.style.imageRendering = '-moz-crisp-edges';
+      iconImg.style.imageRendering = '-webkit-optimize-contrast';
       iconImg.style.msInterpolationMode = 'nearest-neighbor';
       // Дополнительные свойства для четкости и производительности
       iconImg.style.backfaceVisibility = 'hidden';
       iconImg.style.transform = 'translateZ(0)';
+      iconImg.style.willChange = 'transform, opacity';
+      // Принудительно отключаем сглаживание
+      iconImg.style.webkitFontSmoothing = 'none';
+      iconImg.style.mozOsxFontSmoothing = 'unset';
+      // Отключаем фильтры, которые могут размывать изображение
+      iconImg.style.filter = 'none';
+      iconImg.style.webkitFilter = 'none';
       el.appendChild(iconImg);
     } else {
       // Fallback на эмодзи если иконки нет
@@ -4037,11 +4049,16 @@ function updateBuildingLevels(forceImmediate = false) {
   if (!buildingsList || !save) return;
   
   const nowTs = now();
-  // Обновляем уровни раз в 400мс для лучшей производительности
-  // Но если forceImmediate = true, обновляем немедленно
+  // Обновляем уровни раз в 100мс для лучшей производительности (уменьшено для плавности)
+  // Но если forceImmediate = true, обновляем немедленно БЕЗ дебаунсинга
   // Также обновляем немедленно при изменении bulk (проверяем через флаг)
-  if (!forceImmediate && (nowTs - _lastBuildingLevelsUpdate < 400)) return;
-  _lastBuildingLevelsUpdate = nowTs;
+  if (!forceImmediate) {
+    if (nowTs - _lastBuildingLevelsUpdate < 100) return;
+    _lastBuildingLevelsUpdate = nowTs;
+  } else {
+    // При forceImmediate обновляем timestamp сразу, чтобы следующее обновление не было заблокировано
+    _lastBuildingLevelsUpdate = nowTs;
+  }
   
   // Сбрасываем кэш модификаторов при принудительном обновлении, чтобы пересчитать все
   if (forceImmediate) {
@@ -5844,10 +5861,60 @@ function debouncedRenderClick() {
 
 // Оптимизация рендеринга - отложенный вызов для производительности
 let _renderTimeout = null;
-function scheduleRender() {
+let _pendingRenderFlags = {
+  click: false,
+  buildings: false,
+  treasury: false,
+  uber: false,
+  effects: false,
+  achievements: false,
+  topStats: false
+};
+
+function scheduleRender(flags = {}) {
+  // Объединяем флаги с уже запланированными
+  Object.keys(flags).forEach(key => {
+    if (flags[key]) _pendingRenderFlags[key] = true;
+  });
+  
   if (_renderTimeout) return; // Уже запланирован
   _renderTimeout = requestAnimationFrame(() => {
-    renderAll();
+    // Рендерим только то, что нужно
+    if (_pendingRenderFlags.topStats) {
+      renderTopStats();
+      _pendingRenderFlags.topStats = false;
+    }
+    if (_pendingRenderFlags.click) {
+      renderClick();
+      _pendingRenderFlags.click = false;
+    }
+    if (_pendingRenderFlags.buildings) {
+      renderBuildings();
+      _pendingRenderFlags.buildings = false;
+    }
+    if (_pendingRenderFlags.treasury) {
+      renderTreasuryActions();
+      _pendingRenderFlags.treasury = false;
+    }
+    if (_pendingRenderFlags.uber) {
+      checkUberUnlock();
+      renderUber();
+      _pendingRenderFlags.uber = false;
+    }
+    if (_pendingRenderFlags.effects) {
+      renderEffects();
+      _pendingRenderFlags.effects = false;
+    }
+    if (_pendingRenderFlags.achievements) {
+      renderAchievements();
+      _pendingRenderFlags.achievements = false;
+    }
+    
+    updateBulkButtons();
+    updateSeason();
+    startAutosave();
+    updateEndgameButtons();
+    
     _renderTimeout = null;
   });
 }
@@ -6090,20 +6157,42 @@ function buyBulkLevels(entity, computeFn, applyFn, buildingIndex) {
     for (let j = 0; j < totalLevels; j++) applyFn();
   }
 
-  // After buy, re-render immediately for critical operations
+  // After buy, update critical elements immediately, defer heavy rendering
   // Сбрасываем кэш состояния зданий для принудительного обновления
   _lastBuildingsState = null;
   _lastSortMode = -1;
   // Инвалидируем кэш PPS/PPC при изменении уровней зданий
   _cachedPPS = null;
   _cachedPPC = null;
-  renderAll();
-  // Принудительно обновляем уровни зданий сразу после покупки (немедленно, без дебаунсинга)
-  updateBuildingLevels(true);
-  // Обновляем состояние кнопок
-  updateButtonStates();
-  // Проверяем разблокировку Uber здания после покупки уровней
-  checkUberUnlock();
+  
+  // Критичные обновления сразу (синхронно) - для мгновенного отображения изменений
+  renderTopStats();
+  if (entity === 'click') {
+    renderClick();
+  } else if (entity === 'building') {
+    // Для зданий обновляем описания и уровни сразу (синхронно)
+    // Это обновит текст "UP" в описании зданий без задержки
+    updateBuildingLevels(true);
+    renderClick(); // Обновляем кнопку клика (может показывать информацию о зданиях)
+    // Также обновляем состояние кнопок сразу для плавности
+    updateButtonStates();
+  }
+  
+  // Тяжелые операции откладываем на следующий кадр для плавности
+  requestAnimationFrame(() => {
+    if (entity === 'building') {
+      // Для зданий обновляем только измененные элементы
+      _lastBuildingsState = null; // Принудительно пересоздаем при следующем рендере
+      scheduleRender({ buildings: true });
+    } else {
+      scheduleRender({ click: true });
+    }
+    // Обновляем состояние кнопок асинхронно
+    updateButtonStates();
+    // Проверяем разблокировку Uber здания асинхронно
+    checkUberUnlock();
+  });
+  
   return true;
 }
 
@@ -6151,6 +6240,9 @@ function buyClickLevels() {
   });
   if (bought) {
     triggerUpgradeEffect(clickBtn, 'Level Up!');
+    // Обновляем только критичные элементы сразу, остальное через scheduleRender
+    renderClick();
+    renderTopStats();
   }
 }
 
@@ -6178,7 +6270,12 @@ function buyClickSegmentUpgrade(segIndex) {
   save.click.upgradeBonus += 1; // 3% per upgrade (count stack)
   toast('Click segment upgraded: +3% income.', 'good');
   triggerUpgradeEffect(clickBtn, 'Upgrade!');
-  renderAll();
+  
+  // Обновляем только критичные элементы сразу
+  renderClick();
+  renderTopStats();
+  // Остальное откладываем на следующий кадр (если нужно)
+  scheduleRender({ click: true, topStats: true });
 }
 
 clickBuyBtn.addEventListener('click', buyClickLevels);
@@ -6267,10 +6364,11 @@ function buyBuildingLevels(i) {
   if (bought) {
     triggerBuildingUpgradeEffect(i, 'Level Up!');
   }
-  // Проверяем достижения после покупки уровней зданий
-  checkAchievements();
-  // Проверяем разблокировку Uber здания
-  checkUberUnlock();
+  // Проверяем достижения и разблокировку асинхронно (не блокируем рендеринг)
+  requestAnimationFrame(() => {
+    checkAchievements();
+    checkUberUnlock();
+  });
 }
 
 function buyBuildingSegUpgrade(i, segIndex) {
@@ -6302,11 +6400,16 @@ function buyBuildingSegUpgrade(i, segIndex) {
   // Инвалидируем кэш PPS/PPC при изменении уровней зданий
   _cachedPPS = null;
   _cachedPPC = null;
-  renderAll();
-  // Принудительно обновляем уровни зданий сразу после апгрейда (немедленно)
-  updateBuildingLevels(true);
-  // Обновляем состояние кнопок
-  updateButtonStates();
+  
+  // Критичные обновления сразу (синхронно) - для мгновенного отображения изменений
+  renderTopStats();
+  updateBuildingLevels(true); // Обновляем описания зданий сразу
+  renderClick(); // Обновляем кнопку клика
+  
+  // Тяжелые операции откладываем на следующий кадр
+  requestAnimationFrame(() => {
+    scheduleRender({ buildings: true });
+  });
 }
 
 // ======= Clicking mechanics =======
@@ -6892,15 +6995,45 @@ const _spiderState = {
   moveTimer: null,
   moving: false,
   aliveUntil: 0,
-  escapeTimer: null // id таймера, который отвечает за сообщение "сполз/убежал"
+  escapeTimer: null, // id таймера, который отвечает за сообщение "сполз/убежал"
+  cachedSize: { w: 64, h: 64 }, // Кэшированный размер для избежания getBoundingClientRect()
+  imgCreated: false // Флаг создания img элемента
 };
 
+// Инициализация img элемента для паука (один раз при загрузке)
+function _initSpiderImage() {
+  if (!spiderEl || _spiderState.imgCreated) return;
+  const img = document.createElement('img');
+  img.src = 'icons/spider.png';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.imageRendering = 'pixelated';
+  img.style.imageRendering = '-moz-crisp-edges';
+  img.style.imageRendering = 'crisp-edges';
+  img.style.display = 'block';
+  img.style.pointerEvents = 'none';
+  spiderEl.appendChild(img);
+  _spiderState.imgCreated = true;
+  
+  // Устанавливаем transition один раз (вместо проверки getComputedStyle при каждом spawn)
+  spiderEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
+  // GPU ускорение
+  spiderEl.style.willChange = 'transform, left, top';
+  spiderEl.style.backfaceVisibility = 'hidden';
+  spiderEl.style.transform = 'translateZ(0)';
+  
+  // Кэшируем размер после создания элемента
+  requestAnimationFrame(() => {
+    if (spiderEl) {
+      const r = spiderEl.getBoundingClientRect();
+      _spiderState.cachedSize = { w: Math.max(1, r.width || 64), h: Math.max(1, r.height || 64) };
+    }
+  });
+}
 
-// compute spider size safely
+// compute spider size safely (использует кэш)
 function _getSpiderSize() {
-  if (!spiderEl) return { w: 64, h: 64 };
-  const r = spiderEl.getBoundingClientRect();
-  return { w: Math.max(1, r.width), h: Math.max(1, r.height) };
+  return _spiderState.cachedSize;
 }
 
 // place spider at a random position within viewport
@@ -6921,13 +7054,15 @@ function _moveSpiderOnce() {
   const maxLeft = Math.max(0, window.innerWidth - w);
   const maxTop = Math.max(0, window.innerHeight - h);
 
-  const cur = spiderEl.getBoundingClientRect();
+  // Используем сохраненную позицию вместо getBoundingClientRect()
+  const curLeft = parseInt(spiderEl.style.left || '0', 10);
+  const curTop = parseInt(spiderEl.style.top || '0', 10);
   let nx, ny, attempts = 0;
   do {
     nx = _randInt(0, maxLeft);
     ny = _randInt(0, maxTop);
     attempts++;
-  } while (attempts < 8 && Math.hypot(nx - cur.left, ny - cur.top) < Math.max(w,h) * 0.5);
+  } while (attempts < 8 && Math.hypot(nx - curLeft, ny - curTop) < Math.max(w,h) * 0.5);
 
   // apply new position with smooth CSS transitions
   spiderEl.style.left = nx + 'px';
@@ -6990,8 +7125,40 @@ let _kingState = {
   spawnTimer: null,
   visibleUntil: 0,
   escapeTimer: null,
-  miniGame: null // { timerId, remaining, clickedCount, crowns: [] }
+  miniGame: null, // { timerId, remaining, clickedCount, crowns: [] }
+  cachedSize: { w: 64, h: 64 }, // Кэшированный размер
+  imgCreated: false // Флаг создания img элемента
 };
+
+// Инициализация img элемента для короля (один раз при загрузке)
+function _initKingImage() {
+  if (!kingEl || _kingState.imgCreated) return;
+  const img = document.createElement('img');
+  img.src = 'icons/king.png';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.imageRendering = 'pixelated';
+  img.style.imageRendering = '-moz-crisp-edges';
+  img.style.imageRendering = 'crisp-edges';
+  img.style.display = 'block';
+  img.style.pointerEvents = 'none';
+  kingEl.appendChild(img);
+  _kingState.imgCreated = true;
+  
+  // GPU ускорение
+  kingEl.style.willChange = 'transform, opacity';
+  kingEl.style.backfaceVisibility = 'hidden';
+  kingEl.style.transform = 'translateZ(0)';
+  
+  // Кэшируем размер после создания элемента
+  requestAnimationFrame(() => {
+    if (kingEl) {
+      const w = kingEl.offsetWidth || 64;
+      const h = kingEl.offsetHeight || 64;
+      _kingState.cachedSize = { w, h };
+    }
+  });
+}
 
 // helper: schedule next king spawn in 3..10 minutes
 function scheduleNextKing() {
@@ -7003,8 +7170,7 @@ function scheduleNextKing() {
 // place king randomly (reuses spider placement logic)
 function _placeKingRandom() {
   if (!kingEl) return;
-  const w = kingEl.offsetWidth || 64;
-  const h = kingEl.offsetHeight || 64;
+  const { w, h } = _kingState.cachedSize;
   const maxLeft = Math.max(0, window.innerWidth - w);
   const maxTop = Math.max(0, window.innerHeight - h);
   kingEl.style.left = _randInt(0, maxLeft) + 'px';
@@ -7109,19 +7275,8 @@ function spawnKing() {
     return;
   }
   
-  // Создаем img для короля, если его еще нет
-  if (!kingEl.querySelector('img')) {
-    const img = document.createElement('img');
-    img.src = 'icons/king.png';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.imageRendering = 'pixelated';
-    img.style.imageRendering = '-moz-crisp-edges';
-    img.style.imageRendering = 'crisp-edges';
-    img.style.display = 'block';
-    kingEl.innerHTML = '';
-    kingEl.appendChild(img);
-  }
+  // Инициализируем img элемент один раз (если еще не создан)
+  _initKingImage();
   
   _placeKingRandom();
   kingEl.classList.add('show');
@@ -7496,29 +7651,12 @@ function drawSpider(canvas) {
 function spawnSpider() {
   if (!spiderEl) return;
 
-  // Создаем img для паука, если его еще нет
-  if (!spiderEl.querySelector('img')) {
-    const img = document.createElement('img');
-    img.src = 'icons/spider.png';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.imageRendering = 'pixelated';
-    img.style.imageRendering = '-moz-crisp-edges';
-    img.style.imageRendering = 'crisp-edges';
-    img.style.display = 'block';
-    spiderEl.innerHTML = '';
-    spiderEl.appendChild(img);
-  }
+  // Инициализируем img элемент один раз (если еще не создан)
+  _initSpiderImage();
 
   // ensure spider is visible and positioned inside viewport
   _placeSpiderRandom();
   spiderEl.classList.remove('hidden');
-
-  // ensure CSS transitions exist for smooth movement
-  const cs = getComputedStyle(spiderEl);
-  if (!cs.transition || cs.transition.indexOf('left') === -1) {
-    spiderEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
-  }
 
   // mark alive window
   _spiderState.aliveUntil = now() + 30000; // 30s
@@ -7554,11 +7692,8 @@ function spawnSpider() {
 
 // keep original click outcomes but ensure movement stops and spider hides
 if (spiderEl) {
-  // ensure smooth transitions exist; fallback to inline if not
-  const cs = getComputedStyle(spiderEl);
-  if (!cs.transition || cs.transition.indexOf('left') === -1) {
-    spiderEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
-  }
+  // Инициализируем img элемент и стили один раз при загрузке
+  _initSpiderImage();
 
   spiderEl.addEventListener('click', () => {
     resetPassiveBoost(); // Reset passive boost when clicking spider
@@ -7656,14 +7791,45 @@ const _angryBarmatunState = {
   moveTimer: null,
   moving: false,
   aliveUntil: 0,
-  escapeTimer: null
+  escapeTimer: null,
+  cachedSize: { w: 64, h: 64 }, // Кэшированный размер
+  imgCreated: false // Флаг создания img элемента
 };
 
-// compute angry barmatun size safely
+// Инициализация img элемента для барматуна (один раз при загрузке)
+function _initAngryBarmatunImage() {
+  if (!angryBarmatunEl || _angryBarmatunState.imgCreated) return;
+  const img = document.createElement('img');
+  img.src = 'icons/barmatun.png';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.imageRendering = 'pixelated';
+  img.style.imageRendering = '-moz-crisp-edges';
+  img.style.imageRendering = 'crisp-edges';
+  img.style.display = 'block';
+  img.style.pointerEvents = 'none';
+  angryBarmatunEl.appendChild(img);
+  _angryBarmatunState.imgCreated = true;
+  
+  // Устанавливаем transition один раз
+  angryBarmatunEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
+  // GPU ускорение
+  angryBarmatunEl.style.willChange = 'transform, left, top';
+  angryBarmatunEl.style.backfaceVisibility = 'hidden';
+  angryBarmatunEl.style.transform = 'translateZ(0)';
+  
+  // Кэшируем размер после создания элемента
+  requestAnimationFrame(() => {
+    if (angryBarmatunEl) {
+      const r = angryBarmatunEl.getBoundingClientRect();
+      _angryBarmatunState.cachedSize = { w: Math.max(1, r.width || 64), h: Math.max(1, r.height || 64) };
+    }
+  });
+}
+
+// compute angry barmatun size safely (использует кэш)
 function _getAngryBarmatunSize() {
-  if (!angryBarmatunEl) return { w: 64, h: 64 };
-  const r = angryBarmatunEl.getBoundingClientRect();
-  return { w: Math.max(1, r.width), h: Math.max(1, r.height) };
+  return _angryBarmatunState.cachedSize;
 }
 
 // place angry barmatun at a random position within viewport
@@ -7684,13 +7850,15 @@ function _moveAngryBarmatunOnce() {
   const maxLeft = Math.max(0, window.innerWidth - w);
   const maxTop = Math.max(0, window.innerHeight - h);
 
-  const cur = angryBarmatunEl.getBoundingClientRect();
+  // Используем сохраненную позицию вместо getBoundingClientRect()
+  const curLeft = parseInt(angryBarmatunEl.style.left || '0', 10);
+  const curTop = parseInt(angryBarmatunEl.style.top || '0', 10);
   let nx, ny, attempts = 0;
   do {
     nx = _randInt(0, maxLeft);
     ny = _randInt(0, maxTop);
     attempts++;
-  } while (attempts < 8 && Math.hypot(nx - cur.left, ny - cur.top) < Math.max(w,h) * 0.5);
+  } while (attempts < 8 && Math.hypot(nx - curLeft, ny - curTop) < Math.max(w,h) * 0.5);
 
   angryBarmatunEl.style.left = nx + 'px';
   angryBarmatunEl.style.top = ny + 'px';
@@ -7838,29 +8006,12 @@ function drawAngryBarmatun(canvas) {
 function spawnAngryBarmatun() {
   if (!angryBarmatunEl) return;
 
-  // Create img for angry barmatun if it doesn't exist
-  if (!angryBarmatunEl.querySelector('img')) {
-    const img = document.createElement('img');
-    img.src = 'icons/barmatun.png';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.imageRendering = 'pixelated';
-    img.style.imageRendering = '-moz-crisp-edges';
-    img.style.imageRendering = 'crisp-edges';
-    img.style.display = 'block';
-    angryBarmatunEl.innerHTML = '';
-    angryBarmatunEl.appendChild(img);
-  }
+  // Инициализируем img элемент один раз (если еще не создан)
+  _initAngryBarmatunImage();
 
   // ensure angry barmatun is visible and positioned inside viewport
   _placeAngryBarmatunRandom();
   angryBarmatunEl.classList.remove('hidden');
-
-  // ensure CSS transitions exist for smooth movement
-  const cs = getComputedStyle(angryBarmatunEl);
-  if (!cs.transition || cs.transition.indexOf('left') === -1) {
-    angryBarmatunEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
-  }
 
   // mark alive window
   _angryBarmatunState.aliveUntil = now() + 30000; // 30s
@@ -7901,11 +8052,9 @@ function maybeSpawnAngryBarmatun() {
 
 // click handler for angry barmatun
 if (angryBarmatunEl) {
-  const cs = getComputedStyle(angryBarmatunEl);
-  if (!cs.transition || cs.transition.indexOf('left') === -1) {
-    angryBarmatunEl.style.transition = 'left 0.9s cubic-bezier(.22,.9,.35,1), top 0.9s cubic-bezier(.22,.9,.35,1), transform 0.25s ease';
-  }
-
+  // Инициализируем img элемент и стили один раз при загрузке
+  _initAngryBarmatunImage();
+  
   angryBarmatunEl.addEventListener('click', () => {
     resetPassiveBoost(); // Reset passive boost when clicking angry barmatun
     // cancel escape timer
@@ -8314,28 +8463,29 @@ function spawnElfArcher() {
   // Воспроизводим звук появления эльфа лучника
   playSound('archer');
   
-  // Set transition for smooth movement
-  elfArcherEl.style.transition = 'left 2s ease-out, top 2s ease-out, transform 0.3s ease';
+  // Set transition for smooth movement (устанавливаем один раз, не проверяем каждый раз)
+  if (!elfArcherEl.style.transition || !elfArcherEl.style.transition.includes('left')) {
+    elfArcherEl.style.transition = 'left 2s ease-out, top 2s ease-out, transform 0.3s ease';
+  }
   
   // Move to position with walking animation
   _elfArcherState.position = 'entering';
   _elfArcherState.moving = true;
   _elfArcherState.aliveUntil = now() + 20000; // 20s total
   
-  // Get uber card position after rendering - use requestAnimationFrame to ensure DOM is ready
+  // Get uber card position - используем один requestAnimationFrame вместо двойного
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
     let targetX, targetY;
     const card = document.getElementById('uber-card');
     if (card) {
+      // Кэшируем getBoundingClientRect() результат
       const cardRect = card.getBoundingClientRect();
       // Check if card is visible (has dimensions and is in viewport)
       if (cardRect.width > 0 && cardRect.height > 0 && 
           cardRect.top < window.innerHeight && cardRect.bottom > 0) {
         // Position elf at the bottom edge of the uber card, centered horizontally
-        // getBoundingClientRect() returns coordinates relative to viewport, which is correct for fixed positioning
         targetX = cardRect.left + (cardRect.width / 2) - 32; // Center of card minus half elf width
-        targetY = cardRect.bottom - 32; // Bottom edge of card, kneeling position (elf height is 64, so bottom - 32 centers it)
+        targetY = cardRect.bottom - 32; // Bottom edge of card, kneeling position
       } else {
         // Card exists but not visible, use default position (center bottom)
         targetX = window.innerWidth / 2 - 32; // Center horizontally
@@ -8363,7 +8513,6 @@ function spawnElfArcher() {
         _shootArrow();
       }, 1000);
     }, 2000);
-    });
   });
   
   toast('An elf archer appears...', 'info');
@@ -10345,6 +10494,12 @@ document.addEventListener('keydown', (e) => {
     _wasPassiveBoostActive = act && act.passiveBoostUntil > t;
     _wasMasterBuilderActive = act && act.noBreakUntil > t;
     _wasSpiderBuffActive = act && act.spiderBuffUntil > t;
+    
+    // Инициализируем img элементы для всех объектов (один раз при загрузке)
+    _initSpiderImage();
+    _initKingImage();
+    _initAngryBarmatunImage();
+    
     // Инициализируем достижения, если их нет
     if (!save.achievements) {
       save.achievements = {
