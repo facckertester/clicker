@@ -160,6 +160,8 @@
           <button class="btn secondary" data-debug="goodLuck">Good luck (toggle: buildings can't break)</button>
           <button class="btn secondary" data-debug="resetUberBuffs">Reset uber-buffs</button>
           <button class="btn secondary" data-debug="addTreasury">+1000 treasury coins</button>
+          <button class="btn secondary" data-debug="addDevSword">Add Developer Sword</button>
+          <button class="btn secondary" data-debug="repairAllBuildings">Repair all buildings</button>
           <button class="btn danger" data-debug="resetAll">Reset all levels and points</button>
         </div>
       </div>
@@ -440,7 +442,7 @@
             </div>
             <!-- Row 2: Shoulders, Chest, Necklace -->
             <div class="equipment-slot" data-slot="shoulders" title="Shoulders">
-              <div class="equipment-slot-icon">🛡️</div>
+              <div class="equipment-slot-icon">🎖️</div>
               <div class="equipment-slot-label">Shoulder</div>
             </div>
             <div class="equipment-slot" data-slot="chest" title="Chest">
@@ -542,10 +544,15 @@
       <div class="inventory-bottom-section">
         <div class="inventory-header">
           <h4 class="inventory-section-title">Inventory</h4>
-          <div class="inventory-sort-controls">
-            <button class="btn tiny" id="sort-level" title="Sort by Level">📊 Level</button>
-            <button class="btn tiny" id="sort-type" title="Sort by Type">🔧 Type</button>
-            <button class="btn tiny" id="sort-rarity" title="Sort by Rarity">💎 Rarity</button>
+          <div class="inventory-controls">
+            <div class="inventory-sort-controls">
+              <button class="btn tiny" id="sort-level" title="Sort by Level">📊 Level</button>
+              <button class="btn tiny" id="sort-type" title="Sort by Type">🔧 Type</button>
+              <button class="btn tiny" id="sort-rarity" title="Sort by Rarity">💎 Rarity</button>
+            </div>
+            <div class="inventory-sell-controls" id="inventory-sell-controls">
+              <!-- Sell all buttons will be added here by JavaScript -->
+            </div>
           </div>
         </div>
         <div class="inventory-grid" id="inventory-grid">
@@ -572,6 +579,26 @@
           <div class="combat-hp-bar" id="boss-hp-bar"></div>
           <div class="combat-hp-text" id="boss-hp-text">100 / 100</div>
         </div>
+        <div class="boss-stats">
+          <div class="boss-stat-item">
+            <span>Armor:</span>
+            <span id="boss-armor">0</span>
+          </div>
+          <div class="boss-stat-item">
+            <span>Dodge:</span>
+            <span id="boss-dodge">0%</span>
+          </div>
+          <div class="boss-stat-item" id="boss-hp-regen-container" style="display: none;">
+            <span>HP Regen:</span>
+            <span id="boss-hp-regen">0/s</span>
+          </div>
+          <div class="boss-stat-item" id="boss-element-container" style="display: none;">
+            <span id="boss-element-label">Element:</span>
+            <span id="boss-element-info"></span>
+          </div>
+        </div>
+        <div id="boss-debuffs" class="boss-debuffs"></div>
+        <div id="debuff-info-window" class="debuff-info-window hidden"></div>
         <div class="combat-entity-icon">👹</div>
       </div>
       
@@ -582,6 +609,8 @@
           <div class="combat-hp-bar player-hp-bar" id="player-hp-bar"></div>
           <div class="combat-hp-text" id="player-hp-text">100 / 100</div>
         </div>
+        <div id="player-debuffs" class="player-debuffs"></div>
+        <div id="debuff-info-window-player" class="debuff-info-window hidden"></div>
         <div class="combat-entity-name">Player</div>
       </div>
     </div>

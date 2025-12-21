@@ -1152,7 +1152,7 @@ a:hover { color: var(--poe-orange-bright); }
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 12000;
+  z-index: 15000;
   background: rgba(0,0,0,0.7);
 }
 
@@ -3915,15 +3915,23 @@ body.season-winter .achievement-item {
 
 .inventory-header {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.inventory-controls {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .inventory-sort-controls {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .inventory-sort-controls .btn.tiny {
@@ -3936,6 +3944,24 @@ body.season-winter .achievement-item {
   background: var(--poe-orange);
   color: var(--text);
   border-color: var(--poe-orange);
+}
+
+.inventory-sell-controls {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.inventory-sell-controls .btn.tiny {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  min-width: auto;
+  transition: all 0.2s ease;
+}
+
+.inventory-sell-controls .btn.tiny:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
 }
 
 .inventory-grid {
@@ -4119,7 +4145,10 @@ body.season-winter .achievement-item {
   border-radius: var(--radius);
   filter: none !important;
   -webkit-filter: none !important;
+  position: relative;
   opacity: 1 !important;
+  min-height: 320px;
+  box-sizing: border-box;
 }
 
 .combat-entity-name {
@@ -4225,6 +4254,128 @@ body.season-winter .achievement-item {
   font-weight: bold;
   font-family: var(--mono-font);
   font-size: 0.95rem;
+}
+
+.boss-stats {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+.boss-stat-item {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.boss-stat-item span:first-child {
+  color: var(--muted);
+}
+
+.boss-stat-item span:last-child {
+  color: var(--poe-orange);
+  font-weight: bold;
+  font-family: var(--mono-font);
+}
+
+.boss-debuffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  align-items: flex-start;
+  height: 56px;
+  width: 100%;
+  padding: 4px 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.boss-debuff {
+  font-family: var(--mono-font);
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid currentColor;
+  text-shadow: 0 0 4px currentColor;
+  white-space: nowrap;
+  margin: 2px 0;
+  cursor: help;
+}
+
+.player-debuffs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  align-items: flex-start;
+  height: 56px;
+  width: 100%;
+  padding: 4px 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.player-debuff {
+  font-family: var(--mono-font);
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid currentColor;
+  text-shadow: 0 0 4px currentColor;
+  white-space: nowrap;
+  margin: 2px 0;
+  cursor: help;
+}
+
+.debuff-info-window {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.95);
+  border: 2px solid #ffaa00;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 200px;
+  max-width: 300px;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+  pointer-events: auto;
+  word-wrap: break-word;
+}
+
+.debuff-info-window.hidden {
+  display: none;
+}
+
+.debuff-info-header {
+  font-family: var(--mono-font);
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+  text-align: center;
+  text-shadow: 0 0 8px currentColor;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 4px;
+}
+
+.debuff-info-content {
+  font-family: var(--sans-font);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #ffffff;
+  text-align: left;
 }
 
 /* Combat floating text */

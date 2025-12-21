@@ -295,7 +295,7 @@ function initInventorySystem() {
 // Equipment slot icons mapping
 const equipmentIcons = {
   helmet: '⛑️',
-  shoulders: '🛡️',
+  shoulders: '🎖️',
   chest: '🦺',
   gloves: '🧤',
   ring1: '💍',
@@ -328,7 +328,7 @@ const equipmentLabels = {
 };
 
 // Generate item tooltip HTML
-function getItemTooltipHTML(item) {
+function getItemTooltipHTML(item, slotName) {
   if (!item) return '';
   
   const rarityColor = item.rarity && window.combatSystem && window.combatSystem.getItemRarityColor 
@@ -354,9 +354,97 @@ function getItemTooltipHTML(item) {
   `;
   
   if (item.type === 'weapon') {
+    html += `<div class="tooltip-line"></div>`;
+    
+    // Display element if weapon has one
+    if (item.element && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+      const elementData = window.combatSystem.ELEMENT_TYPES[item.element];
+      if (elementData) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Element:</span>
+            <span class="tooltip-stat-value" style="color: ${elementData.color}; font-weight: bold;">${elementData.name}</span>
+          </div>
+        `;
+        
+        // Show element damage for WAND and STAFF
+        if ((item.weaponType === 'WAND' || item.weaponType === 'STAFF') && item.stats) {
+          const elementKey = `elementDamage_${item.element}`;
+          if (item.stats[elementKey]) {
+            const multiplier = item.weaponType === 'STAFF' ? 'x2' : '';
+            html += `
+              <div class="tooltip-stat">
+                <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Damage:</span>
+                <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[elementKey]}${multiplier}</span>
+              </div>
+            `;
+          }
+        }
+        
+        // Show element effect descriptions with calculated chances
+        const calculateEffectChance = (baseChance, rarity, level) => {
+          const rarityMultipliers = {
+            'COMMON': 1.0,
+            'UNCOMMON': 1.2,
+            'RARE': 1.4,
+            'EPIC': 1.7,
+            'LEGENDARY': 2.0
+          };
+          const rarityMultiplier = rarityMultipliers[rarity] || 1.0;
+          const levelBonus = Math.min(0.5, (level || 1) * 0.02);
+          const finalChance = Math.min(95, baseChance * 100 * rarityMultiplier * (1 + levelBonus));
+          return Math.round(finalChance);
+        };
+        
+        const itemRarity = item.rarity || 'COMMON';
+        const itemLevel = item.level || 1;
+        
+        const elementDescriptions = {
+          'FIRE': { 
+            baseChance: 0.15, 
+            desc: 'Chance to burn enemy (5s, stacks infinitely)' 
+          },
+          'POISON': { 
+            baseChance: 0.20, 
+            desc: 'Chance to poison enemy, increases incoming damage (5s, stacks infinitely)' 
+          },
+          'COLD': { 
+            baseChance: 0.25, 
+            freezeBase: 0.08,
+            desc: 'Chance to slow enemy (5s, stacks up to 5x). Chance to freeze (3s, enemy cannot attack)' 
+          },
+          'LIGHTNING': { 
+            baseChance: 0.20, 
+            desc: 'Chance to shock enemy, increases crit chance per stack (5s, stacks up to 5x)' 
+          },
+          'BLEED': { 
+            baseChance: 0.25, 
+            desc: 'Chance to bleed enemy, reduces armor per stack (5s, stacks up to 15x)' 
+          }
+        };
+        
+        if (elementDescriptions[item.element]) {
+          const desc = elementDescriptions[item.element];
+          let chanceText = '';
+          if (item.element === 'COLD') {
+            const slowChance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel);
+            const freezeChance = calculateEffectChance(desc.freezeBase, itemRarity, itemLevel);
+            chanceText = `${slowChance}% slow, ${freezeChance}% freeze`;
+          } else {
+            const chance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel);
+            chanceText = `${chance}%`;
+          }
+          html += `
+            <div class="tooltip-stat" style="color: ${elementData.color}; font-size: 0.7rem; margin-top: 2px;">
+              <span><strong>${chanceText}</strong> ${desc.desc}</span>
+            </div>
+          `;
+        }
+      }
+    }
+    
     if (item.damage) {
       html += `
-        <div class="tooltip-line"></div>
         <div class="tooltip-stat">
           <span class="tooltip-stat-label">Damage:</span>
           <span class="tooltip-stat-value">+${item.damage}</span>
@@ -387,28 +475,88 @@ function getItemTooltipHTML(item) {
         </div>
       `;
     }
-    if (item.effect) {
-      const effectNames = {
-        bleed: 'Bleeding',
-        poison: 'Poison',
-        shock: 'Shock',
-        frost: 'Frost'
-      };
-      const effectDescriptions = {
-        bleed: 'Deals damage over time to the enemy',
-        poison: 'Reduces damage dealt by the enemy',
-        shock: 'Can stun the enemy, preventing attacks',
-        frost: 'Slows enemy attacks, increasing time between attacks'
-      };
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Effect:</span>
-          <span class="tooltip-stat-value">${effectNames[item.effect] || item.effect}</span>
-        </div>
-        <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
-          <span>${effectDescriptions[item.effect] || ''}</span>
-        </div>
-      `;
+    // For shields, show block and reflect stats instead of damage/crit/effect
+    if (item.weaponType === 'SHIELD') {
+      if (item.stats && item.stats.blockChance) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Block Chance:</span>
+            <span class="tooltip-stat-value">+${item.stats.blockChance.toFixed(1)}%</span>
+          </div>
+          <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
+            <span>50% damage reduction on block</span>
+          </div>
+        `;
+      }
+      if (item.stats && item.stats.reflectChance) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Reflect Chance:</span>
+            <span class="tooltip-stat-value">+${item.stats.reflectChance.toFixed(1)}%</span>
+          </div>
+          <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
+            <span>Reflects 10% of boss damage back</span>
+          </div>
+        `;
+      }
+      // Show defensive stats for shields
+      if (item.stats && item.stats.hp) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">HP:</span>
+            <span class="tooltip-stat-value">+${item.stats.hp}</span>
+          </div>
+        `;
+      }
+      if (item.stats && item.stats.armor) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Armor:</span>
+            <span class="tooltip-stat-value">+${item.stats.armor}</span>
+          </div>
+        `;
+      }
+      if (item.stats && item.stats.dodge) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Dodge:</span>
+            <span class="tooltip-stat-value">+${item.stats.dodge.toFixed(1)}%</span>
+          </div>
+        `;
+      }
+      if (item.stats && item.stats.hpRegen) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">HP Regen:</span>
+            <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
+          </div>
+        `;
+      }
+    } else {
+      // For other weapons, show damage, crit, and effect stats
+      if (item.effect) {
+        const effectNames = {
+          bleed: 'Bleeding',
+          poison: 'Poison',
+          shock: 'Shock',
+          frost: 'Frost'
+        };
+        const effectDescriptions = {
+          bleed: 'Deals damage over time to the enemy',
+          poison: 'Reduces damage dealt by the enemy',
+          shock: 'Can stun the enemy, preventing attacks',
+          frost: 'Slows enemy attacks, increasing time between attacks'
+        };
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Effect:</span>
+            <span class="tooltip-stat-value">${effectNames[item.effect] || item.effect}</span>
+          </div>
+          <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
+            <span>${effectDescriptions[item.effect] || ''}</span>
+          </div>
+        `;
+      }
     }
   } else if (item.type === 'armor' && item.stats) {
     html += `<div class="tooltip-line"></div>`;
@@ -465,7 +613,7 @@ function getItemTooltipHTML(item) {
     const sellPrice = getSellPrice(item.rarity);
     html += `
       <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 4px;">
-        <span>Shift + Click to sell for ${sellPrice} coins</span>
+        <span>Shift + Click to sell for ${sellPrice} treasury coins</span>
       </div>
     `;
   }
@@ -482,20 +630,19 @@ function getItemTooltipHTML(item) {
 }
 
 // Show item tooltip
-function showItemTooltip(event, item) {
+function showItemTooltip(event, item, slotName) {
   if (!item) return;
   
   const tooltip = document.createElement('div');
   tooltip.className = 'item-tooltip';
   tooltip.setAttribute('data-treasury-tooltip', 'true');
-  tooltip.innerHTML = getItemTooltipHTML(item);
+  tooltip.innerHTML = getItemTooltipHTML(item, slotName);
   document.body.appendChild(tooltip);
   
   const rect = event.target.getBoundingClientRect();
   const tooltipRect = tooltip.getBoundingClientRect();
   
-  // Get game screen bounds - this is the main container for the game
-  const gameScreen = document.getElementById('game-screen');
+  // Determine container bounds - prioritize inventory modal if it's open
   let containerBounds = {
     left: 10,
     top: 10,
@@ -503,25 +650,28 @@ function showItemTooltip(event, item) {
     bottom: window.innerHeight - 10
   };
   
-  if (gameScreen && !gameScreen.classList.contains('hidden')) {
-    // Use game screen bounds as the container
-    const gameScreenRect = gameScreen.getBoundingClientRect();
+  // First check if inventory modal is open (has priority)
+  const inventoryModal = document.getElementById('inventory-modal');
+  if (inventoryModal && inventoryModal.classList.contains('open')) {
+    // Use inventory modal bounds as the container
+    const modalRect = inventoryModal.getBoundingClientRect();
     containerBounds = {
-      left: gameScreenRect.left + 10,
-      top: gameScreenRect.top + 10,
-      right: gameScreenRect.right - 10,
-      bottom: gameScreenRect.bottom - 10
+      left: Math.max(10, modalRect.left + 10),
+      top: Math.max(10, modalRect.top + 10),
+      right: Math.min(window.innerWidth - 10, modalRect.right - 10),
+      bottom: Math.min(window.innerHeight - 10, modalRect.bottom - 10)
     };
   } else {
-    // Fallback: check if we're inside inventory modal
-    const inventoryModal = document.getElementById('inventory-modal');
-    if (inventoryModal && !inventoryModal.classList.contains('hidden')) {
-      const modalRect = inventoryModal.getBoundingClientRect();
+    // Fallback: check if game screen is visible
+    const gameScreen = document.getElementById('game-screen');
+    if (gameScreen && !gameScreen.classList.contains('hidden')) {
+      // Use game screen bounds as the container
+      const gameScreenRect = gameScreen.getBoundingClientRect();
       containerBounds = {
-        left: Math.max(10, modalRect.left + 10),
-        top: Math.max(10, modalRect.top + 10),
-        right: Math.min(window.innerWidth - 10, modalRect.right - 10),
-        bottom: Math.min(window.innerHeight - 10, modalRect.bottom - 10)
+        left: gameScreenRect.left + 10,
+        top: gameScreenRect.top + 10,
+        right: gameScreenRect.right - 10,
+        bottom: gameScreenRect.bottom - 10
       };
     }
   }
@@ -661,6 +811,41 @@ function hideItemTooltip() {
   }
 }
 
+// Universal function to remove duplicate items from weapon slots
+// This function should be called after any equipment operation to ensure no duplicates exist
+function removeDuplicateWeapons() {
+  if (!window.combatSystem || !window.combatSystem.getEquipped) {
+    return false;
+  }
+  
+  const equipped = window.combatSystem.getEquipped();
+  const rightWeapon = equipped.weaponRight;
+  const leftWeapon = equipped.weaponLeft;
+  
+  // Check if both hands have items (and neither is two-handed)
+  if (rightWeapon && leftWeapon && rightWeapon.hands !== 2 && leftWeapon.hands !== 2) {
+    // Check if they're the same item (by reference or by ID)
+    const sameByRef = rightWeapon === leftWeapon;
+    const sameById = rightWeapon.id && leftWeapon.id && rightWeapon.id === leftWeapon.id;
+    
+    // CRITICAL: Items with same ID cannot exist in both hands
+    // If same ID but different references - use same reference to prevent duplicates
+    if (sameById && !sameByRef) {
+      // Same ID but different references - this is a duplicate! Use same reference
+      equipped.weaponLeft = equipped.weaponRight;
+      window.combatSystem.calculateStats();
+      window.combatSystem.save();
+      window.combatSystem.render();
+      return true; // Indicate that a duplicate was removed
+    } else if (sameByRef) {
+      // Same reference - this is OK (intentional for same dagger in both hands)
+      return false;
+    }
+  }
+  
+  return false; // No duplicates found
+}
+
 // Render inventory modal
 function renderInventory() {
   // Always get equipped items from combat system (it's the source of truth)
@@ -728,7 +913,7 @@ function renderInventory() {
       // Add tooltip and Ctrl+Click to unequip
       let tooltip = null;
       newSlot.addEventListener('mouseenter', (e) => {
-        tooltip = showItemTooltip(e, item);
+        tooltip = showItemTooltip(e, item, slotName);
       });
       newSlot.addEventListener('mouseleave', () => {
         hideItemTooltip();
@@ -738,6 +923,7 @@ function renderInventory() {
       newSlot.draggable = true;
       
       newSlot.addEventListener('dragstart', (e) => {
+        hideItemTooltip(); // Hide tooltip when dragging starts
         const dragData = { 
           type: 'equipped', 
           slot: slotName, 
@@ -834,25 +1020,56 @@ function renderInventory() {
                 return;
               }
               
-              // CRITICAL CHECK: If target slot already has the same item (by ID), don't swap - just clear source
-              if (targetItemRef && targetItemRef.id === sourceItemRef.id) {
-                // Same item in both slots - this shouldn't happen, but if it does, just clear source
-                combatEquipped[sourceSlotCamel] = null;
-                hideItemTooltip();
-                window.combatSystem.calculateStats();
-                window.combatSystem.save();
-                window.combatSystem.render();
-                renderInventory();
-                return;
+              // DAGGER RULE: Cannot move right dagger to left hand, cannot move left dagger to right hand
+              if (sourceItemRef && sourceItemRef.weaponType === 'DAGGER' && sourceItemRef.weaponHand) {
+                if (sourceItemRef.weaponHand === 'right' && targetSlotCamel === 'weaponLeft') {
+                  toast('Right Dagger can only be equipped in right hand!', 'warn');
+                  hideItemTooltip();
+                  return;
+                }
+                if (sourceItemRef.weaponHand === 'left' && targetSlotCamel === 'weaponRight') {
+                  toast('Left Dagger can only be equipped in left hand!', 'warn');
+                  hideItemTooltip();
+                  return;
+                }
               }
               
               // Store item IDs for verification (not references)
               const sourceItemId = sourceItemRef.id;
               const targetItemId = targetItemRef ? targetItemRef.id : null;
               
+              // SIMPLE CASE: If swapping between weapon hands
+              if ((sourceSlotCamel === 'weaponRight' || sourceSlotCamel === 'weaponLeft') &&
+                  (targetSlotCamel === 'weaponRight' || targetSlotCamel === 'weaponLeft')) {
+                
+                // If target is empty - just move the item (don't swap)
+                if (!targetItemRef) {
+                  // Simple move: source -> target, source = null
+                  combatEquipped[targetSlotCamel] = sourceItemRef;
+                  combatEquipped[sourceSlotCamel] = null;
+                  window.combatSystem.calculateStats();
+                  window.combatSystem.save();
+                  window.combatSystem.render();
+                  renderInventory();
+                  hideItemTooltip();
+                  return;
+                }
+                
+                // If both slots have items with the same ID - just clear source (item already in target)
+                if (sourceItemRef.id && targetItemRef.id && sourceItemRef.id === targetItemRef.id) {
+                  combatEquipped[sourceSlotCamel] = null;
+                  window.combatSystem.calculateStats();
+                  window.combatSystem.save();
+                  window.combatSystem.render();
+                  renderInventory();
+                  hideItemTooltip();
+                  return;
+                }
+              }
+              
               // Direct swap: swap items between slots without going through inventory
               // Check compatibility first
-              if (!canEquipItemInSlot(sourceItem, slotName)) {
+              if (!canEquipItemInSlot(sourceItemRef, slotName)) {
                 toast('Cannot equip this item in this slot!', 'warn');
                 hideItemTooltip();
                 return;
@@ -890,102 +1107,42 @@ function renderInventory() {
                 }
               }
               
-              // Get fresh equipped reference again before swap
+              // Get fresh equipped reference for swap
               const swapEquipped = window.combatSystem.getEquipped();
               
-              // Now do the direct swap in equipped slots
               // Handle two-handed weapons
-              if (sourceItem.hands === 2) {
-                // Two-handed weapon occupies both hands
-                // Clear source slot first
+              if (sourceItemRef && sourceItemRef.hands === 2) {
                 swapEquipped[sourceSlotCamel] = null;
-                // Then set in both hands
-                swapEquipped.weaponRight = sourceItem;
-                swapEquipped.weaponLeft = sourceItem;
-                // If there was an item in target slot, it needs to go to inventory
-                if (targetItem && targetItem.id !== sourceItemId) {
-                  // Add target item to inventory manually
+                swapEquipped.weaponRight = sourceItemRef;
+                swapEquipped.weaponLeft = sourceItemRef;
+                if (targetItemRef && targetItemRef.id !== sourceItemId) {
                   const inventory = save && save.inventory && save.inventory.inventory ? save.inventory.inventory : [];
                   const emptySlot = inventory.findIndex(s => s === null);
                   if (emptySlot !== -1) {
-                    inventory[emptySlot] = targetItem;
+                    inventory[emptySlot] = targetItemRef;
                     if (save && save.inventory) {
                       save.inventory.inventory = inventory;
                     }
                   }
                 }
-              } else if (targetItem && targetItem.hands === 2) {
-                // Target item is two-handed - it occupies both hands
-                // Clear source slot first
+              } else if (targetItemRef && targetItemRef.hands === 2) {
                 swapEquipped[sourceSlotCamel] = null;
-                // Clear both hands for two-handed weapon
                 swapEquipped.weaponRight = null;
                 swapEquipped.weaponLeft = null;
-                // Put source item in target slot
-                swapEquipped[targetSlotCamel] = sourceItem;
-                // Add two-handed weapon to inventory manually
+                swapEquipped[targetSlotCamel] = sourceItemRef;
                 const inventory = save && save.inventory && save.inventory.inventory ? save.inventory.inventory : [];
                 const emptySlot = inventory.findIndex(s => s === null);
                 if (emptySlot !== -1) {
-                  inventory[emptySlot] = targetItem;
+                  inventory[emptySlot] = targetItemRef;
                   if (save && save.inventory) {
                     save.inventory.inventory = inventory;
                   }
                 }
               } else {
-                // Normal swap - exchange items between slots
-                // CRITICAL: Verify items are still in expected slots before swap
-                const verifySource = swapEquipped[sourceSlotCamel];
-                const verifyTarget = swapEquipped[targetSlotCamel];
-                
-                // Verify source item matches
-                if (!verifySource || verifySource.id !== sourceItemId) {
-                  console.warn('Source item changed during swap!', {
-                    expectedId: sourceItemId,
-                    actualId: verifySource?.id
-                  });
-                  hideItemTooltip();
-                  return;
-                }
-                
-                // CRITICAL: If target already has same item, abort
-                if (verifyTarget && verifyTarget.id === sourceItemId) {
-                  swapEquipped[sourceSlotCamel] = null;
-                  hideItemTooltip();
-                  window.combatSystem.calculateStats();
-                  window.combatSystem.save();
-                  window.combatSystem.render();
-                  renderInventory();
-                  return;
-                }
-                
-                // Perform atomic swap: clear both, then set
-                const itemFromSource = verifySource;
-                const itemFromTarget = verifyTarget;
-                
-                // Clear both slots
-                swapEquipped[sourceSlotCamel] = null;
-                swapEquipped[targetSlotCamel] = null;
-                
-                // Set items in swapped positions
-                swapEquipped[targetSlotCamel] = itemFromSource;
-                swapEquipped[sourceSlotCamel] = itemFromTarget;
-                
-                // CRITICAL: Final check - ensure no duplicate IDs in weapon slots
-                const finalRight = swapEquipped.weaponRight;
-                const finalLeft = swapEquipped.weaponLeft;
-                
-                if (finalRight && finalLeft && finalRight.id === finalLeft.id) {
-                  // Same item ID in both hands
-                  if (finalRight.hands !== 2) {
-                    // NOT a two-handed weapon - this is a bug! Clear the source slot
-                    if (sourceSlotCamel === 'weaponRight') {
-                      swapEquipped.weaponRight = itemFromTarget;
-                    } else if (sourceSlotCamel === 'weaponLeft') {
-                      swapEquipped.weaponLeft = itemFromTarget;
-                    }
-                  }
-                }
+                // Simple swap: exchange items
+                const temp = swapEquipped[sourceSlotCamel];
+                swapEquipped[sourceSlotCamel] = swapEquipped[targetSlotCamel];
+                swapEquipped[targetSlotCamel] = temp;
               }
               
               // Update stats and save
@@ -993,10 +1150,30 @@ function renderInventory() {
               window.combatSystem.save();
               window.combatSystem.render();
               
-              // Force inventory render
-              if (window.experienceSystem && window.experienceSystem.inventory && window.experienceSystem.inventory.render) {
-                window.experienceSystem.inventory.render();
+              // CRITICAL: Check for duplicates AFTER swap and fix them
+              // If items have the same ID but different references, use the same reference
+              const finalEquipped = window.combatSystem.getEquipped();
+              const finalRight = finalEquipped.weaponRight;
+              const finalLeft = finalEquipped.weaponLeft;
+              
+              if (finalRight && finalLeft && finalRight.hands !== 2 && finalLeft.hands !== 2) {
+                const sameById = finalRight.id && finalLeft.id && finalRight.id === finalLeft.id;
+                const sameByRef = finalRight === finalLeft;
+                
+                if (sameById && !sameByRef) {
+                  // Same ID but different references - this is a duplicate! 
+                  // Use the reference from target slot (where we dragged TO)
+                  finalEquipped[sourceSlotCamel] = finalEquipped[targetSlotCamel];
+                  // Recalculate stats after fixing
+                  window.combatSystem.calculateStats();
+                  window.combatSystem.save();
+                  window.combatSystem.render();
+                }
+                // If sameByRef is true, it's OK (intentional for same dagger in both hands)
               }
+              
+              // Force inventory render
+              renderInventory();
             }
             hideItemTooltip();
             return;
@@ -1225,7 +1402,7 @@ function renderInventory() {
         // Add tooltip
         let tooltip = null;
         slot.addEventListener('mouseenter', (e) => {
-          tooltip = showItemTooltip(e, item);
+          tooltip = showItemTooltip(e, item, null);
         });
         slot.addEventListener('mouseleave', () => {
           hideItemTooltip();
@@ -1237,6 +1414,7 @@ function renderInventory() {
         
         // Drag start
         slot.addEventListener('dragstart', (e) => {
+          hideItemTooltip(); // Hide tooltip when dragging starts
           const dragData = { itemIndex: i, item: item };
           e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
           e.dataTransfer.effectAllowed = 'move';
@@ -1276,29 +1454,56 @@ function renderInventory() {
             };
             
             const sellPrice = getSellPrice(item.rarity);
-            const confirmMessage = `Продать предмет за +${sellPrice} монет казны?`;
+            const confirmMessage = `Sell item for +${sellPrice} treasury coins?`;
             
-            if (confirm(confirmMessage)) {
-              // Remove item from inventory
-              inventorySystem.inventory[i] = null;
-              
-              // Update save
-              if (save && save.inventory) {
-                save.inventory.inventory = inventorySystem.inventory;
-              }
-              
-              // Add treasury coins
-              if (save && save.treasury) {
-                save.treasury.coins = (save.treasury.coins || 0) + sellPrice;
-                // Update treasury display if function exists
-                if (typeof renderTreasury === 'function') {
-                  renderTreasury();
+            // Use confirmation modal instead of browser confirm
+            if (typeof showConfirmModal === 'function') {
+              showConfirmModal(confirmMessage, () => {
+                // Remove item from inventory
+                inventorySystem.inventory[i] = null;
+                
+                // Update save
+                if (save && save.inventory) {
+                  save.inventory.inventory = inventorySystem.inventory;
                 }
+                
+                // Add treasury coins
+                if (save && save.treasury) {
+                  save.treasury.coins = (save.treasury.coins || 0) + sellPrice;
+                  // Update treasury display if function exists
+                  if (typeof renderTreasury === 'function') {
+                    renderTreasury();
+                  }
+                }
+                
+                // Re-render inventory
+                renderInventory();
+                toast(`Item sold for ${sellPrice} treasury coins`, 'good');
+              });
+            } else {
+              // Fallback to browser confirm if modal function is not available
+              if (confirm(confirmMessage)) {
+                // Remove item from inventory
+                inventorySystem.inventory[i] = null;
+                
+                // Update save
+                if (save && save.inventory) {
+                  save.inventory.inventory = inventorySystem.inventory;
+                }
+                
+                // Add treasury coins
+                if (save && save.treasury) {
+                  save.treasury.coins = (save.treasury.coins || 0) + sellPrice;
+                  // Update treasury display if function exists
+                  if (typeof renderTreasury === 'function') {
+                    renderTreasury();
+                  }
+                }
+                
+                // Re-render inventory
+                renderInventory();
+                toast(`Item sold for ${sellPrice} treasury coins`, 'good');
               }
-              
-              // Re-render inventory
-              renderInventory();
-              toast(`Предмет продан за ${sellPrice} монет казны`, 'good');
             }
             return;
           }
@@ -1311,14 +1516,21 @@ function renderInventory() {
               // Sword - only right hand
               window.combatSystem.equip(item, 'weapon-right');
             } else if (item.weaponType === 'DAGGER') {
-              // Dagger - can go in either hand, try right first
-              if (!window.combatSystem.getEquipped().weaponRight) {
-                window.combatSystem.equip(item, 'weapon-right');
-              } else if (!window.combatSystem.getEquipped().weaponLeft || 
-                         window.combatSystem.getEquipped().weaponLeft.weaponType === 'SHIELD') {
+              // Dagger - equip based on weaponHand
+              if (item.weaponHand === 'left') {
                 window.combatSystem.equip(item, 'weapon-left');
-              } else {
+              } else if (item.weaponHand === 'right') {
                 window.combatSystem.equip(item, 'weapon-right');
+              } else {
+                // Old daggers without weaponHand (backward compatibility) - try right first
+                if (!window.combatSystem.getEquipped().weaponRight) {
+                  window.combatSystem.equip(item, 'weapon-right');
+                } else if (!window.combatSystem.getEquipped().weaponLeft || 
+                           window.combatSystem.getEquipped().weaponLeft.weaponType === 'SHIELD') {
+                  window.combatSystem.equip(item, 'weapon-left');
+                } else {
+                  window.combatSystem.equip(item, 'weapon-right');
+                }
               }
             } else if (item.weaponType === 'WAND') {
               // Wand - can go in either hand, but only one
@@ -1415,6 +1627,159 @@ function renderInventory() {
   
   // Setup sort buttons
   setupInventorySortButtons();
+  
+  // Setup sell all buttons by rarity
+  setupSellAllByRarityButtons();
+}
+
+// Sell all items of a specific rarity
+function sellAllItemsByRarity(rarity) {
+  if (!save || !save.inventory || !save.inventory.inventory) {
+    toast('Error: inventory not found', 'bad');
+    return;
+  }
+  
+  // Get sell price function
+  const getSellPrice = (rarity) => {
+    const rarityPrices = {
+      'COMMON': 1,
+      'UNCOMMON': 5,
+      'RARE': 10,
+      'EPIC': 50,
+      'LEGENDARY': 100
+    };
+    return rarityPrices[rarity] || 1;
+  };
+  
+  // Count items and calculate total value
+  let itemCount = 0;
+  let totalValue = 0;
+  const inventory = inventorySystem.inventory;
+  
+  for (let i = 0; i < inventory.length; i++) {
+    const item = inventory[i];
+    if (item && item.rarity === rarity) {
+      itemCount++;
+      totalValue += getSellPrice(item.rarity);
+    }
+  }
+  
+  if (itemCount === 0) {
+    const rarityName = window.combatSystem && window.combatSystem.ITEM_RARITY && window.combatSystem.ITEM_RARITY[rarity]
+      ? window.combatSystem.ITEM_RARITY[rarity].name
+      : rarity;
+    toast(`No ${rarityName} items to sell`, 'warn');
+    return;
+  }
+  
+  // Get rarity name for display
+  const rarityName = window.combatSystem && window.combatSystem.ITEM_RARITY && window.combatSystem.ITEM_RARITY[rarity]
+    ? window.combatSystem.ITEM_RARITY[rarity].name
+    : rarity;
+  
+  // Confirm before selling
+  const confirmMessage = `Sell all ${rarityName} items (${itemCount}) for ${totalValue} treasury coins?`;
+  
+  // Use confirmation modal instead of browser confirm
+  if (typeof showConfirmModal === 'function') {
+    showConfirmModal(confirmMessage, () => {
+      // Remove all items of this rarity from inventory
+      for (let i = 0; i < inventory.length; i++) {
+        const item = inventory[i];
+        if (item && item.rarity === rarity) {
+          inventory[i] = null;
+        }
+      }
+      
+      // Update save
+      if (save && save.inventory) {
+        save.inventory.inventory = inventory;
+      }
+      
+      // Update inventorySystem
+      inventorySystem.inventory = inventory;
+      
+      // Add treasury coins
+      if (save && save.treasury) {
+        save.treasury.coins = (save.treasury.coins || 0) + totalValue;
+        // Update treasury display if function exists
+        if (typeof renderTreasury === 'function') {
+          renderTreasury();
+        }
+      }
+      
+      // Re-render inventory
+      renderInventory();
+      toast(`Sold ${itemCount} ${rarityName} items for ${totalValue} treasury coins`, 'good');
+    });
+  } else {
+    // Fallback to browser confirm if modal function is not available
+    if (confirm(confirmMessage)) {
+      // Remove all items of this rarity from inventory
+      for (let i = 0; i < inventory.length; i++) {
+        const item = inventory[i];
+        if (item && item.rarity === rarity) {
+          inventory[i] = null;
+        }
+      }
+      
+      // Update save
+      if (save && save.inventory) {
+        save.inventory.inventory = inventory;
+      }
+      
+      // Update inventorySystem
+      inventorySystem.inventory = inventory;
+      
+      // Add treasury coins
+      if (save && save.treasury) {
+        save.treasury.coins = (save.treasury.coins || 0) + totalValue;
+        // Update treasury display if function exists
+        if (typeof renderTreasury === 'function') {
+          renderTreasury();
+        }
+      }
+      
+      // Re-render inventory
+      renderInventory();
+      toast(`Sold ${itemCount} ${rarityName} items for ${totalValue} treasury coins`, 'good');
+    }
+  }
+}
+
+// Setup sell all buttons by rarity
+function setupSellAllByRarityButtons() {
+  const container = document.getElementById('inventory-sell-controls');
+  if (!container) return;
+  
+  // Clear container
+  container.innerHTML = '';
+  
+  // Get rarity data
+  if (!window.combatSystem || !window.combatSystem.ITEM_RARITY) return;
+  
+  const rarities = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+  
+  rarities.forEach(rarity => {
+    const rarityData = window.combatSystem.ITEM_RARITY[rarity];
+    if (!rarityData) return;
+    
+    const button = document.createElement('button');
+    button.className = 'btn tiny sell-all-rarity-btn';
+    button.setAttribute('data-rarity', rarity);
+    button.setAttribute('title', `Sell all ${rarityData.name} items`);
+    button.style.color = rarityData.color;
+    button.style.borderColor = rarityData.color;
+    button.textContent = `💰 ${rarityData.name}`;
+    
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      sellAllItemsByRarity(rarity);
+    });
+    
+    container.appendChild(button);
+  });
 }
 
 // Setup inventory sort buttons (only once, using data attribute to track)
@@ -1604,10 +1969,10 @@ function canEquipItemInSlot(item, slotName) {
   if (item.type === 'weapon') {
     const equipped = window.combatSystem.getEquipped();
     
-    // Shield - only left hand, requires SWORD or WAND in right hand
+    // Shield - only left hand, can be equipped with SWORD or WAND in right hand, or without any weapon
     if (item.weaponType === 'SHIELD') {
       if (slotName !== 'weapon-left') return false;
-      // Can equip shield if right hand has SWORD or WAND, or is empty (will check on equip)
+      // Can equip shield if right hand is empty, or has SWORD or WAND (will check incompatible weapons on equip)
       return !equipped.weaponRight || equipped.weaponRight.weaponType === 'SWORD' || equipped.weaponRight.weaponType === 'WAND';
     }
     
@@ -1616,9 +1981,19 @@ function canEquipItemInSlot(item, slotName) {
       return slotName === 'weapon-right';
     }
     
-    // Dagger - can go in either hand
+    // Dagger - can only go in the hand specified by weaponHand
     if (item.weaponType === 'DAGGER') {
-      return slotName === 'weapon-right' || slotName === 'weapon-left';
+      if (!item.weaponHand) {
+        // Old daggers without weaponHand can go in either hand (backward compatibility)
+        return slotName === 'weapon-right' || slotName === 'weapon-left';
+      }
+      // New daggers: left dagger only in left hand, right dagger only in right hand
+      if (item.weaponHand === 'left') {
+        return slotName === 'weapon-left';
+      } else if (item.weaponHand === 'right') {
+        return slotName === 'weapon-right';
+      }
+      return false;
     }
     
     // Wand - can go in either hand, but only one wand total

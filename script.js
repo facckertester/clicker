@@ -10238,6 +10238,36 @@ debugTools.addEventListener('click', (e) => {
         toast('Treasury not available.', 'warn');
       }
       break;
+    case 'addDevSword':
+      if (window.combatSystem && window.combatSystem.createDeveloperSword && window.combatSystem.addItemToInventory) {
+        const devSword = window.combatSystem.createDeveloperSword();
+        window.combatSystem.addItemToInventory(devSword);
+        toast('Added Developer Sword to inventory.', 'good');
+        // Refresh inventory display if it's open
+        if (window.experienceSystem && window.experienceSystem.inventory && window.experienceSystem.inventory.render) {
+          window.experienceSystem.inventory.render();
+        }
+      } else {
+        toast('Combat system not available.', 'warn');
+      }
+      break;
+    case 'repairAllBuildings':
+      // Чиним все здания, устанавливая blockedUntil в 0
+      let repairedCount = 0;
+      save.buildings.forEach(b => {
+        if (b.blockedUntil > now()) {
+          b.blockedUntil = 0;
+          repairedCount++;
+        }
+      });
+      if (repairedCount > 0) {
+        toast(`Repaired ${repairedCount} building(s).`, 'good');
+        renderBuildings();
+        updateButtonStates();
+      } else {
+        toast('No buildings need repair.', 'warn');
+      }
+      break;
     case 'resetAll':
       const uname = save.meta.username;
       save = newSave(uname);
