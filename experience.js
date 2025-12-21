@@ -402,11 +402,11 @@ function getItemTooltipHTML(item, slotName) {
         const elementDescriptions = {
           'FIRE': { 
             baseChance: 0.15, 
-            desc: 'Chance to burn enemy (5s, stacks infinitely)' 
+            desc: 'Chance to burn enemy (5s, stacks up to 30x)' 
           },
           'POISON': { 
             baseChance: 0.20, 
-            desc: 'Chance to poison enemy, increases incoming damage (5s, stacks infinitely)' 
+            desc: 'Chance to poison enemy, increases incoming damage (15s, stacks up to 30x)' 
           },
           'COLD': { 
             baseChance: 0.25, 

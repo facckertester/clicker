@@ -568,7 +568,10 @@
   <div class="combat-container">
     <div class="combat-header">
       <h3>City Defense - Boss Wave <span id="boss-wave-number">1</span></h3>
-      <button id="combat-close" class="btn tiny">✕</button>
+      <div class="combat-header-controls">
+        <button id="combat-select-wave-btn" class="btn tiny" title="Select Wave">📋</button>
+        <button id="combat-close" class="btn tiny">✕</button>
+      </div>
     </div>
     
     <div class="combat-arena">
@@ -580,6 +583,10 @@
           <div class="combat-hp-text" id="boss-hp-text">100 / 100</div>
         </div>
         <div class="boss-stats">
+          <div class="boss-stat-item">
+            <span>Damage:</span>
+            <span id="boss-damage">0</span>
+          </div>
           <div class="boss-stat-item">
             <span>Armor:</span>
             <span id="boss-armor">0</span>

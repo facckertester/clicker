@@ -4106,6 +4106,12 @@ body.season-winter .achievement-item {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 2px solid var(--border-orange);
+}
+
+.combat-header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   background: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.8)) !important;
   filter: none !important;
   opacity: 1 !important;
@@ -4287,6 +4293,11 @@ body.season-winter .achievement-item {
   font-family: var(--mono-font);
 }
 
+.boss-element-hoverable {
+  cursor: help;
+}
+
+
 .boss-debuffs {
   display: flex;
   flex-wrap: wrap;
@@ -4311,7 +4322,6 @@ body.season-winter .achievement-item {
   text-shadow: 0 0 4px currentColor;
   white-space: nowrap;
   margin: 2px 0;
-  cursor: help;
 }
 
 .player-debuffs {
@@ -4338,7 +4348,6 @@ body.season-winter .achievement-item {
   text-shadow: 0 0 4px currentColor;
   white-space: nowrap;
   margin: 2px 0;
-  cursor: help;
 }
 
 .debuff-info-window {

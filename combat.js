@@ -44,7 +44,8 @@ let combatSystem = {
   lastBossAttackTime: 0,
   countdownTimer: null,
   countdownSeconds: 0,
-  lastWaveDefeated: false // Track if last wave was defeated
+  lastWaveDefeated: false, // Track if last wave was defeated
+  highestWaveDefeated: 0 // Track highest wave defeated for replay system
 };
 
 // Item rarities
@@ -152,8 +153,9 @@ function generateItem(bossLevel, rarity) {
     const weaponData = WEAPON_TYPES[weaponType];
     
     // Calculate damage based on weapon type base damage and level scaling
-    // Damage scales: baseDamage * (1 + itemLevel * 0.1) * rarity multiplier
-    const damage = Math.floor(weaponData.baseDamage * (1 + itemLevel * 0.1) * rarityData.multiplier);
+    // REBALANCE: Reduced damage scaling (proposal 8)
+    // Damage scales: baseDamage * (1 + itemLevel * 0.08) * rarity multiplier (reduced from 0.1)
+    const damage = Math.floor(weaponData.baseDamage * (1 + itemLevel * 0.08) * rarityData.multiplier);
     
     // Attack speed based on weapon type (rarity slightly improves speed)
     const attackSpeed = weaponData.attackSpeed 
@@ -161,9 +163,12 @@ function generateItem(bossLevel, rarity) {
       : null;
     
     // Crit chance based on weapon type base and level scaling
-    // Higher rarity = better crit chance
+    // REBALANCE: Limited crit chance growth (proposal 5)
+    // Higher rarity = better crit chance, but most items capped at 70%, only Legendary can reach 95%
     const critChanceBase = weaponData.critChanceBase || 0.5;
-    const critChance = Math.min(95, Math.floor((critChanceBase * (1 + itemLevel * 0.15) * rarityData.multiplier) * 10) / 10);
+    const baseCritChance = Math.floor((critChanceBase * (1 + itemLevel * 0.15) * rarityData.multiplier) * 10) / 10;
+    // Limit crit chance based on rarity: Common/Uncommon/Rare/Epic max 70%, Legendary max 95%
+    const critChance = Math.min(rarity === 'LEGENDARY' ? 95 : 70, baseCritChance);
     
     // Crit multiplier based on weapon type base and level scaling
     const critMultiplierBase = weaponData.critMultiplierBase || 0.2;
@@ -229,11 +234,13 @@ function generateItem(bossLevel, rarity) {
       return item;
     }
     
+    // DIABLO 3/POE STYLE: Generate random affixes based on rarity
+    // Higher rarity = more affixes and better values
     const weaponStats = {
       damage: damage
     };
     
-    // Add crit stats
+    // Always add crit stats (core stats)
     if (critChance > 0) {
       weaponStats.critChance = critChance;
     }
@@ -241,13 +248,64 @@ function generateItem(bossLevel, rarity) {
       weaponStats.critMultiplier = critMultiplier;
     }
     
+    // Random secondary affixes (like Diablo 3/PoE)
+    // Affix count: Common 0-1, Uncommon 1-2, Rare 2-3, Epic 2-4, Legendary 3-5
+    const affixCountRanges = {
+      'COMMON': { min: 0, max: 1 },
+      'UNCOMMON': { min: 1, max: 2 },
+      'RARE': { min: 2, max: 3 },
+      'EPIC': { min: 2, max: 4 },
+      'LEGENDARY': { min: 3, max: 5 }
+    };
+    
+    const affixRange = affixCountRanges[rarity] || { min: 0, max: 1 };
+    const affixCount = affixRange.min + Math.floor(Math.random() * (affixRange.max - affixRange.min + 1));
+    
+    // Available secondary affixes for weapons
+    const availableAffixes = ['hp', 'armor', 'dodge', 'hpRegen', 'maxMana'];
+    const selectedAffixes = [];
+    
+    // Randomly select affixes without duplicates
+    for (let i = 0; i < affixCount && availableAffixes.length > 0; i++) {
+      const randomIndex = Math.floor(Math.random() * availableAffixes.length);
+      const affix = availableAffixes.splice(randomIndex, 1)[0];
+      selectedAffixes.push(affix);
+    }
+    
+    // Generate values for selected affixes (scaled by item level and rarity)
+    selectedAffixes.forEach(affix => {
+      let baseValue = 0;
+      switch (affix) {
+        case 'hp':
+          baseValue = (10 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.hp = Math.floor(baseValue);
+          break;
+        case 'armor':
+          baseValue = (2 + itemLevel * 0.3) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.armor = Math.floor(baseValue);
+          break;
+        case 'dodge':
+          baseValue = (0.3 + itemLevel * 0.05) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.dodge = Math.floor(baseValue * 10) / 10;
+          break;
+        case 'hpRegen':
+          baseValue = (0.1 + itemLevel * 0.03) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.hpRegen = Math.floor(baseValue * 10) / 10;
+          break;
+        case 'maxMana':
+          baseValue = (5 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.maxMana = Math.floor(baseValue);
+          break;
+      }
+    });
+    
     // Add element damage for WAND and STAFF
+    // REBALANCE: Increased element damage for Staff (proposal 6)
     if (element && (weaponType === 'WAND' || weaponType === 'STAFF')) {
       const elementData = ELEMENT_TYPES[element];
-      let elementDamage = Math.floor(damage * 0.3 * rarityData.multiplier); // 30% of base damage
-      if (weaponType === 'STAFF') {
-        elementDamage = Math.floor(elementDamage * 2); // Staff gets x2 element damage
-      }
+      // Staff gets 15% element damage, Wand gets 10%
+      const elementDamagePercent = weaponType === 'STAFF' ? 0.15 : 0.1;
+      let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
       if (elementDamage > 0) {
         weaponStats[`elementDamage_${element}`] = elementDamage;
       }
@@ -437,15 +495,44 @@ function calculatePlayerStats() {
   combatSystem.player.reflectChance = Math.min(95, baseStats.reflectChance);
   combatSystem.player.maxMana = baseStats.maxMana;
   combatSystem.player.attackSpeed = baseStats.attackSpeed;
+  
+  // DIABLO 3/POE STYLE: Calculate elemental resistances from equipment
+  // Reset resistances first
+  combatSystem.player.elementResistances = {
+    FIRE: 0,
+    POISON: 0,
+    COLD: 0,
+    LIGHTNING: 0,
+    BLEED: 0
+  };
+  
+  // Add resistances from equipment (items can have resistance affixes)
+  Object.keys(equipment).forEach(slot => {
+    const item = equipment[slot];
+    if (item && item.stats) {
+      // Check for resistance stats (e.g., fireResistance, poisonResistance, etc.)
+      Object.keys(ELEMENT_TYPES).forEach(element => {
+        const resistanceKey = `${element.toLowerCase()}Resistance`;
+        if (item.stats[resistanceKey]) {
+          combatSystem.player.elementResistances[element] += item.stats[resistanceKey];
+          // Cap resistances at 75% (like Diablo 3)
+          combatSystem.player.elementResistances[element] = Math.min(75, combatSystem.player.elementResistances[element]);
+        }
+      });
+    }
+  });
 }
 
 // Generate boss
 function generateBoss(wave) {
   // Bosses have much more HP (10-20x more), but attack slower and deal less damage
-  const baseHp = (200 + wave * 5) * 15; // 15x more HP
-  const baseDamage = (7 + wave * 2) * 0.5; // Increased from 0.3 to 0.5 (slightly more damage)
-  const hp = Math.floor(baseHp * (1 + wave * 0.1));
-  const damage = Math.floor(baseDamage * (1 + wave * 0.05)); // Slower damage scaling
+  // REBALANCE: Increased HP growth (proposal 1)
+  const baseHp = (200 + wave * 8) * 4; // Increased from * 3, wave * 5
+  const hp = Math.floor(baseHp * (1 + wave * 0.03)); // Increased growth from 0.02 to 0.03
+  
+  // REBALANCE: Reduced damage growth (proposal 2)
+  const baseDamage = (7 + wave * 1.5) * 0.5; // Reduced from wave * 2
+  const damage = Math.floor(baseDamage * (1 + wave * 0.008)); // Reduced growth from 0.01 to 0.008
   
   // Bosses attack much slower (2-3x slower)
   const baseAttackSpeed = 0.4 - (wave * 0.005); // Much slower base speed
@@ -453,8 +540,10 @@ function generateBoss(wave) {
   const attackSpeed = Math.max(minAttackSpeed, baseAttackSpeed);
   
   // Boss armor and dodge chance
-  const armor = Math.floor((5 + wave * 2) * (1 + wave * 0.05));
-  const dodgeChance = Math.min(25, 2 + wave * 0.3); // Up to 25% dodge chance
+  const armor = Math.floor((5 + wave * 0.4) * (1 + wave * 0.01)); // Reduced growth: 2 -> 0.4, 0.05 -> 0.01
+  
+  // REBALANCE: Increased dodge chance (proposal 4)
+  const dodgeChance = Math.min(35, 2 + wave * 0.1); // Increased from 0.06 to 0.1, cap from 25 to 35
   
   // 30% chance boss has an element
   let element = null;
@@ -467,6 +556,21 @@ function generateBoss(wave) {
     ? `${ELEMENT_TYPES[element].name} Boss Wave ${wave}`
     : `Boss Wave ${wave}`;
   
+  // DIABLO 3/POE STYLE: Add elemental resistances for bosses
+  // Bosses have random resistances to different elements (0-50%)
+  // If boss has an element, it has 75% resistance to that element (strong against own element)
+  const elementResistances = {};
+  const elements = Object.keys(ELEMENT_TYPES);
+  elements.forEach(elem => {
+    if (element && elem === element) {
+      // Boss is strong against its own element
+      elementResistances[elem] = 75;
+    } else {
+      // Random resistance 0-50%
+      elementResistances[elem] = Math.floor(Math.random() * 51);
+    }
+  });
+  
   return {
     hp: hp,
     maxHp: hp,
@@ -477,6 +581,7 @@ function generateBoss(wave) {
     level: wave,
     name: bossName,
     element: element, // Boss element
+    elementResistances: elementResistances, // Resistance to each element (0-100%)
     effects: {
       stunned: 0,
       slowed: 0,
@@ -501,7 +606,8 @@ function generateBoss(wave) {
 }
 
 // Start combat with countdown
-function startCombat() {
+// DIABLO 3/POE STYLE: Allow replaying previous bosses by specifying wave
+function startCombat(waveNumber = null) {
   // Check if combat is already active
   if (combatSystem.active) {
     toast('Combat is already active! Finish the current battle first.', 'warn');
@@ -514,12 +620,26 @@ function startCombat() {
     return;
   }
   
-  // Allow retry if player lost (boss exists but combat is not active)
-  // Only block if combat is currently active
-  if (combatSystem.active) {
-    toast('Combat is already active!', 'warn');
-    return;
+  // If wave number is specified, use it (for replaying previous bosses)
+  if (waveNumber !== null && waveNumber > 0) {
+    // Check if player has defeated this wave before (for replay)
+    if (waveNumber <= combatSystem.highestWaveDefeated + 1) {
+      // Allow replaying any defeated wave or next wave
+      combatSystem.bossWave = waveNumber;
+      combatSystem.lastWaveDefeated = false; // Reset flag for replay
+    } else {
+      toast(`You must defeat wave ${combatSystem.highestWaveDefeated + 1} first!`, 'warn');
+      return;
+    }
+  } else if (combatSystem.lastWaveDefeated) {
+    // Normal progression - move to next wave
+    combatSystem.bossWave++;
+    combatSystem.lastWaveDefeated = false;
+  } else if (combatSystem.bossWave === 0) {
+    // First time starting combat
+    combatSystem.bossWave = 1;
   }
+  // Otherwise, retry current wave (no change)
   
   // Start countdown
   startCombatCountdown();
@@ -629,6 +749,15 @@ function endCombat(victory) {
   const wasVictory = victory && combatSystem.boss;
   
   if (wasVictory) {
+    // DIABLO 3/POE STYLE: Track highest wave defeated for replay system
+    if (combatSystem.bossWave > combatSystem.highestWaveDefeated) {
+      combatSystem.highestWaveDefeated = combatSystem.bossWave;
+      // Save highest wave
+      if (save && save.combat) {
+        save.combat.highestWaveDefeated = combatSystem.highestWaveDefeated;
+      }
+    }
+    
     // Calculate souls reward
     const soulsReward = Math.floor(10 + combatSystem.bossWave * 5);
     combatSystem.souls += soulsReward;
@@ -1203,7 +1332,7 @@ function playerAttack() {
   if (Math.random() * 100 < critChance) {
     damage *= combatSystem.player.critMultiplier;
     isCrit = true;
-    showCombatText('CRIT!', '#ffd700', combatSystem.boss);
+    showCombatText('CRIT!', '#ffd700', combatSystem.boss, 'left', '1.5rem');
   }
   
   damage *= damageMultiplier;
@@ -1217,32 +1346,46 @@ function playerAttack() {
   }
   
   // Apply boss armor reduction (bleed stacks reduce armor)
+  // REBALANCE: Percentage-based armor reduction instead of linear (proposal 3)
   let bossArmor = combatSystem.boss.armor || 0;
   if (combatSystem.boss.effects && combatSystem.boss.effects.armorReduction) {
     bossArmor *= (1 - combatSystem.boss.effects.armorReduction);
   }
   if (bossArmor > 0) {
-    damage = Math.max(1, damage - bossArmor * 0.5);
+    // Percentage-based damage reduction (max 70% reduction)
+    const damageReduction = Math.min(0.7, bossArmor / (bossArmor + 100));
+    damage = Math.max(1, damage * (1 - damageReduction));
   }
   
   // Apply element damage for WAND and STAFF
+  // DIABLO 3/POE STYLE: Apply elemental resistances
   let elementDamage = 0;
   if (rightWeapon && rightWeapon.element) {
     const element = rightWeapon.element;
     const elementKey = `elementDamage_${element}`;
     if (rightWeapon.stats && rightWeapon.stats[elementKey]) {
       elementDamage = rightWeapon.stats[elementKey];
-      // Element damage is not affected by crit or armor
-      showCombatText(`-${Math.floor(elementDamage)} ${ELEMENT_TYPES[element].name}`, ELEMENT_TYPES[element].color, combatSystem.boss);
+      
+      // Apply elemental resistance (reduce damage by resistance percentage)
+      if (combatSystem.boss.elementResistances && combatSystem.boss.elementResistances[element] !== undefined) {
+        const resistance = combatSystem.boss.elementResistances[element];
+        elementDamage = Math.floor(elementDamage * (1 - resistance / 100));
+      }
+      
+      // Element damage is not affected by crit or armor, but affected by resistance
+      if (elementDamage > 0) {
+        showCombatText(`-${Math.floor(elementDamage)} ${ELEMENT_TYPES[element].name}`, ELEMENT_TYPES[element].color, combatSystem.boss, 'right');
+      }
     }
   }
   
   // Apply physical damage
   combatSystem.boss.hp -= damage;
   combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
-  showCombatText(`-${Math.floor(damage)}`, '#ff6666', combatSystem.boss);
+  // Show crit damage larger and to the left, normal damage in center
+  showCombatText(`-${Math.floor(damage)}`, '#ff6666', combatSystem.boss, isCrit ? 'left' : 'center', isCrit ? '1.5rem' : null);
   
-  // Apply element damage
+  // Apply element damage (after resistance calculation)
   if (elementDamage > 0) {
     combatSystem.boss.hp -= elementDamage;
     combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
@@ -1327,7 +1470,7 @@ function applyElementEffect(element, isCrit, weapon) {
             damage: burnDamage
           });
         }
-        showCombatText('BURNING!', ELEMENT_TYPES.FIRE.color, combatSystem.boss);
+        showCombatText('BURNING!', ELEMENT_TYPES.FIRE.color, combatSystem.boss, 'center');
       }
       break;
       
@@ -1359,7 +1502,7 @@ function applyElementEffect(element, isCrit, weapon) {
             damage: poisonDamage
           });
         }
-        showCombatText('POISONED!', ELEMENT_TYPES.POISON.color, combatSystem.boss);
+        showCombatText('POISONED!', ELEMENT_TYPES.POISON.color, combatSystem.boss, 'center');
       }
       break;
       
@@ -1387,12 +1530,12 @@ function applyElementEffect(element, isCrit, weapon) {
           });
         }
         combatSystem.boss.effects.slowed = Math.max(combatSystem.boss.effects.slowed || 0, now + effectDuration);
-        showCombatText('SLOWED!', ELEMENT_TYPES.COLD.color, combatSystem.boss);
+        showCombatText('SLOWED!', ELEMENT_TYPES.COLD.color, combatSystem.boss, 'center');
       }
       
       if (Math.random() < freezeChance) {
         combatSystem.boss.effects.frozen = now + 3000; // 3 seconds freeze
-        showCombatText('FROZEN!', ELEMENT_TYPES.COLD.color, combatSystem.boss);
+        showCombatText('FROZEN!', ELEMENT_TYPES.COLD.color, combatSystem.boss, 'center');
       }
       break;
       
@@ -1417,7 +1560,7 @@ function applyElementEffect(element, isCrit, weapon) {
             duration: effectDuration
           });
         }
-        showCombatText('SHOCKED!', ELEMENT_TYPES.LIGHTNING.color, combatSystem.boss);
+        showCombatText('SHOCKED!', ELEMENT_TYPES.LIGHTNING.color, combatSystem.boss, 'center');
       }
       break;
       
@@ -1450,7 +1593,7 @@ function applyElementEffect(element, isCrit, weapon) {
           }
           combatSystem.boss.effects.armorReduction += 0.02;
         }
-        showCombatText('BLEEDING!', ELEMENT_TYPES.BLEED.color, combatSystem.boss);
+        showCombatText('BLEEDING!', ELEMENT_TYPES.BLEED.color, combatSystem.boss, 'center');
       }
       break;
   }
@@ -1547,9 +1690,16 @@ function applyBossElementToPlayer(element, now) {
   
   switch (element) {
     case 'FIRE':
-      // Fire: chance to burn player (stacks up to 30)
-      if (Math.random() < 0.3) {
-        const burnDamage = Math.floor(combatSystem.boss.damage * 0.1);
+      // DIABLO 3/POE STYLE: Apply elemental resistance to effect chance and damage
+      // Resistance reduces both chance to apply effect and damage dealt
+      const fireResistance = combatSystem.player.elementResistances ? combatSystem.player.elementResistances.FIRE || 0 : 0;
+      const fireEffectChance = 0.3 * (1 - fireResistance / 100); // Reduced chance based on resistance
+      
+      if (Math.random() < fireEffectChance) {
+        let burnDamage = Math.floor(combatSystem.boss.damage * 0.1);
+        // Apply resistance to damage
+        burnDamage = Math.floor(burnDamage * (1 - fireResistance / 100));
+        
         if (!combatSystem.boss.playerEffects.burning) {
           combatSystem.boss.playerEffects.burning = [];
         }
@@ -1683,7 +1833,7 @@ function updateCombatLoop() {
           if (elapsed % 1000 < 16) {
             combatSystem.player.hp -= burn.damage;
             combatSystem.player.hp = Math.max(0, combatSystem.player.hp);
-            showCombatText(`-${Math.floor(burn.damage)}`, ELEMENT_TYPES.FIRE.color, combatSystem.player);
+            showCombatText(`-${Math.floor(burn.damage)}`, ELEMENT_TYPES.FIRE.color, combatSystem.player, 'right');
             if (combatSystem.player.hp <= 0) {
               combatSystem.player.hp = 0;
               endCombat(false);
@@ -1705,7 +1855,7 @@ function updateCombatLoop() {
           if (elapsed % 1000 < 16) {
             combatSystem.player.hp -= poison.damage;
             combatSystem.player.hp = Math.max(0, combatSystem.player.hp);
-            showCombatText(`-${Math.floor(poison.damage)}`, ELEMENT_TYPES.POISON.color, combatSystem.player);
+            showCombatText(`-${Math.floor(poison.damage)}`, ELEMENT_TYPES.POISON.color, combatSystem.player, 'right');
             if (combatSystem.player.hp <= 0) {
               combatSystem.player.hp = 0;
               endCombat(false);
@@ -1727,7 +1877,7 @@ function updateCombatLoop() {
           if (elapsed % 1000 < 16) {
             combatSystem.player.hp -= bleed.damage;
             combatSystem.player.hp = Math.max(0, combatSystem.player.hp);
-            showCombatText(`-${Math.floor(bleed.damage)}`, ELEMENT_TYPES.BLEED.color, combatSystem.player);
+            showCombatText(`-${Math.floor(bleed.damage)}`, ELEMENT_TYPES.BLEED.color, combatSystem.player, 'right');
             if (combatSystem.player.hp <= 0) {
               combatSystem.player.hp = 0;
               endCombat(false);
@@ -1766,7 +1916,7 @@ function updateCombatLoop() {
           if (elapsed % 1000 < 16) {
             combatSystem.boss.hp -= burn.damage;
             combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
-            showCombatText(`-${Math.floor(burn.damage)}`, ELEMENT_TYPES.FIRE.color, combatSystem.boss);
+            showCombatText(`-${Math.floor(burn.damage)}`, ELEMENT_TYPES.FIRE.color, combatSystem.boss, 'right');
             if (combatSystem.boss.hp <= 0) {
               combatSystem.boss.hp = 0;
               endCombat(true);
@@ -1788,7 +1938,7 @@ function updateCombatLoop() {
           if (elapsed % 1000 < 16) {
             combatSystem.boss.hp -= poison.damage;
             combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
-            showCombatText(`-${Math.floor(poison.damage)}`, ELEMENT_TYPES.POISON.color, combatSystem.boss);
+            showCombatText(`-${Math.floor(poison.damage)}`, ELEMENT_TYPES.POISON.color, combatSystem.boss, 'right');
             if (combatSystem.boss.hp <= 0) {
               combatSystem.boss.hp = 0;
               endCombat(true);
@@ -1817,7 +1967,7 @@ function updateCombatLoop() {
           if (elapsed % 1000 < 16) {
             combatSystem.boss.hp -= bleed.damage;
             combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
-            showCombatText(`-${Math.floor(bleed.damage)}`, ELEMENT_TYPES.BLEED.color, combatSystem.boss);
+            showCombatText(`-${Math.floor(bleed.damage)}`, ELEMENT_TYPES.BLEED.color, combatSystem.boss, 'right');
             if (combatSystem.boss.hp <= 0) {
               combatSystem.boss.hp = 0;
               endCombat(true);
@@ -1905,10 +2055,32 @@ function updateCombatLoop() {
   }
 }
 
+// Track active combat texts to prevent overlap
+const activeCombatTexts = {
+  boss: { left: [], center: [], right: [] },
+  player: { left: [], center: [], right: [] }
+};
+
 // Show combat text
-function showCombatText(text, color, target) {
+// direction: 'left' (for crits), 'right' (for element/debuff damage), 'center' (default)
+// fontSize: optional custom font size (default 1.2rem, crit uses 1.5rem)
+function showCombatText(text, color, target, direction = 'center', fontSize = null) {
   const combatArena = document.querySelector('.combat-arena');
   if (!combatArena) return;
+  
+  const targetKey = target === combatSystem.boss ? 'boss' : 'player';
+  const textQueue = activeCombatTexts[targetKey][direction];
+  
+  // Clean up queue - remove elements that are no longer in DOM
+  for (let i = textQueue.length - 1; i >= 0; i--) {
+    const el = textQueue[i];
+    if (!el || !el.parentNode || !document.body.contains(el)) {
+      textQueue.splice(i, 1);
+    }
+  }
+  
+  // Calculate vertical offset based on ACTIVE queue length (larger spacing)
+  const verticalOffset = textQueue.length * 50; // 50px spacing between texts (increased for better separation)
   
   const textEl = document.createElement('div');
   textEl.className = 'combat-floating-text';
@@ -1916,7 +2088,7 @@ function showCombatText(text, color, target) {
   textEl.style.color = color;
   textEl.style.position = 'absolute';
   textEl.style.fontWeight = 'bold';
-  textEl.style.fontSize = '1.2rem';
+  textEl.style.fontSize = fontSize || '1.2rem';
   textEl.style.textShadow = `0 0 8px ${color}, 2px 2px 4px rgba(0,0,0,0.9)`;
   textEl.style.pointerEvents = 'none';
   textEl.style.zIndex = '10000';
@@ -1929,10 +2101,13 @@ function showCombatText(text, color, target) {
   if (targetEl) {
     const rect = targetEl.getBoundingClientRect();
     textEl.style.left = `${rect.left + rect.width / 2}px`;
-    textEl.style.top = `${rect.top + rect.height / 2}px`;
+    textEl.style.top = `${rect.top + rect.height / 2 - verticalOffset}px`; // Offset for queue position
     textEl.style.transform = 'translate(-50%, -50%)';
     textEl.style.position = 'fixed';
     textEl.style.zIndex = '14000';
+    
+    // Add to queue
+    textQueue.push(textEl);
     
     // Append to combat screen or body to ensure it's above modal
     const combatScreen = document.getElementById('combat-screen');
@@ -1942,13 +2117,27 @@ function showCombatText(text, color, target) {
       document.body.appendChild(textEl);
     }
     
-    // Animate
+    // Animate based on direction
     requestAnimationFrame(() => {
       textEl.style.transition = 'all 1s ease-out';
-      textEl.style.transform = 'translate(-50%, -150%)';
+      
+      let transformX = '-50%';
+      if (direction === 'left') {
+        transformX = '-150%'; // Move left
+      } else if (direction === 'right') {
+        transformX = '50%'; // Move right
+      }
+      
+      textEl.style.transform = `translate(${transformX}, -150%)`;
       textEl.style.opacity = '0';
       
       setTimeout(() => {
+        // Remove from queue
+        const index = textQueue.indexOf(textEl);
+        if (index > -1) {
+          textQueue.splice(index, 1);
+        }
+        
         if (textEl.parentNode) {
           textEl.parentNode.removeChild(textEl);
         }
@@ -2039,6 +2228,12 @@ function renderCombat() {
       bossHpBar.style.width = `${bossHpPercent}%`;
       bossHpText.textContent = `${Math.floor(Math.max(0, combatSystem.boss.hp))} / ${Math.floor(combatSystem.boss.maxHp)}`;
       
+      // Update boss damage
+      const bossDamageEl = document.getElementById('boss-damage');
+      if (bossDamageEl) {
+        bossDamageEl.textContent = Math.floor(combatSystem.boss.damage || 0);
+      }
+      
       // Update boss armor
       const bossArmorEl = document.getElementById('boss-armor');
       if (bossArmorEl) {
@@ -2088,10 +2283,19 @@ function renderCombat() {
           bossElementInfo.textContent = `${chance} debuff`;
           bossElementInfo.style.color = elementData.color;
           bossElementContainer.style.display = 'flex';
+          
+          // Add event listeners for tooltip
+          bossElementContainer.classList.add('boss-element-hoverable');
+          bossElementContainer.setAttribute('data-boss-element', combatSystem.boss.element);
         } else {
           bossElementContainer.style.display = 'none';
+          bossElementContainer.classList.remove('boss-element-hoverable');
+          bossElementContainer.removeAttribute('data-boss-element');
         }
       }
+      
+      // Setup boss element tooltip (after setting up the container)
+      setupBossElementTooltip();
       
       // Update boss debuffs
       updateBossDebuffs();
@@ -2102,6 +2306,8 @@ function renderCombat() {
       // During countdown or before combat
       bossHpBar.style.width = '100%';
       bossHpText.textContent = 'Ready...';
+      const bossDamageEl = document.getElementById('boss-damage');
+      if (bossDamageEl) bossDamageEl.textContent = '0';
       const bossArmorEl = document.getElementById('boss-armor');
       if (bossArmorEl) bossArmorEl.textContent = '0';
       const bossDodgeEl = document.getElementById('boss-dodge');
@@ -2238,27 +2444,8 @@ function updateBossDebuffs() {
       fullDescription += ` Total damage per second: ${totalDamage}`;
     }
     
-    return `<span class="boss-debuff" style="color: ${debuff.color};" data-debuff-name="${debuff.name}" data-debuff-info="${fullDescription.replace(/"/g, '&quot;')}">${debuff.name}${countText}${timerText}</span>`;
+    return `<span class="boss-debuff" style="color: ${debuff.color};">${debuff.name}${countText}${timerText}</span>`;
   }).join('');
-  
-  // Add event listeners to debuffs
-  bossDebuffsEl.querySelectorAll('.boss-debuff').forEach(debuffEl => {
-    debuffEl.addEventListener('mouseenter', (e) => showDebuffInfo(e.target, 'boss'));
-    debuffEl.addEventListener('mouseleave', (e) => {
-      // Check if mouse is moving to the info window
-      const relatedTarget = e.relatedTarget;
-      const infoWindow = document.getElementById('debuff-info-window');
-      if (!relatedTarget || (infoWindow && !infoWindow.contains(relatedTarget))) {
-        hideDebuffInfo('boss');
-      }
-    });
-  });
-  
-  // Also hide when mouse leaves the info window
-  const bossInfoWindow = document.getElementById('debuff-info-window');
-  if (bossInfoWindow) {
-    bossInfoWindow.addEventListener('mouseleave', () => hideDebuffInfo('boss'));
-  }
 }
 
 // Update player debuffs display
@@ -2336,35 +2523,8 @@ function updatePlayerDebuffs() {
       fullDescription += ` Total damage per second: ${totalDamage}`;
     }
     
-    return `<span class="player-debuff" style="color: ${debuff.color};" data-debuff-name="${debuff.name}" data-debuff-info="${fullDescription.replace(/"/g, '&quot;')}">${debuff.name}${countText}${timerText}</span>`;
+    return `<span class="player-debuff" style="color: ${debuff.color};">${debuff.name}${countText}${timerText}</span>`;
   }).join('');
-  
-  // Add event listeners to debuffs
-  playerDebuffsEl.querySelectorAll('.player-debuff').forEach(debuffEl => {
-    let hideTimeout;
-    debuffEl.addEventListener('mouseenter', (e) => {
-      clearTimeout(hideTimeout);
-      showDebuffInfo(e.target, 'player');
-    });
-    debuffEl.addEventListener('mouseleave', (e) => {
-      hideTimeout = setTimeout(() => {
-        const infoWindow = document.getElementById('debuff-info-window-player');
-        if (infoWindow && !infoWindow.matches(':hover')) {
-          hideDebuffInfo('player');
-        }
-      }, 100);
-    });
-  });
-  
-  // Also hide when mouse leaves the info window
-  const playerInfoWindow = document.getElementById('debuff-info-window-player');
-  if (playerInfoWindow) {
-    let hideTimeout;
-    playerInfoWindow.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
-    playerInfoWindow.addEventListener('mouseleave', () => {
-      hideTimeout = setTimeout(() => hideDebuffInfo('player'), 100);
-    });
-  }
 }
 
 // Show debuff info window
@@ -2418,8 +2578,122 @@ function hideDebuffInfo(type) {
   const windowId = type === 'boss' ? 'debuff-info-window' : 'debuff-info-window-player';
   const infoWindow = document.getElementById(windowId);
   if (infoWindow) {
+    infoWindow.style.display = 'none'; // Force hide immediately
     infoWindow.classList.add('hidden');
+    infoWindow.innerHTML = ''; // Clear content immediately
+    infoWindow.style.left = '';
+    infoWindow.style.top = '';
   }
+}
+
+// Setup boss element tooltip
+function setupBossElementTooltip() {
+  const bossElementContainer = document.getElementById('boss-element-container');
+  const infoWindow = document.getElementById('debuff-info-window');
+  
+  if (!bossElementContainer || !infoWindow) return;
+  
+  // Remove existing listeners by cloning (clean approach)
+  if (!bossElementContainer.classList.contains('boss-element-hoverable')) return;
+  
+  const elementType = bossElementContainer.getAttribute('data-boss-element');
+  if (!elementType) return;
+  
+  // Remove old listeners
+  const newContainer = bossElementContainer.cloneNode(true);
+  bossElementContainer.parentNode.replaceChild(newContainer, bossElementContainer);
+  
+  // Get fresh reference
+  const elementContainer = document.getElementById('boss-element-container');
+  if (!elementContainer) return;
+  
+  elementContainer.addEventListener('mouseenter', () => {
+    showBossElementInfo(elementContainer, elementType);
+  });
+  
+  elementContainer.addEventListener('mouseleave', () => {
+    hideDebuffInfo('boss');
+  });
+}
+
+// Show boss element info
+function showBossElementInfo(elementContainer, elementType) {
+  const infoWindow = document.getElementById('debuff-info-window');
+  if (!infoWindow || !ELEMENT_TYPES[elementType]) return;
+  
+  const elementData = ELEMENT_TYPES[elementType];
+  
+  // Get descriptions for boss element debuffs
+  const bossElementDescriptions = {
+    'FIRE': '30% chance to apply BURN on player. Fire damage over time. Each stack deals damage every second. Stacks up to 30 times.',
+    'POISON': '40% chance to apply POISON on player. Poison damage over time. Stacks up to 30 times.',
+    'COLD': '15% chance to FREEZE player. Frozen player cannot attack. Lasts 2 seconds.',
+    'LIGHTNING': '40% chance to apply SHOCK on player. Reduces player damage by 10% per stack. Stacks up to 5 times.',
+    'BLEED': '50% chance to apply BLEED on player. Bleed damage over time. Stacks up to 15 times.'
+  };
+  
+  const description = bossElementDescriptions[elementType] || 'Unknown element effect.';
+  
+  // Set content first
+  infoWindow.innerHTML = `
+    <div class="debuff-info-header" style="color: ${elementData.color};">${elementData.name} Boss</div>
+    <div class="debuff-info-content">${description}</div>
+  `;
+  
+  // Make visible to get accurate measurements
+  infoWindow.style.display = 'block'; // Force show immediately
+  infoWindow.classList.remove('hidden');
+  
+  // Position immediately - use setTimeout with 0 delay to ensure DOM is updated
+  setTimeout(() => {
+    // Force a reflow to get accurate measurements after setting content
+    void infoWindow.offsetWidth;
+    
+    // Position the window near the element container
+    const rect = elementContainer.getBoundingClientRect();
+    const parentContainer = infoWindow.parentElement;
+    if (!parentContainer) return;
+    
+    const parentRect = parentContainer.getBoundingClientRect();
+    
+    // Get window dimensions after content is set
+    const windowRect = infoWindow.getBoundingClientRect();
+    const containerRect = parentContainer.getBoundingClientRect();
+    
+    // Calculate initial position (to the right of element)
+    let leftPos = rect.left - parentRect.left + rect.width + 8;
+    let topPos = rect.top - parentRect.top;
+    
+    // Adjust if window goes outside parent container (right edge)
+    if (leftPos + windowRect.width > containerRect.width) {
+      leftPos = rect.left - parentRect.left - windowRect.width - 8;
+    }
+    
+    // Adjust if window goes outside parent container (bottom edge)
+    if (topPos + windowRect.height > containerRect.height) {
+      topPos = rect.bottom - parentRect.top - windowRect.height - 8;
+    }
+    
+    // Adjust if window goes outside parent container (top edge)
+    if (topPos < 0) {
+      topPos = rect.bottom - parentRect.top + 8;
+    }
+    
+    // Adjust if window goes outside parent container (left edge)
+    if (leftPos < 0) {
+      leftPos = rect.right - parentRect.left + 8;
+    }
+    
+    // Ensure position is within bounds
+    leftPos = Math.max(0, Math.min(leftPos, containerRect.width - windowRect.width));
+    topPos = Math.max(0, Math.min(topPos, containerRect.height - windowRect.height));
+    
+    // Apply calculated position only if window is still visible
+    if (!infoWindow.classList.contains('hidden')) {
+      infoWindow.style.left = `${leftPos}px`;
+      infoWindow.style.top = `${topPos}px`;
+    }
+  }, 0);
 }
 
 // Format number for display
@@ -2439,9 +2713,13 @@ function initCombatSystem() {
     save.combat = {
       souls: 0,
       bossWave: 0,
-      lastWaveDefeated: false
+      lastWaveDefeated: false,
+      highestWaveDefeated: 0
     };
   }
+  
+  // Load highest wave defeated for replay system
+  combatSystem.highestWaveDefeated = save.combat.highestWaveDefeated || 0;
   
   // Initialize item ID counter based on existing items
   // Scan all items in inventory and equipped slots to find the highest ID number
@@ -2511,6 +2789,31 @@ function setupCombatEvents() {
   const generalBtn = document.getElementById('general-btn');
   const combatClose = document.getElementById('combat-close');
   const combatAttackBtn = document.getElementById('combat-attack-btn');
+  const combatSelectWaveBtn = document.getElementById('combat-select-wave-btn');
+  
+  // DIABLO 3/POE STYLE: Add wave selection button for replaying bosses
+  if (combatSelectWaveBtn) {
+    combatSelectWaveBtn.addEventListener('click', () => {
+      if (combatSystem.active) {
+        toast('Cannot select wave during combat!', 'warn');
+        return;
+      }
+      
+      // Show wave selection dialog
+      const maxWave = Math.max(1, combatSystem.highestWaveDefeated + 1);
+      const waveInput = prompt(`Select wave to fight (1-${maxWave}):`, combatSystem.bossWave || 1);
+      
+      if (waveInput !== null) {
+        const selectedWave = parseInt(waveInput, 10);
+        if (isNaN(selectedWave) || selectedWave < 1 || selectedWave > maxWave) {
+          toast(`Invalid wave number! Must be between 1 and ${maxWave}.`, 'bad');
+          return;
+        }
+        
+        startCombat(selectedWave);
+      }
+    });
+  }
   
   if (generalBtn) {
     generalBtn.addEventListener('click', () => {
@@ -2575,6 +2878,7 @@ function saveCombatState() {
   save.combat.souls = combatSystem.souls;
   save.combat.bossWave = combatSystem.bossWave;
   save.combat.lastWaveDefeated = combatSystem.lastWaveDefeated;
+  save.combat.highestWaveDefeated = combatSystem.highestWaveDefeated;
   
   // Save equipped items to inventory system
   if (!save.inventory) {
