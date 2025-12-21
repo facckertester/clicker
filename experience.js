@@ -405,7 +405,7 @@ function getItemTooltipHTML(item) {
           <span class="tooltip-stat-label">Effect:</span>
           <span class="tooltip-stat-value">${effectNames[item.effect] || item.effect}</span>
         </div>
-        <div class="tooltip-stat" style="color: var(--muted); font-size: 0.8rem; margin-top: 4px;">
+        <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
           <span>${effectDescriptions[item.effect] || ''}</span>
         </div>
       `;
@@ -464,7 +464,7 @@ function getItemTooltipHTML(item) {
     };
     const sellPrice = getSellPrice(item.rarity);
     html += `
-      <div class="tooltip-stat" style="color: var(--muted); font-size: 0.85rem; margin-top: 8px;">
+      <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 4px;">
         <span>Shift + Click to sell for ${sellPrice} coins</span>
       </div>
     `;
@@ -472,7 +472,7 @@ function getItemTooltipHTML(item) {
   
   // Add unequip hint for equipped items
   html += `
-    <div class="tooltip-stat" style="color: var(--muted); font-size: 0.85rem;">
+    <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem;">
       <span>Ctrl + Click to unequip</span>
     </div>
   `;
@@ -493,22 +493,162 @@ function showItemTooltip(event, item) {
   
   const rect = event.target.getBoundingClientRect();
   const tooltipRect = tooltip.getBoundingClientRect();
+  
+  // Get game screen bounds - this is the main container for the game
+  const gameScreen = document.getElementById('game-screen');
+  let containerBounds = {
+    left: 10,
+    top: 10,
+    right: window.innerWidth - 10,
+    bottom: window.innerHeight - 10
+  };
+  
+  if (gameScreen && !gameScreen.classList.contains('hidden')) {
+    // Use game screen bounds as the container
+    const gameScreenRect = gameScreen.getBoundingClientRect();
+    containerBounds = {
+      left: gameScreenRect.left + 10,
+      top: gameScreenRect.top + 10,
+      right: gameScreenRect.right - 10,
+      bottom: gameScreenRect.bottom - 10
+    };
+  } else {
+    // Fallback: check if we're inside inventory modal
+    const inventoryModal = document.getElementById('inventory-modal');
+    if (inventoryModal && !inventoryModal.classList.contains('hidden')) {
+      const modalRect = inventoryModal.getBoundingClientRect();
+      containerBounds = {
+        left: Math.max(10, modalRect.left + 10),
+        top: Math.max(10, modalRect.top + 10),
+        right: Math.min(window.innerWidth - 10, modalRect.right - 10),
+        bottom: Math.min(window.innerHeight - 10, modalRect.bottom - 10)
+      };
+    }
+  }
+  
+  // Calculate initial position (centered below the item)
   let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
   let top = rect.bottom + 10;
   
-  if (left < 10) left = 10;
-  if (left + tooltipRect.width > window.innerWidth - 10) {
-    left = window.innerWidth - tooltipRect.width - 10;
-  }
-  if (top + tooltipRect.height > window.innerHeight - 10) {
-    top = rect.top - tooltipRect.height - 10;
+  // CRITICAL: First, ensure tooltip width doesn't exceed container width
+  const maxTooltipWidth = containerBounds.right - containerBounds.left;
+  if (tooltipRect.width > maxTooltipWidth) {
+    tooltip.style.maxWidth = `${maxTooltipWidth}px`;
+    tooltip.style.overflowX = 'auto';
+    // Recalculate tooltip size after setting maxWidth
+    tooltipRect.width = Math.min(tooltipRect.width, maxTooltipWidth);
   }
   
+  // Adjust horizontal position to stay within container bounds
+  if (left < containerBounds.left) {
+    left = containerBounds.left;
+  }
+  if (left + tooltipRect.width > containerBounds.right) {
+    left = containerBounds.right - tooltipRect.width;
+    // Ensure it doesn't go negative
+    if (left < containerBounds.left) {
+      left = containerBounds.left;
+    }
+  }
+  
+  // Adjust vertical position to stay within container bounds
+  const spaceBelow = containerBounds.bottom - (rect.bottom + 10);
+  const spaceAbove = (rect.top - 10) - containerBounds.top;
+  
+  // Try to position below first
+  if (top + tooltipRect.height <= containerBounds.bottom) {
+    // Fits below - use this position
+    top = rect.bottom + 10;
+  } else if (spaceAbove >= tooltipRect.height) {
+    // Not enough space below, but enough above
+    top = rect.top - tooltipRect.height - 10;
+  } else {
+    // Not enough space either way - position at top of container and limit height
+    top = containerBounds.top;
+    const maxHeight = containerBounds.bottom - containerBounds.top - 20;
+    if (maxHeight > 0) {
+      tooltip.style.maxHeight = `${maxHeight}px`;
+      tooltip.style.overflowY = 'auto';
+    }
+  }
+  
+  // CRITICAL: Final validation - ensure tooltip is completely within container bounds
+  // Check left boundary
+  if (left < containerBounds.left) {
+    left = containerBounds.left;
+  }
+  
+  // Check right boundary
+  if (left + tooltipRect.width > containerBounds.right) {
+    left = containerBounds.right - tooltipRect.width;
+    if (left < containerBounds.left) {
+      left = containerBounds.left;
+      // If still too wide, force max width
+      tooltip.style.maxWidth = `${containerBounds.right - containerBounds.left}px`;
+    }
+  }
+  
+  // Check top boundary
+  if (top < containerBounds.top) {
+    top = containerBounds.top;
+    // Limit height if needed
+    const maxHeight = containerBounds.bottom - containerBounds.top - 20;
+    if (maxHeight > 0) {
+      tooltip.style.maxHeight = `${maxHeight}px`;
+      tooltip.style.overflowY = 'auto';
+    }
+  }
+  
+  // Check bottom boundary
+  const tooltipHeight = tooltipRect.height;
+  if (top + tooltipHeight > containerBounds.bottom) {
+    // Adjust position to fit
+    top = containerBounds.bottom - tooltipHeight;
+    // If still doesn't fit, limit height
+    if (top < containerBounds.top) {
+      top = containerBounds.top;
+      const maxHeight = containerBounds.bottom - containerBounds.top - 20;
+      if (maxHeight > 0) {
+        tooltip.style.maxHeight = `${maxHeight}px`;
+        tooltip.style.overflowY = 'auto';
+      }
+    }
+  }
+  
+  // CRITICAL: Set position as fixed to ensure it's relative to viewport
+  tooltip.style.position = 'fixed';
   tooltip.style.left = `${left}px`;
   tooltip.style.top = `${top}px`;
   tooltip.style.opacity = '1';
   tooltip.style.visibility = 'visible';
   tooltip.style.display = 'block';
+  
+  // Final validation after positioning - re-check bounds
+  // Get actual position after rendering
+  const finalRect = tooltip.getBoundingClientRect();
+  
+  // Ensure tooltip is within container bounds
+  if (finalRect.left < containerBounds.left) {
+    tooltip.style.left = `${containerBounds.left}px`;
+  }
+  if (finalRect.right > containerBounds.right) {
+    tooltip.style.left = `${containerBounds.right - finalRect.width}px`;
+  }
+  if (finalRect.top < containerBounds.top) {
+    tooltip.style.top = `${containerBounds.top}px`;
+  }
+  if (finalRect.bottom > containerBounds.bottom) {
+    const adjustedTop = containerBounds.bottom - finalRect.height;
+    tooltip.style.top = `${Math.max(containerBounds.top, adjustedTop)}px`;
+    // If still too tall, limit height
+    if (tooltip.style.top === `${containerBounds.top}px`) {
+      const maxHeight = containerBounds.bottom - containerBounds.top - 20;
+      if (maxHeight > 0) {
+        tooltip.style.maxHeight = `${maxHeight}px`;
+        tooltip.style.overflowY = 'auto';
+      }
+    }
+  }
   
   return tooltip;
 }

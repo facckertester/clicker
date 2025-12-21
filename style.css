@@ -734,8 +734,8 @@ a:hover { color: var(--poe-orange-bright); }
   border:1px solid var(--border-orange) !important;
   border-radius:var(--radius) !important;
   padding:0 !important;
-  min-width:300px !important;
-  max-width:400px !important;
+  min-width:240px !important;
+  max-width:320px !important;
   box-shadow:
     0 0 16px rgba(200, 170, 110, 0.3),
     0 8px 32px rgba(0,0,0,0.9),
@@ -752,44 +752,44 @@ a:hover { color: var(--poe-orange-bright); }
   box-sizing:border-box !important;
 }
 [data-treasury-tooltip="true"].upgrade-tooltip{
-  min-width:250px !important;
-  max-width:300px !important;
+  min-width:200px !important;
+  max-width:240px !important;
 }
 [data-treasury-tooltip="true"] .tooltip-header{
   background:linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-  padding:12px 14px;
+  padding:8px 10px;
   border-bottom:1px solid var(--border);
   border-top-left-radius:calc(var(--radius) - 1px);
   border-top-right-radius:calc(var(--radius) - 1px);
   font-weight:bold;
-  font-size:1.05rem;
+  font-size:0.9rem;
   color:var(--poe-orange);
   text-align:center;
   text-transform:uppercase;
-  letter-spacing:1px;
+  letter-spacing:0.5px;
   text-shadow:0 0 6px rgba(200, 170, 110, 0.4);
 }
 [data-treasury-tooltip="true"] .tooltip-body{
-  padding:12px 14px;
-  font-size:0.9rem;
-  line-height:1.7;
+  padding:8px 10px;
+  font-size:0.8rem;
+  line-height:1.5;
   color:var(--text);
   background:#1a1a1a;
   box-sizing:border-box;
   text-align:center;
 }
 [data-treasury-tooltip="true"] .tooltip-line{
-  margin:10px 0;
-  padding:10px 0;
+  margin:6px 0;
+  padding:6px 0;
   border-top:1px solid var(--border);
 }
 [data-treasury-tooltip="true"] .tooltip-stat{
   display:flex;
   justify-content:center;
-  margin:6px 0;
+  margin:4px 0;
   color:var(--text);
-  font-size:0.92rem;
-  padding:2px 0;
+  font-size:0.8rem;
+  padding:1px 0;
   text-align:center;
 }
 [data-treasury-tooltip="true"] .tooltip-stat-label{
