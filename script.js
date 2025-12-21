@@ -4295,7 +4295,7 @@ function updateBuildingLevels(forceImmediate = false) {
             const act = save.treasury?.actions;
             const noBreakActive = act && act.noBreakUntil > now();
             if (noBreakActive) {
-              prevCost *= 2;
+              prevCost *= 7;
             }
             const newText = `Upgrade\n(${fmt(prevCost)})`;
             if (segBtn.textContent !== newText.replace('\n', ' ')) {
@@ -5219,12 +5219,12 @@ function renderBuildings() {
       segBtn.setAttribute('aria-hidden', 'true');
     } else if (needUpgrade) {
       // Требуется сегментный апгрейд — показываем только segBtn (как у клика)
-      let prevCost = (b.pendingSegmentCost[seg-1] || 0) / 2;
+      let prevCost = (b.pendingSegmentCost[seg-1] || 0) * 0.77;
       // Buff 6: Master Builder - upgrades cost 7x more
       const act = save.treasury?.actions;
       const noBreakActive = act && act.noBreakUntil > now();
       if (noBreakActive) {
-        prevCost *= 2;
+        prevCost *= 7;
       }
       segBtn.innerHTML = `UP<br>(${fmt(prevCost)})`;
       segBtn.disabled = save.points < prevCost;
