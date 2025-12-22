@@ -377,18 +377,53 @@ function disenchantItem(inventoryIndex, soulsAmount) {
     save.inventory.inventory = inventorySystem.inventory;
   }
   
-  // Add souls
-  if (window.combatSystem && window.combatSystem.souls !== undefined) {
-    window.combatSystem.souls = (window.combatSystem.souls || 0) + soulsAmount;
+  // Add souls - use combatSystem directly
+  if (window.combatSystem) {
+    // Get current souls
+    const currentSouls = window.combatSystem.getSouls ? window.combatSystem.getSouls() : (window.combatSystem.souls || 0);
+    const newSouls = currentSouls + soulsAmount;
     
-    // Save souls
-    if (save && save.combat) {
-      save.combat.souls = window.combatSystem.souls;
+    // Update souls in combat system
+    if (window.combatSystem.souls !== undefined) {
+      window.combatSystem.souls = newSouls;
     }
     
-    // Update souls display if function exists
-    if (typeof renderCombat === 'function') {
+    // Save souls to save object
+    if (!save.combat) {
+      save.combat = {};
+    }
+    save.combat.souls = newSouls;
+    
+    // Update souls display in main UI immediately
+    const soulsDisplay = document.getElementById('souls-display');
+    if (soulsDisplay) {
+      // Try to use formatNumber from combatSystem, fallback to toLocaleString
+      if (window.combatSystem && window.combatSystem.formatNumber && typeof window.combatSystem.formatNumber === 'function') {
+        soulsDisplay.textContent = window.combatSystem.formatNumber(newSouls);
+      } else if (window.formatNumber && typeof window.formatNumber === 'function') {
+        soulsDisplay.textContent = window.formatNumber(newSouls);
+      } else {
+        soulsDisplay.textContent = newSouls.toLocaleString();
+      }
+    }
+    
+    // Update combat screen display
+    if (window.combatSystem.render && typeof window.combatSystem.render === 'function') {
+      window.combatSystem.render();
+    } else if (typeof renderCombat === 'function') {
       renderCombat();
+    }
+  } else {
+    // Fallback: save directly to save object
+    if (!save.combat) {
+      save.combat = {};
+    }
+    save.combat.souls = (save.combat.souls || 0) + soulsAmount;
+    
+    // Update souls display in main UI
+    const soulsDisplay = document.getElementById('souls-display');
+    if (soulsDisplay) {
+      soulsDisplay.textContent = save.combat.souls.toLocaleString();
     }
   }
   
@@ -537,18 +572,53 @@ function disenchantItem(inventoryIndex, soulsAmount) {
     save.inventory.inventory = inventorySystem.inventory;
   }
   
-  // Add souls
-  if (window.combatSystem && window.combatSystem.souls !== undefined) {
-    window.combatSystem.souls = (window.combatSystem.souls || 0) + soulsAmount;
+  // Add souls - use combatSystem directly
+  if (window.combatSystem) {
+    // Get current souls
+    const currentSouls = window.combatSystem.getSouls ? window.combatSystem.getSouls() : (window.combatSystem.souls || 0);
+    const newSouls = currentSouls + soulsAmount;
     
-    // Save souls
-    if (save && save.combat) {
-      save.combat.souls = window.combatSystem.souls;
+    // Update souls in combat system
+    if (window.combatSystem.souls !== undefined) {
+      window.combatSystem.souls = newSouls;
     }
     
-    // Update souls display if function exists
-    if (typeof renderCombat === 'function') {
+    // Save souls to save object
+    if (!save.combat) {
+      save.combat = {};
+    }
+    save.combat.souls = newSouls;
+    
+    // Update souls display in main UI immediately
+    const soulsDisplay = document.getElementById('souls-display');
+    if (soulsDisplay) {
+      // Try to use formatNumber from combatSystem, fallback to toLocaleString
+      if (window.combatSystem && window.combatSystem.formatNumber && typeof window.combatSystem.formatNumber === 'function') {
+        soulsDisplay.textContent = window.combatSystem.formatNumber(newSouls);
+      } else if (window.formatNumber && typeof window.formatNumber === 'function') {
+        soulsDisplay.textContent = window.formatNumber(newSouls);
+      } else {
+        soulsDisplay.textContent = newSouls.toLocaleString();
+      }
+    }
+    
+    // Update combat screen display
+    if (window.combatSystem.render && typeof window.combatSystem.render === 'function') {
+      window.combatSystem.render();
+    } else if (typeof renderCombat === 'function') {
       renderCombat();
+    }
+  } else {
+    // Fallback: save directly to save object
+    if (!save.combat) {
+      save.combat = {};
+    }
+    save.combat.souls = (save.combat.souls || 0) + soulsAmount;
+    
+    // Update souls display in main UI
+    const soulsDisplay = document.getElementById('souls-display');
+    if (soulsDisplay) {
+      soulsDisplay.textContent = save.combat.souls.toLocaleString();
     }
   }
   
@@ -674,6 +744,79 @@ function getItemTooltipHTML(item, slotName) {
   
   if (item.type === 'weapon') {
     html += `<div class="tooltip-line"></div>`;
+    
+    // Display damage type
+    if (item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES) {
+      const damageTypeData = window.combatSystem.DAMAGE_TYPES[item.damageType];
+      if (damageTypeData) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Damage Type:</span>
+            <span class="tooltip-stat-value" style="color: ${damageTypeData.color}; font-weight: bold;">${damageTypeData.name}</span>
+          </div>
+        `;
+      }
+    }
+    
+    // Display classes that can use this weapon
+    if (window.combatSystem && window.combatSystem.CHARACTER_CLASSES && item.weaponType) {
+      const classes = window.combatSystem.CHARACTER_CLASSES;
+      const allowedClasses = [];
+      
+      // Find all classes that can use this weapon type
+      Object.keys(classes).forEach(classKey => {
+        const classData = classes[classKey];
+        if (classData.allowedWeapons && classData.allowedWeapons.includes(item.weaponType)) {
+          allowedClasses.push(classData);
+        }
+      });
+      
+      if (allowedClasses.length > 0) {
+        // Class colors
+        const classColors = {
+          'WARRIOR': '#4a90e2',      // Blue
+          'MAGE': '#9b59b6',         // Purple
+          'ROGUE': '#e74c3c',        // Red
+          'PALADIN': '#f39c12',      // Orange/Gold
+          'BERSERKER': '#c0392b',    // Dark Red
+          'RANGER': '#27ae60',       // Green
+          'NECROMANCER': '#8e44ad'   // Dark Purple
+        };
+        
+        // Special handling for DAGGER - show which hand
+        let weaponRestriction = '';
+        if (item.weaponType === 'DAGGER') {
+          // Check if this is for left hand (only ROGUE)
+          const rogueClass = allowedClasses.find(c => c.id === 'ROGUE');
+          if (rogueClass) {
+            const otherClasses = allowedClasses.filter(c => c.id !== 'ROGUE');
+            if (otherClasses.length > 0) {
+              weaponRestriction = ' (Right hand only for non-Rogue classes)';
+            }
+          }
+        }
+        
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Classes:</span>
+            <span class="tooltip-stat-value">
+        `;
+        
+        allowedClasses.forEach((classData, index) => {
+          const color = classColors[classData.id] || '#9d9d9d';
+          html += `<span style="color: ${color}; font-weight: bold;">${classData.name}</span>`;
+          if (index < allowedClasses.length - 1) {
+            html += `<span style="color: var(--text-dim);">, </span>`;
+          }
+        });
+        
+        html += `
+            </span>
+          </div>
+          ${weaponRestriction ? `<div class="tooltip-stat" style="color: var(--text-dim); font-size: 0.85em; margin-top: -4px; margin-left: 0;">${weaponRestriction}</div>` : ''}
+        `;
+      }
+    }
     
     // Display element if weapon has one
     if (item.element && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
@@ -1169,6 +1312,35 @@ function removeDuplicateWeapons() {
 
 // Render inventory modal
 function renderInventory() {
+  // Update class display in inventory
+  const inventoryClassDisplay = document.getElementById('inventory-class-name');
+  const inventoryChangeClassBtn = document.getElementById('inventory-change-class-btn');
+  
+  if (inventoryClassDisplay) {
+    if (save && save.combat && save.combat.playerClass) {
+      const classData = window.combatSystem && window.combatSystem.CHARACTER_CLASSES 
+        ? window.combatSystem.CHARACTER_CLASSES[save.combat.playerClass]
+        : null;
+      if (classData) {
+        inventoryClassDisplay.textContent = classData.name;
+      } else {
+        inventoryClassDisplay.textContent = 'Unknown Class';
+      }
+    } else {
+      inventoryClassDisplay.textContent = 'No Class';
+    }
+  }
+  
+  // Setup change class button (only once)
+  if (inventoryChangeClassBtn && !inventoryChangeClassBtn.hasAttribute('data-listener-added')) {
+    inventoryChangeClassBtn.setAttribute('data-listener-added', 'true');
+    inventoryChangeClassBtn.addEventListener('click', () => {
+      if (window.combatSystem && window.combatSystem.changeClass) {
+        window.combatSystem.changeClass();
+      }
+    });
+  }
+  
   // Always get equipped items from combat system (it's the source of truth)
   let equippedItems = {};
   
@@ -2047,18 +2219,52 @@ function disenchantAllItemsByRarityExecute(rarity, totalSouls, itemCount, rarity
   // Update inventorySystem
   inventorySystem.inventory = inventory;
   
-  // Add souls
-  if (window.combatSystem && window.combatSystem.souls !== undefined) {
-    window.combatSystem.souls = (window.combatSystem.souls || 0) + totalSouls;
+  // Add souls - use combatSystem directly
+  if (window.combatSystem) {
+    // Get current souls
+    const currentSouls = window.combatSystem.getSouls ? window.combatSystem.getSouls() : (window.combatSystem.souls || 0);
+    const newSouls = currentSouls + totalSouls;
     
-    // Save souls
-    if (save && save.combat) {
-      save.combat.souls = window.combatSystem.souls;
+    // Update souls in combat system
+    if (window.combatSystem.souls !== undefined) {
+      window.combatSystem.souls = newSouls;
     }
     
-    // Update souls display if function exists
-    if (typeof renderCombat === 'function') {
+    // Save souls to save object
+    if (!save.combat) {
+      save.combat = {};
+    }
+    save.combat.souls = newSouls;
+    
+    // Update souls display in main UI
+    const soulsDisplay = document.getElementById('souls-display');
+    if (soulsDisplay) {
+      if (window.combatSystem.formatNumber && typeof window.combatSystem.formatNumber === 'function') {
+        soulsDisplay.textContent = window.combatSystem.formatNumber(newSouls);
+      } else if (window.formatNumber && typeof window.formatNumber === 'function') {
+        soulsDisplay.textContent = window.formatNumber(newSouls);
+      } else {
+        soulsDisplay.textContent = newSouls.toLocaleString();
+      }
+    }
+    
+    // Update combat screen display
+    if (window.combatSystem.render && typeof window.combatSystem.render === 'function') {
+      window.combatSystem.render();
+    } else if (typeof renderCombat === 'function') {
       renderCombat();
+    }
+  } else {
+    // Fallback: save directly to save object
+    if (!save.combat) {
+      save.combat = {};
+    }
+    save.combat.souls = (save.combat.souls || 0) + totalSouls;
+    
+    // Update souls display in main UI
+    const soulsDisplay = document.getElementById('souls-display');
+    if (soulsDisplay) {
+      soulsDisplay.textContent = save.combat.souls.toLocaleString();
     }
   }
   

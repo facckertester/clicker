@@ -423,6 +423,30 @@
   </div>
 </div>
 
+<!-- Class Selection Modal -->
+<div id="class-selection-modal" role="dialog" aria-modal="true" aria-hidden="true" class="modal hidden">
+  <div class="modal-card class-selection-card" role="document" aria-labelledby="class-selection-title">
+    <div class="modal-header">
+      <h3 id="class-selection-title">Select Your Class</h3>
+    </div>
+    <div class="modal-body class-selection-body">
+      <p style="margin-bottom: 16px; color: var(--text-dim); text-align: center;">Choose your character class. This will determine your playstyle and available weapons.</p>
+      <div class="class-carousel-container">
+        <button class="class-carousel-btn class-carousel-prev" id="class-carousel-prev" aria-label="Previous class">‹</button>
+        <div class="class-carousel-wrapper" id="class-carousel-wrapper">
+          <div class="class-carousel" id="class-carousel">
+            <!-- Classes will be populated by JavaScript -->
+          </div>
+        </div>
+        <button class="class-carousel-btn class-carousel-next" id="class-carousel-next" aria-label="Next class">›</button>
+      </div>
+      <div class="class-carousel-indicators" id="class-carousel-indicators">
+        <!-- Indicators will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Statistics modal -->
 <div id="stats-modal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal-card" role="document" aria-labelledby="stats-title">
@@ -441,7 +465,13 @@
   <div class="modal-card inventory-modal-card" role="document" aria-labelledby="inventory-title">
     <div class="modal-header">
       <h3 id="inventory-title">Inventory</h3>
-      <button class="modal-close" id="inventory-close" aria-label="Close inventory">✕</button>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div id="inventory-class-display" style="padding: 4px 8px; background: rgba(255, 140, 0, 0.2); border-radius: 4px; font-size: 0.9em; color: var(--poe-orange); display: flex; align-items: center; gap: 8px;">
+          <span id="inventory-class-name">No Class</span>
+          <button id="inventory-change-class-btn" class="btn tiny" title="Change Class (15000 Souls)" style="padding: 2px 6px; font-size: 0.8em;">🔄</button>
+        </div>
+        <button class="modal-close" id="inventory-close" aria-label="Close inventory">✕</button>
+      </div>
     </div>
     <div class="inventory-body">
       <!-- Top section: Equipment and Stats -->
@@ -584,6 +614,9 @@
     <div class="combat-header">
       <h3>City Defense - Boss Wave <span id="boss-wave-number">1</span></h3>
       <div class="combat-header-controls">
+        <div id="player-class-display" style="margin-right: 8px; padding: 4px 8px; background: rgba(255, 140, 0, 0.2); border-radius: 4px; font-size: 0.9em; color: var(--poe-orange);">
+          <span id="player-class-name">No Class</span>
+        </div>
         <button id="combat-select-wave-btn" class="btn tiny" title="Select Wave">📋</button>
         <button id="combat-close" class="btn tiny">✕</button>
       </div>
@@ -638,6 +671,12 @@
     </div>
     
     <div class="combat-controls">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9em; color: var(--text-dim);">
+          <input type="checkbox" id="combat-auto-attack" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--poe-orange);">
+          <span>Auto Attack</span>
+        </label>
+      </div>
       <button id="combat-attack-btn" class="btn primary">Attack</button>
       <div class="combat-stats">
         <div class="combat-stat-item">

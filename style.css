@@ -1173,6 +1173,190 @@ a:hover { color: var(--poe-orange-bright); }
 
 #confirm-modal.open { display: flex; }
 
+/* Class Selection Modal - same styles as confirm modal */
+#class-selection-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 15000;
+  background: rgba(0,0,0,0.7);
+}
+
+#class-selection-modal:not(.hidden) { display: flex; }
+
+#class-selection-modal .modal-card {
+  max-width: 800px;
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  box-sizing: border-box;
+  background: rgba(26, 26, 26, 0.9);
+  border: 1px solid var(--border-orange);
+  border-radius: var(--radius);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+#class-selection-modal .modal-body {
+  overflow: hidden;
+  padding: 20px 24px;
+}
+
+/* Class Carousel Styles */
+.class-carousel-container {
+  position: relative;
+  width: 100%;
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.class-carousel-wrapper {
+  width: 80%; /* 80% width to show partial cards on sides */
+  max-width: 480px; /* 80% of 600px */
+  overflow: hidden;
+  position: relative;
+  margin: 0 auto;
+}
+
+.class-carousel {
+  display: flex;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.class-card {
+  min-width: 100%;
+  width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  background: rgba(26, 26, 26, 0.9);
+  border: 2px solid var(--border-orange);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  opacity: 0.6;
+  transform: scale(0.85);
+  pointer-events: none;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.class-card.active {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  border-color: var(--poe-orange);
+  box-shadow: 0 0 20px rgba(255, 140, 0, 0.3);
+}
+
+.class-card:hover {
+  background: rgba(255, 140, 0, 0.1);
+}
+
+.class-card.active:hover {
+  background: rgba(255, 140, 0, 0.15);
+  box-shadow: 0 0 25px rgba(255, 140, 0, 0.4);
+}
+
+.class-card-header {
+  font-weight: bold;
+  font-size: 1.3em;
+  margin-bottom: 12px;
+  color: var(--text-bright);
+  text-align: center;
+}
+
+.class-card.active .class-card-header {
+  color: var(--poe-orange);
+  text-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
+}
+
+.class-card-description {
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  text-align: center;
+  font-size: 0.95em;
+}
+
+.class-card-bonuses {
+  margin-top: 16px;
+  font-size: 0.9em;
+  color: var(--text-dim);
+}
+
+.class-card-bonuses strong {
+  color: var(--text-bright);
+}
+
+.class-card-weapons {
+  margin-top: 12px;
+  font-size: 0.85em;
+  color: var(--text-dim);
+  padding-top: 12px;
+  border-top: 1px solid rgba(200, 170, 110, 0.2);
+}
+
+.class-card-weapons strong {
+  color: var(--text-bright);
+}
+
+.class-carousel-btn {
+  background: rgba(26, 26, 26, 0.9);
+  border: 2px solid var(--border-orange);
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 32px;
+  color: var(--poe-orange);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.class-carousel-btn:hover {
+  background: rgba(255, 140, 0, 0.2);
+  border-color: var(--poe-orange);
+  transform: scale(1.1);
+}
+
+.class-carousel-btn:active {
+  transform: scale(0.95);
+}
+
+.class-carousel-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.class-carousel-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(200, 170, 110, 0.3);
+  border: 1px solid var(--border-orange);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.class-carousel-indicator.active {
+  background: var(--poe-orange);
+  border-color: var(--poe-orange);
+  transform: scale(1.2);
+}
+
 #confirm-modal .modal-footer,
 #updates-modal .modal-footer {
   display: flex;
@@ -3243,7 +3427,8 @@ body.season-winter .achievement-item {
   #stats-modal,
   #casino-modal,
   #king-modal,
-  #offline-earnings-modal {
+  #offline-earnings-modal,
+  #class-selection-modal {
     padding: 0;
   }
 

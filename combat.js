@@ -3,6 +3,129 @@
 // Unique ID counter for items (ensures truly unique IDs)
 let itemIdCounter = Date.now();
 
+// Damage types
+const DAMAGE_TYPES = {
+  PHYSICAL: {
+    id: 'PHYSICAL',
+    name: 'Physical',
+    color: '#c0c0c0',
+    description: 'Physical damage (bleeding effects)'
+  },
+  MAGICAL: {
+    id: 'MAGICAL',
+    name: 'Magical',
+    color: '#9b59b6',
+    description: 'Magical damage (elemental, poison, fire, cold, lightning)'
+  },
+  HOLY: {
+    id: 'HOLY',
+    name: 'Holy',
+    color: '#f39c12',
+    description: 'Holy damage'
+  },
+  DARK: {
+    id: 'DARK',
+    name: 'Dark',
+    color: '#8e44ad',
+    description: 'Dark damage'
+  }
+};
+
+// Character classes with bonuses and weapon restrictions
+const CHARACTER_CLASSES = {
+  WARRIOR: {
+    id: 'WARRIOR',
+    name: 'Warrior',
+    description: 'Tank class with high defense and HP',
+    damageType: 'PHYSICAL',
+    bonuses: {
+      hpMultiplier: 1.3,        // +30% HP
+      armorMultiplier: 1.25,     // +25% armor from items
+      blockChanceBonus: 15,      // +15% block chance
+      reflectChanceBonus: 10     // +10% reflect chance
+    },
+    allowedWeapons: ['SWORD', 'TWOHANDED_SWORD', 'SHIELD']
+  },
+  MAGE: {
+    id: 'MAGE',
+    name: 'Mage',
+    description: 'Magic damage dealer with elemental focus',
+    damageType: 'MAGICAL',
+    bonuses: {
+      wandStaffDamageMultiplier: 1.4,  // +40% damage from wands and staffs
+      elementDamageMultiplier: 1.5,    // +50% elemental damage
+      maxManaMultiplier: 1.25,         // +25% max mana
+      elementEffectChanceBonus: 20      // +20% chance to apply elemental effects
+    },
+    allowedWeapons: ['SWORD', 'WAND', 'STAFF', 'DAGGER']
+  },
+  ROGUE: {
+    id: 'ROGUE',
+    name: 'Rogue',
+    description: 'High crit chance and dodge, fast attacks',
+    damageType: 'PHYSICAL',
+    bonuses: {
+      critChanceBonus: 25,       // +25% crit chance
+      critMultiplierBonus: 30,   // +30% crit multiplier
+      dodgeChanceBonus: 20,      // +20% dodge chance
+      attackSpeedMultiplier: 1.15 // +15% attack speed
+    },
+    allowedWeapons: ['DAGGER']
+  },
+  PALADIN: {
+    id: 'PALADIN',
+    name: 'Paladin',
+    description: 'Balanced class with defense and HP regeneration',
+    damageType: 'HOLY',
+    bonuses: {
+      hpMultiplier: 1.2,         // +20% HP
+      armorMultiplier: 1.15,      // +15% armor from items
+      hpRegenMultiplier: 1.5,     // +50% HP regeneration
+      blockChanceBonus: 10        // +10% block chance
+    },
+    allowedWeapons: ['SWORD', 'MACE', 'SHIELD']
+  },
+  BERSERKER: {
+    id: 'BERSERKER',
+    name: 'Berserker',
+    description: 'High damage, low defense glass cannon',
+    damageType: 'PHYSICAL',
+    bonuses: {
+      damageMultiplier: 1.35,    // +35% damage
+      attackSpeedMultiplier: 1.2, // +20% attack speed
+      hpMultiplier: 0.85,        // -15% HP (penalty)
+      critChanceBonus: 10        // +10% crit chance
+    },
+    allowedWeapons: ['SWORD', 'TWOHANDED_SWORD', 'MACE', 'SHIELD']
+  },
+  RANGER: {
+    id: 'RANGER',
+    name: 'Ranger',
+    description: 'Ranged combat specialist with DoT effects',
+    damageType: 'PHYSICAL', // Primary type, but can also use MAGICAL
+    bonuses: {
+      bowCrossbowDamageMultiplier: 1.3, // +30% damage from bows and crossbows
+      dotDamageMultiplier: 1.25,        // +25% DoT damage (poison, bleed)
+      dodgeChanceBonus: 15,              // +15% dodge chance
+      dotDurationMultiplier: 1.2         // +20% DoT effect duration
+    },
+    allowedWeapons: ['BOW', 'CROSSBOW']
+  },
+  NECROMANCER: {
+    id: 'NECROMANCER',
+    name: 'Necromancer',
+    description: 'DoT specialist with poison and bleed focus',
+    damageType: 'DARK',
+    bonuses: {
+      dotDamageMultiplier: 1.5,         // +50% DoT damage (poison, bleed)
+      dotEffectChanceBonus: 30,         // +30% chance to apply DoT effects
+      maxManaMultiplier: 1.25,          // +25% max mana
+      hpRegenMultiplier: 1.15           // +15% HP regeneration
+    },
+    allowedWeapons: ['DAGGER', 'WAND', 'STAFF', 'SHIELD']
+  }
+};
+
 // Generate unique ID for items
 function generateUniqueItemId(type) {
   itemIdCounter++;
@@ -74,7 +197,7 @@ const WEAPON_TYPES = {
     attackSpeed: { min: 0.8, max: 1.0 }, 
     baseDamage: 10, // Level 1 common
     critChanceBase: 0.5, // Medium crit chance
-    critMultiplierBase: 0.2, // Medium crit multiplier
+    critMultiplierBase: 0.1, // Reduced crit multiplier (was 0.2)
     canDualWield: false, 
     onlyRightHand: true 
   },
@@ -84,7 +207,7 @@ const WEAPON_TYPES = {
     attackSpeed: { min: 1.5, max: 2.0 }, 
     baseDamage: 3, // Level 1 common - much lower damage
     critChanceBase: 0.3, // Lower crit chance
-    critMultiplierBase: 0.4, // Higher crit multiplier
+    critMultiplierBase: 0.2, // Reduced crit multiplier (was 0.4)
     canDualWield: true, 
     onlyRightHand: false 
   },
@@ -94,7 +217,7 @@ const WEAPON_TYPES = {
     attackSpeed: { min: 0.6, max: 0.8 }, 
     baseDamage: 15, // Level 1 common
     critChanceBase: 0.7, // Higher crit chance
-    critMultiplierBase: 0.2, // Medium crit multiplier
+    critMultiplierBase: 0.1, // Reduced crit multiplier (was 0.2)
     canDualWield: false, 
     onlyRightHand: false 
   },
@@ -104,7 +227,7 @@ const WEAPON_TYPES = {
     attackSpeed: { min: 1.0, max: 1.2 }, 
     baseDamage: 8, // Level 1 common
     critChanceBase: 0.5, // Medium crit chance
-    critMultiplierBase: 0.2, // Medium crit multiplier
+    critMultiplierBase: 0.1, // Reduced crit multiplier (was 0.2)
     canDualWield: false, 
     onlyRightHand: false 
   },
@@ -114,9 +237,39 @@ const WEAPON_TYPES = {
     attackSpeed: { min: 0.5, max: 0.6 }, 
     baseDamage: 12, // Level 1 common
     critChanceBase: 0.3, // Lower crit chance
-    critMultiplierBase: 0.2, // Medium crit multiplier
+    critMultiplierBase: 0.1, // Reduced crit multiplier (was 0.2)
     canDualWield: false, 
     onlyRightHand: false 
+  },
+  BOW: {
+    name: 'Bow',
+    hands: 2,
+    attackSpeed: { min: 0.7, max: 0.9 },
+    baseDamage: 11, // Level 1 common
+    critChanceBase: 0.6, // Higher crit chance
+    critMultiplierBase: 0.1, // Reduced crit multiplier
+    canDualWield: false,
+    onlyRightHand: false
+  },
+  CROSSBOW: {
+    name: 'Crossbow',
+    hands: 2,
+    attackSpeed: { min: 0.5, max: 0.7 },
+    baseDamage: 14, // Level 1 common - higher damage, slower
+    critChanceBase: 0.5, // Medium crit chance
+    critMultiplierBase: 0.12, // Slightly higher crit multiplier
+    canDualWield: false,
+    onlyRightHand: false
+  },
+  MACE: {
+    name: 'Mace',
+    hands: 1,
+    attackSpeed: { min: 0.7, max: 0.9 },
+    baseDamage: 12, // Level 1 common
+    critChanceBase: 0.4, // Lower crit chance
+    critMultiplierBase: 0.1, // Reduced crit multiplier
+    canDualWield: false,
+    onlyRightHand: true
   },
   SHIELD: { 
     name: 'Shield', 
@@ -171,8 +324,9 @@ function generateItem(bossLevel, rarity) {
     const critChance = Math.min(rarity === 'LEGENDARY' ? 95 : 70, baseCritChance);
     
     // Crit multiplier based on weapon type base and level scaling
-    const critMultiplierBase = weaponData.critMultiplierBase || 0.2;
-    const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.1) * rarityData.multiplier) * 100) / 100;
+    // REBALANCE: Reduced crit multiplier scaling (was 0.1, now 0.05)
+    const critMultiplierBase = weaponData.critMultiplierBase || 0.1;
+    const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.05) * rarityData.multiplier) * 100) / 100;
     
     // Random element (30-50% chance depending on rarity)
     let element = null;
@@ -232,6 +386,14 @@ function generateItem(bossLevel, rarity) {
       };
       
       return item;
+    }
+    
+    // Determine weapon damage type based on weapon type
+    // Default: SWORD, TWOHANDED_SWORD, DAGGER, MACE, BOW, CROSSBOW = PHYSICAL
+    // WAND, STAFF = MAGICAL
+    let weaponDamageType = 'PHYSICAL';
+    if (weaponType === 'WAND' || weaponType === 'STAFF') {
+      weaponDamageType = 'MAGICAL';
     }
     
     // DIABLO 3/POE STYLE: Generate random affixes based on rarity
@@ -299,7 +461,7 @@ function generateItem(bossLevel, rarity) {
       }
     });
     
-    // Add element damage for WAND and STAFF
+    // Add element damage for WAND and STAFF (primary element damage)
     // REBALANCE: Increased element damage for Staff (proposal 6)
     if (element && (weaponType === 'WAND' || weaponType === 'STAFF')) {
       const elementData = ELEMENT_TYPES[element];
@@ -308,6 +470,21 @@ function generateItem(bossLevel, rarity) {
       let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
       if (elementDamage > 0) {
         weaponStats[`elementDamage_${element}`] = elementDamage;
+      }
+    }
+    
+    // Add additional element damage for PHYSICAL weapons (secondary element damage)
+    // Physical weapons can have additional elemental damage (10-20% chance depending on rarity)
+    if (weaponDamageType === 'PHYSICAL' && element) {
+      const additionalElementChance = 0.1 + (rarityData.multiplier - 1) * 0.02;
+      if (Math.random() < additionalElementChance) {
+        const elementData = ELEMENT_TYPES[element];
+        // Additional element damage is 5-10% of base damage
+        const elementDamagePercent = 0.05 + Math.random() * 0.05;
+        let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
+        if (elementDamage > 0) {
+          weaponStats[`elementDamage_${element}`] = elementDamage;
+        }
       }
     }
     
@@ -341,8 +518,9 @@ function generateItem(bossLevel, rarity) {
       level: itemLevel,
       rarity: rarity,
       damage: damage,
+      damageType: weaponDamageType, // Store damage type (PHYSICAL, MAGICAL, etc.)
       attackSpeed: attackSpeed,
-      element: element, // Store element type
+      element: element, // Store element type (for additional element damage)
       hands: weaponData.hands,
       icon: getWeaponIcon(weaponType),
       stats: weaponStats
@@ -364,10 +542,12 @@ function generateItem(bossLevel, rarity) {
       hp: Math.floor((10 + itemLevel * 3) * rarityData.multiplier),
       armor: Math.floor((2 + itemLevel * 0.5) * rarityData.multiplier),
       dodge: Math.floor((0.5 + itemLevel * 0.1) * rarityData.multiplier),
-      hpRegen: Math.floor((0.1 + itemLevel * 0.05) * rarityData.multiplier)
+      hpRegen: Math.floor((0.1 + itemLevel * 0.05) * rarityData.multiplier),
+      maxMana: Math.floor((5 + itemLevel * 2) * rarityData.multiplier),
+      manaRegen: Math.floor((0.05 + itemLevel * 0.02) * rarityData.multiplier * 10) / 10
     };
     
-    // Randomly select 1-3 stats
+    // Randomly select 1-3 stats (can include mana and mana regen)
     const statCount = 1 + Math.floor(Math.random() * 3);
     const availableStats = Object.keys(baseStats);
     const selectedStats = {};
@@ -400,6 +580,9 @@ function getWeaponIcon(weaponType) {
     TWOHANDED_SWORD: '⚔️',
     WAND: '🪄',
     STAFF: '🪄',
+    BOW: '🏹',
+    CROSSBOW: '🏹',
+    MACE: '🔨',
     SHIELD: '🛡️'
   };
   return icons[weaponType] || '⚔️';
@@ -421,6 +604,13 @@ function getArmorIcon(armorType) {
 // Calculate player stats from equipment and level
 function calculatePlayerStats() {
   const level = window.experienceSystem ? window.experienceSystem.getLevel() : 1;
+  
+  // Get player class from save
+  let playerClass = null;
+  if (save && save.combat && save.combat.playerClass) {
+    playerClass = CHARACTER_CLASSES[save.combat.playerClass];
+  }
+  
   const baseStats = {
     hp: 100 + level * 10,
     maxHp: 100 + level * 10,
@@ -434,6 +624,7 @@ function calculatePlayerStats() {
     reflectChance: 0,
     mana: 50 + level * 5,
     maxMana: 50 + level * 5,
+    manaRegen: 0,
     attackSpeed: 1.0
   };
   
@@ -452,6 +643,13 @@ function calculatePlayerStats() {
                          rightWeapon && rightWeapon.weaponType === 'DAGGER' && 
                          (rightWeapon.weaponHand === 'right' || !rightWeapon.weaponHand); // Right dagger (or old dagger without weaponHand)
   
+  // Track base armor before class multipliers (for class bonuses)
+  let armorFromItems = 0;
+  let damageFromWeapons = 0;
+  let elementDamageFromWeapons = {};
+  let wandStaffDamage = 0;
+  let bowCrossbowDamage = 0;
+  
   Object.keys(equipment).forEach(slot => {
     const item = equipment[slot];
     if (item && item.stats) {
@@ -464,21 +662,99 @@ function calculatePlayerStats() {
       const isShield = item.weaponType === 'SHIELD';
       
       if (item.stats.hp) baseStats.maxHp += item.stats.hp * statMultiplier;
-      if (item.stats.armor) baseStats.armor += item.stats.armor * statMultiplier;
+      if (item.stats.armor) {
+        armorFromItems += item.stats.armor * statMultiplier;
+        baseStats.armor += item.stats.armor * statMultiplier;
+      }
       if (item.stats.dodge) baseStats.dodgeChance += item.stats.dodge * statMultiplier;
       if (item.stats.hpRegen) baseStats.hpRegen += item.stats.hpRegen * statMultiplier;
       if (!isShield) {
         // Shields cannot have damage, critChance, or critMultiplier
-        if (item.stats.damage) baseStats.damage += item.stats.damage * statMultiplier;
+        if (item.stats.damage) {
+          damageFromWeapons += item.stats.damage * statMultiplier;
+          baseStats.damage += item.stats.damage * statMultiplier;
+          
+          // Track weapon type damage for class bonuses
+          if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
+            wandStaffDamage += item.stats.damage * statMultiplier;
+          }
+          if (item.weaponType === 'BOW' || item.weaponType === 'CROSSBOW') {
+            bowCrossbowDamage += item.stats.damage * statMultiplier;
+          }
+        }
         if (item.stats.critChance) baseStats.critChance += item.stats.critChance * statMultiplier;
         if (item.stats.critMultiplier) baseStats.critMultiplier += item.stats.critMultiplier * statMultiplier;
       }
       if (item.stats.blockChance) baseStats.blockChance += item.stats.blockChance * statMultiplier;
       if (item.stats.reflectChance) baseStats.reflectChance += item.stats.reflectChance * statMultiplier;
       if (item.stats.maxMana) baseStats.maxMana += item.stats.maxMana * statMultiplier;
+      if (item.stats.manaRegen) baseStats.manaRegen += item.stats.manaRegen * statMultiplier;
       if (item.attackSpeed && slot === 'weaponRight') baseStats.attackSpeed = item.attackSpeed;
+      
+      // Track element damage for class bonuses
+      if (item.stats) {
+        Object.keys(item.stats).forEach(statKey => {
+          if (statKey.startsWith('elementDamage_')) {
+            const element = statKey.replace('elementDamage_', '');
+            if (!elementDamageFromWeapons[element]) {
+              elementDamageFromWeapons[element] = 0;
+            }
+            elementDamageFromWeapons[element] += item.stats[statKey] * statMultiplier;
+          }
+        });
+      }
     }
   });
+  
+  // Apply class bonuses
+  if (playerClass && playerClass.bonuses) {
+    const bonuses = playerClass.bonuses;
+    
+    // HP multiplier
+    if (bonuses.hpMultiplier) {
+      baseStats.maxHp = Math.floor(baseStats.maxHp * bonuses.hpMultiplier);
+    }
+    
+    // Armor multiplier (only from items)
+    if (bonuses.armorMultiplier) {
+      baseStats.armor = baseStats.armor - armorFromItems + Math.floor(armorFromItems * bonuses.armorMultiplier);
+    }
+    
+    // Damage multipliers for specific weapon types
+    if (bonuses.wandStaffDamageMultiplier && wandStaffDamage > 0) {
+      baseStats.damage = baseStats.damage - wandStaffDamage + Math.floor(wandStaffDamage * bonuses.wandStaffDamageMultiplier);
+    }
+    if (bonuses.bowCrossbowDamageMultiplier && bowCrossbowDamage > 0) {
+      baseStats.damage = baseStats.damage - bowCrossbowDamage + Math.floor(bowCrossbowDamage * bonuses.bowCrossbowDamageMultiplier);
+    }
+    
+    // General damage multiplier
+    if (bonuses.damageMultiplier) {
+      baseStats.damage = Math.floor(baseStats.damage * bonuses.damageMultiplier);
+    }
+    
+    // Element damage multiplier
+    if (bonuses.elementDamageMultiplier) {
+      Object.keys(elementDamageFromWeapons).forEach(element => {
+        const elementDamage = elementDamageFromWeapons[element];
+        baseStats.damage = baseStats.damage - elementDamage + Math.floor(elementDamage * bonuses.elementDamageMultiplier);
+      });
+    }
+    
+    // DoT damage multiplier (applied in combat, not here)
+    
+    // Stat bonuses
+    if (bonuses.critChanceBonus) baseStats.critChance += bonuses.critChanceBonus;
+    if (bonuses.critMultiplierBonus) baseStats.critMultiplier += bonuses.critMultiplierBonus / 100; // Convert % to multiplier
+    if (bonuses.dodgeChanceBonus) baseStats.dodgeChance += bonuses.dodgeChanceBonus;
+    if (bonuses.blockChanceBonus) baseStats.blockChance += bonuses.blockChanceBonus;
+    if (bonuses.reflectChanceBonus) baseStats.reflectChance += bonuses.reflectChanceBonus;
+    
+    // Multipliers
+    if (bonuses.attackSpeedMultiplier) baseStats.attackSpeed *= bonuses.attackSpeedMultiplier;
+    if (bonuses.hpRegenMultiplier) baseStats.hpRegen *= bonuses.hpRegenMultiplier;
+    if (bonuses.maxManaMultiplier) baseStats.maxMana = Math.floor(baseStats.maxMana * bonuses.maxManaMultiplier);
+  }
   
   // Update player stats
   combatSystem.player.maxHp = baseStats.maxHp;
@@ -494,6 +770,7 @@ function calculatePlayerStats() {
   combatSystem.player.blockChance = Math.min(95, baseStats.blockChance);
   combatSystem.player.reflectChance = Math.min(95, baseStats.reflectChance);
   combatSystem.player.maxMana = baseStats.maxMana;
+  combatSystem.player.manaRegen = baseStats.manaRegen;
   combatSystem.player.attackSpeed = baseStats.attackSpeed;
   
   // DIABLO 3/POE STYLE: Calculate elemental resistances from equipment
@@ -636,7 +913,12 @@ function startCombat(waveNumber = null) {
     combatSystem.bossWave++;
     combatSystem.lastWaveDefeated = false;
   } else if (combatSystem.bossWave === 0) {
-    // First time starting combat
+    // First time starting combat - check if class is selected
+    if (!save || !save.combat || !save.combat.playerClass) {
+      // Show class selection modal
+      showClassSelectionModal();
+      return;
+    }
     combatSystem.bossWave = 1;
   }
   // Otherwise, retry current wave (no change)
@@ -991,6 +1273,22 @@ function equipItem(item, slot) {
     }
   }
   
+  // Check if player class allows this weapon
+  if (item.type === 'weapon' && item.weaponType !== 'SHIELD') {
+    let playerClass = null;
+    if (save && save.combat && save.combat.playerClass) {
+      playerClass = CHARACTER_CLASSES[save.combat.playerClass];
+    }
+    
+    if (playerClass && playerClass.allowedWeapons) {
+      if (!playerClass.allowedWeapons.includes(item.weaponType)) {
+        addItemToInventory(item);
+        toast(`Your class (${playerClass.name}) cannot use ${item.weaponType.replace(/_/g, ' ')}!`, 'bad');
+        return;
+      }
+    }
+  }
+  
   // Unequip current item in slot if exists
   let currentItem = null;
   if (item.type === 'weapon') {
@@ -1053,6 +1351,21 @@ function equipItem(item, slot) {
     }
     // DAGGER - left dagger only in left hand, right dagger only in right hand
     else if (item.weaponType === 'DAGGER') {
+      // Check if trying to equip dagger in left hand - only ROGUE can do this
+      if (slot === 'weapon-left' || (!slot && combatSystem.player.equipped.weaponRight && combatSystem.player.equipped.weaponRight.weaponType === 'DAGGER')) {
+        let playerClass = null;
+        if (save && save.combat && save.combat.playerClass) {
+          playerClass = CHARACTER_CLASSES[save.combat.playerClass];
+        }
+        
+        // Only ROGUE can equip dagger in left hand
+        if (!playerClass || playerClass.id !== 'ROGUE') {
+          addItemToInventory(item);
+          toast('Only Rogue can equip dagger in left hand! Other classes can only use dagger in right hand.', 'bad');
+          return;
+        }
+      }
+      
       // Check if item has weaponHand property (new system)
       if (item.weaponHand) {
         if (item.weaponHand === 'left' && slot !== 'weapon-left') {
@@ -1097,6 +1410,7 @@ function equipItem(item, slot) {
           }
         } else if (slot === 'weapon-left') {
           // Left dagger can be equipped regardless of what's in right hand
+          // But only ROGUE can do this (check already done above)
           currentItem = combatSystem.player.equipped.weaponLeft;
           if (currentItem) {
             addItemToInventory(currentItem);
@@ -1109,6 +1423,7 @@ function equipItem(item, slot) {
       // New system: equip based on weaponHand
       if (item.weaponHand === 'left' && slot === 'weapon-left') {
         // Left dagger can be equipped regardless of what's in right hand
+        // But only ROGUE can do this (check already done above)
         currentItem = combatSystem.player.equipped.weaponLeft;
         if (currentItem) addItemToInventory(currentItem);
         combatSystem.player.equipped.weaponLeft = item;
@@ -1287,11 +1602,17 @@ function playerAttack() {
     return;
   }
   
+  // Check if player has a weapon equipped
+  const rightWeapon = combatSystem.player.equipped.weaponRight;
+  if (!rightWeapon) {
+    toast('You need a weapon to attack! Equip a weapon from inventory.', 'bad');
+    return;
+  }
+  
   const now = Date.now();
   
   // Get attack speed from weapon or default to 1.0
   let attackSpeed = 1.0;
-  const rightWeapon = combatSystem.player.equipped.weaponRight;
   if (rightWeapon && rightWeapon.attackSpeed) {
     attackSpeed = rightWeapon.attackSpeed;
   } else {
@@ -1317,13 +1638,78 @@ function playerAttack() {
     }
   }
   
-  // Calculate base damage
-  let damage = combatSystem.player.damage;
-  
-  // Add weapon damage if equipped
-  if (rightWeapon && rightWeapon.stats && rightWeapon.stats.damage) {
-    damage += rightWeapon.stats.damage;
+  // Get player class damage type
+  let playerDamageType = 'PHYSICAL'; // Default
+  if (save && save.combat && save.combat.playerClass) {
+    const classData = CHARACTER_CLASSES[save.combat.playerClass];
+    if (classData && classData.damageType) {
+      playerDamageType = classData.damageType;
+    }
   }
+  
+  // Calculate base damage from player stats (excluding weapon damage)
+  // We need to subtract weapon damage that was already added in calculatePlayerStats
+  let baseDamage = combatSystem.player.damage;
+  
+  // Subtract weapon damage if it was already included in player.damage
+  if (rightWeapon && rightWeapon.stats && rightWeapon.stats.damage) {
+    // Get original weapon damage (before any multipliers)
+    const originalWeaponDamage = rightWeapon.stats.damage;
+    
+    // Check if class bonuses were applied (wand/staff/bow/crossbow multipliers)
+    let weaponDamageMultiplier = 1.0;
+    if (save && save.combat && save.combat.playerClass) {
+      const classData = CHARACTER_CLASSES[save.combat.playerClass];
+      if (classData && classData.bonuses) {
+        if ((rightWeapon.weaponType === 'WAND' || rightWeapon.weaponType === 'STAFF') && 
+            classData.bonuses.wandStaffDamageMultiplier) {
+          weaponDamageMultiplier = classData.bonuses.wandStaffDamageMultiplier;
+        } else if ((rightWeapon.weaponType === 'BOW' || rightWeapon.weaponType === 'CROSSBOW') && 
+                   classData.bonuses.bowCrossbowDamageMultiplier) {
+          weaponDamageMultiplier = classData.bonuses.bowCrossbowDamageMultiplier;
+        } else if (classData.bonuses.damageMultiplier) {
+          weaponDamageMultiplier = classData.bonuses.damageMultiplier;
+        }
+      }
+    }
+    
+    // Subtract the weapon damage that was already added (with multipliers)
+    const addedWeaponDamage = Math.floor(originalWeaponDamage * weaponDamageMultiplier);
+    baseDamage = Math.max(0, baseDamage - addedWeaponDamage);
+  }
+  
+  // Calculate weapon damage with type conversion
+  let weaponDamage = 0;
+  if (rightWeapon && rightWeapon.stats && rightWeapon.stats.damage) {
+    weaponDamage = rightWeapon.stats.damage;
+    
+    // Get weapon damage type (default to PHYSICAL if not set for backward compatibility)
+    const weaponDamageType = rightWeapon.damageType || 'PHYSICAL';
+    
+    // Convert damage if weapon type doesn't match player class type (10:1 conversion)
+    if (weaponDamageType !== playerDamageType) {
+      weaponDamage = Math.floor(weaponDamage / 10); // 10:1 conversion
+    }
+    
+    // Apply class bonuses to converted weapon damage
+    if (save && save.combat && save.combat.playerClass) {
+      const classData = CHARACTER_CLASSES[save.combat.playerClass];
+      if (classData && classData.bonuses) {
+        if ((rightWeapon.weaponType === 'WAND' || rightWeapon.weaponType === 'STAFF') && 
+            classData.bonuses.wandStaffDamageMultiplier) {
+          weaponDamage = Math.floor(weaponDamage * classData.bonuses.wandStaffDamageMultiplier);
+        } else if ((rightWeapon.weaponType === 'BOW' || rightWeapon.weaponType === 'CROSSBOW') && 
+                   classData.bonuses.bowCrossbowDamageMultiplier) {
+          weaponDamage = Math.floor(weaponDamage * classData.bonuses.bowCrossbowDamageMultiplier);
+        } else if (classData.bonuses.damageMultiplier) {
+          weaponDamage = Math.floor(weaponDamage * classData.bonuses.damageMultiplier);
+        }
+      }
+    }
+  }
+  
+  // Total damage = base damage (from stats, excluding weapon) + converted weapon damage
+  let damage = baseDamage + weaponDamage;
   
   // Check for crit (shocked stacks on boss increase crit chance, shocked stacks on player reduce damage)
   let critChance = combatSystem.player.critChance;
@@ -1383,6 +1769,14 @@ function playerAttack() {
         elementDamage = Math.floor(elementDamage * (1 - resistance / 100));
       }
       
+      // Apply class element damage multiplier (Mage)
+      if (save && save.combat && save.combat.playerClass) {
+        const classData = CHARACTER_CLASSES[save.combat.playerClass];
+        if (classData && classData.bonuses && classData.bonuses.elementDamageMultiplier) {
+          elementDamage = Math.floor(elementDamage * classData.bonuses.elementDamageMultiplier);
+        }
+      }
+      
       // Element damage is not affected by crit or armor, but affected by resistance
       if (elementDamage > 0) {
         showCombatText(`-${Math.floor(elementDamage)} ${ELEMENT_TYPES[element].name}`, ELEMENT_TYPES[element].color, combatSystem.boss, 'right');
@@ -1390,11 +1784,16 @@ function playerAttack() {
     }
   }
   
-  // Apply physical damage
+  // Get damage type info for display
+  const damageTypeData = DAMAGE_TYPES[playerDamageType];
+  const damageColor = damageTypeData ? damageTypeData.color : '#c0c0c0';
+  const damageTypeName = damageTypeData ? damageTypeData.name : 'Physical';
+  
+  // Apply main damage (converted to player's damage type)
   combatSystem.boss.hp -= damage;
   combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
   // Show crit damage larger and to the left, normal damage in center
-  showCombatText(`-${Math.floor(damage)}`, '#ff6666', combatSystem.boss, isCrit ? 'left' : 'center', isCrit ? '1.5rem' : null);
+  showCombatText(`-${Math.floor(damage)} ${damageTypeName}`, damageColor, combatSystem.boss, isCrit ? 'left' : 'center', isCrit ? '1.5rem' : null);
   
   // Apply element damage (after resistance calculation)
   if (elementDamage > 0) {
@@ -1492,7 +1891,14 @@ function applyElementEffect(element, isCrit, weapon) {
       const poisonChance = Math.min(0.95, 0.20 * effectChanceMultiplier);
       const poisonDuration = 15000; // 15 seconds for boss
       if (Math.random() < poisonChance) {
-        const poisonDamage = Math.floor(combatSystem.player.damage * 0.02);
+        let poisonDamage = Math.floor(combatSystem.player.damage * 0.02);
+        // Apply class DoT multiplier (Necromancer, Ranger)
+        if (save && save.combat && save.combat.playerClass) {
+          const classData = CHARACTER_CLASSES[save.combat.playerClass];
+          if (classData && classData.bonuses && classData.bonuses.dotDamageMultiplier) {
+            poisonDamage = Math.floor(poisonDamage * classData.bonuses.dotDamageMultiplier);
+          }
+        }
         combatSystem.boss.effects.poisoned = Math.max(combatSystem.boss.effects.poisoned || 0, now + poisonDuration);
         // Poison increases incoming damage (handled in damage calculation)
         if (!combatSystem.boss.effects.poisonStacks) {
@@ -1583,7 +1989,14 @@ function applyElementEffect(element, isCrit, weapon) {
         if (!combatSystem.boss.effects.bleeding) {
           combatSystem.boss.effects.bleeding = [];
         }
-        const bleedDamage = Math.floor(combatSystem.player.damage * 0.08);
+        let bleedDamage = Math.floor(combatSystem.player.damage * 0.08);
+        // Apply class DoT multiplier (Necromancer, Ranger)
+        if (save && save.combat && save.combat.playerClass) {
+          const classData = CHARACTER_CLASSES[save.combat.playerClass];
+          if (classData && classData.bonuses && classData.bonuses.dotDamageMultiplier) {
+            bleedDamage = Math.floor(bleedDamage * classData.bonuses.dotDamageMultiplier);
+          }
+        }
         // Update timer and damage for all existing stacks
         if (combatSystem.boss.effects.bleeding.length > 0) {
           combatSystem.boss.effects.bleeding.forEach(bleed => {
@@ -1818,6 +2231,9 @@ function applyBossElementToPlayer(element, now) {
   }
 }
 
+// Auto-attack state
+let autoAttackEnabled = false;
+
 // Update combat loop
 function updateCombatLoop() {
   // Don't update if combat is not active
@@ -1831,6 +2247,22 @@ function updateCombatLoop() {
   }
   
   const now = Date.now();
+  
+  // Auto-attack if enabled
+  if (autoAttackEnabled && combatSystem.boss && combatSystem.boss.hp > 0) {
+    const rightWeapon = combatSystem.player.equipped.weaponRight;
+    if (rightWeapon) {
+      // Check if attack is off cooldown
+      let attackSpeed = rightWeapon.attackSpeed || 1.0;
+      const attackCooldown = 1000 / attackSpeed;
+      if (now - combatSystem.lastAttackTime >= attackCooldown) {
+        // Check if player is frozen
+        if (!combatSystem.boss.playerEffects || !combatSystem.boss.playerEffects.frozen || now >= combatSystem.boss.playerEffects.frozen) {
+          playerAttack();
+        }
+      }
+    }
+  }
   
   // Update player effects from boss
   if (combatSystem.boss && combatSystem.boss.playerEffects) {
@@ -1946,6 +2378,7 @@ function updateCombatLoop() {
         const elapsed = now - poison.startTime;
         if (elapsed < poison.duration) {
           // Apply damage every second
+          // Note: poison.damage already includes class bonuses from when it was applied
           if (elapsed % 1000 < 16) {
             combatSystem.boss.hp -= poison.damage;
             combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
@@ -2187,13 +2620,23 @@ function updateAttackButton() {
   const attackCooldown = 1000 / attackSpeed;
   const timeSinceLastAttack = now - combatSystem.lastAttackTime;
   
+  // Check if player has a weapon equipped
+  if (!rightWeapon) {
+    attackBtn.disabled = true;
+    attackBtn.textContent = 'No Weapon';
+    attackBtn.title = 'Equip a weapon from inventory to attack';
+    return;
+  }
+  
   if (timeSinceLastAttack < attackCooldown) {
     const remainingCooldown = ((attackCooldown - timeSinceLastAttack) / 1000).toFixed(1);
     attackBtn.disabled = true;
     attackBtn.textContent = `Attack (${remainingCooldown}s)`;
+    attackBtn.title = '';
   } else {
     attackBtn.disabled = false;
     attackBtn.textContent = 'Attack';
+    attackBtn.title = '';
   }
 }
 
@@ -2212,6 +2655,21 @@ function renderCombat() {
   const combatDodge = document.getElementById('combat-dodge');
   
   if (!combatScreen) return;
+  
+  // Update player class display (read-only in combat screen)
+  const classDisplay = document.getElementById('player-class-name');
+  if (classDisplay) {
+    if (save && save.combat && save.combat.playerClass) {
+      const classData = CHARACTER_CLASSES[save.combat.playerClass];
+      if (classData) {
+        classDisplay.textContent = classData.name;
+      } else {
+        classDisplay.textContent = 'Unknown Class';
+      }
+    } else {
+      classDisplay.textContent = 'No Class';
+    }
+  }
   
   // Show screen if combat is active, boss exists, or countdown is running
   const shouldShowScreen = (combatSystem.active && combatSystem.boss) || combatSystem.countdownTimer !== null;
@@ -2873,6 +3331,11 @@ function initCombatSystem() {
   combatSystem.bossWave = save.combat.bossWave || 0;
   combatSystem.lastWaveDefeated = save.combat.lastWaveDefeated || false;
   
+  // Load player class
+  if (save.combat.playerClass) {
+    combatSystem.playerClass = save.combat.playerClass;
+  }
+  
   // Load equipped items from inventory system
   if (save.inventory && save.inventory.equipment) {
     Object.keys(combatSystem.player.equipped).forEach(slot => {
@@ -2964,6 +3427,24 @@ function setupCombatEvents() {
     });
   }
   
+  // Setup auto-attack checkbox
+  const autoAttackCheckbox = document.getElementById('combat-auto-attack');
+  if (autoAttackCheckbox) {
+    // Load saved auto-attack state
+    if (save && save.combat && save.combat.autoAttack !== undefined) {
+      autoAttackEnabled = save.combat.autoAttack;
+      autoAttackCheckbox.checked = autoAttackEnabled;
+    }
+    
+    autoAttackCheckbox.addEventListener('change', (e) => {
+      autoAttackEnabled = e.target.checked;
+      if (save && save.combat) {
+        save.combat.autoAttack = autoAttackEnabled;
+      }
+      toast(autoAttackEnabled ? 'Auto-attack enabled' : 'Auto-attack disabled', 'info');
+    });
+  }
+  
   // Update attack button cooldown display
   setInterval(() => {
     if (combatSystem.active) {
@@ -3008,6 +3489,451 @@ function saveCombatState() {
 // Get equipped items
 function getEquippedItems() {
   return combatSystem.player.equipped;
+}
+
+// Show class selection modal
+// Class carousel state
+let classCarouselState = {
+  currentIndex: 0,
+  classes: [],
+  allowChange: false
+};
+
+function showClassSelectionModal(allowChange = false) {
+  const modal = document.getElementById('class-selection-modal');
+  const carousel = document.getElementById('class-carousel');
+  const carouselWrapper = document.getElementById('class-carousel-wrapper');
+  const prevBtn = document.getElementById('class-carousel-prev');
+  const nextBtn = document.getElementById('class-carousel-next');
+  const indicators = document.getElementById('class-carousel-indicators');
+  const title = document.getElementById('class-selection-title');
+  
+  if (!modal || !carousel || !carouselWrapper) {
+    console.error('Class selection modal elements not found!', { modal: !!modal, carousel: !!carousel });
+    toast('Error: Class selection modal not found. Please refresh the page.', 'bad');
+    return;
+  }
+  
+  // Check if CHARACTER_CLASSES is defined
+  if (typeof CHARACTER_CLASSES === 'undefined') {
+    console.error('CHARACTER_CLASSES is not defined!');
+    toast('Error: Character classes not loaded. Please refresh the page.', 'bad');
+    return;
+  }
+  
+  // Update title
+  if (title) {
+    title.textContent = allowChange ? 'Change Your Class (Cost: 15000 Souls)' : 'Select Your Class';
+  }
+  
+  // Get current class
+  const currentClassId = (save && save.combat && save.combat.playerClass) ? save.combat.playerClass : null;
+  
+  // Get all classes as array
+  const classesArray = Object.values(CHARACTER_CLASSES);
+  classCarouselState.classes = classesArray;
+  classCarouselState.allowChange = allowChange;
+  
+  // Find current class index if exists
+  if (currentClassId) {
+    const currentIndex = classesArray.findIndex(c => c.id === currentClassId);
+    if (currentIndex !== -1) {
+      classCarouselState.currentIndex = currentIndex;
+    }
+  }
+  
+  // Clear carousel and indicators
+  carousel.innerHTML = '';
+  if (indicators) indicators.innerHTML = '';
+  
+  // Create class cards
+  classesArray.forEach((classData, index) => {
+    const card = document.createElement('div');
+    card.className = 'class-card';
+    card.dataset.classId = classData.id;
+    card.dataset.index = index;
+    
+    // Build bonuses text
+    let bonusesText = '<div class="class-card-bonuses">';
+    if (classData.bonuses.hpMultiplier) {
+      bonusesText += `<strong>HP:</strong> ${classData.bonuses.hpMultiplier > 1 ? '+' : ''}${Math.round((classData.bonuses.hpMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.damageMultiplier) {
+      bonusesText += `<strong>Damage:</strong> ${classData.bonuses.damageMultiplier > 1 ? '+' : ''}${Math.round((classData.bonuses.damageMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.armorMultiplier) {
+      bonusesText += `<strong>Armor:</strong> +${Math.round((classData.bonuses.armorMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.critChanceBonus) {
+      bonusesText += `<strong>Crit Chance:</strong> +${classData.bonuses.critChanceBonus}%<br>`;
+    }
+    if (classData.bonuses.critMultiplierBonus) {
+      bonusesText += `<strong>Crit Multiplier:</strong> +${classData.bonuses.critMultiplierBonus}%<br>`;
+    }
+    if (classData.bonuses.dodgeChanceBonus) {
+      bonusesText += `<strong>Dodge:</strong> +${classData.bonuses.dodgeChanceBonus}%<br>`;
+    }
+    if (classData.bonuses.wandStaffDamageMultiplier) {
+      bonusesText += `<strong>Wand/Staff Damage:</strong> +${Math.round((classData.bonuses.wandStaffDamageMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.bowCrossbowDamageMultiplier) {
+      bonusesText += `<strong>Bow/Crossbow Damage:</strong> +${Math.round((classData.bonuses.bowCrossbowDamageMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.elementDamageMultiplier) {
+      bonusesText += `<strong>Elemental Damage:</strong> +${Math.round((classData.bonuses.elementDamageMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.dotDamageMultiplier) {
+      bonusesText += `<strong>DoT Damage:</strong> +${Math.round((classData.bonuses.dotDamageMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.hpRegenMultiplier) {
+      bonusesText += `<strong>HP Regen:</strong> +${Math.round((classData.bonuses.hpRegenMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.maxManaMultiplier) {
+      bonusesText += `<strong>Max Mana:</strong> +${Math.round((classData.bonuses.maxManaMultiplier - 1) * 100)}%<br>`;
+    }
+    if (classData.bonuses.attackSpeedMultiplier) {
+      bonusesText += `<strong>Attack Speed:</strong> +${Math.round((classData.bonuses.attackSpeedMultiplier - 1) * 100)}%<br>`;
+    }
+    bonusesText += '</div>';
+    
+    // Build allowed weapons text
+    let weaponsText = '<div class="class-card-weapons">';
+    weaponsText += '<strong>Weapons:</strong> ';
+    if (classData.allowedWeapons && classData.allowedWeapons.length > 0) {
+      weaponsText += classData.allowedWeapons.map(w => w.replace(/_/g, ' ')).join(', ');
+    } else {
+      weaponsText += 'All';
+    }
+    weaponsText += '</div>';
+    
+    const isCurrent = currentClassId === classData.id;
+    
+    card.innerHTML = `
+      <div class="class-card-header">${classData.name}${isCurrent ? ' (Current)' : ''}</div>
+      <div class="class-card-description">${classData.description}</div>
+      ${bonusesText}
+      ${weaponsText}
+      <div style="margin-top: 20px; text-align: center;">
+        <button class="btn primary" style="width: 100%;">Select This Class</button>
+      </div>
+    `;
+    
+    // Add click handler
+    const selectBtn = card.querySelector('.btn');
+    if (selectBtn) {
+      selectBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectClass(classData.id, allowChange);
+      });
+    }
+    
+    card.addEventListener('click', (e) => {
+      if (e.target !== selectBtn && !selectBtn.contains(e.target)) {
+        selectClass(classData.id, allowChange);
+      }
+    });
+    
+    carousel.appendChild(card);
+    
+    // Create indicator
+    if (indicators) {
+      const indicator = document.createElement('div');
+      indicator.className = 'class-carousel-indicator';
+      indicator.dataset.index = index;
+      indicator.addEventListener('click', () => {
+        goToClass(index);
+      });
+      indicators.appendChild(indicator);
+    }
+  });
+  
+  // Update carousel position
+  updateClassCarousel();
+  
+  // Setup navigation buttons
+  if (prevBtn) {
+    prevBtn.onclick = () => navigateClassCarousel(-1);
+  }
+  if (nextBtn) {
+    nextBtn.onclick = () => navigateClassCarousel(1);
+  }
+  
+  // Setup keyboard navigation
+  const handleKeyPress = (e) => {
+    if (modal.classList.contains('hidden')) return;
+    if (e.key === 'ArrowLeft') {
+      navigateClassCarousel(-1);
+    } else if (e.key === 'ArrowRight') {
+      navigateClassCarousel(1);
+    }
+  };
+  
+  // Remove old listener if exists
+  document.removeEventListener('keydown', classCarouselState.keyHandler);
+  classCarouselState.keyHandler = handleKeyPress;
+  document.addEventListener('keydown', handleKeyPress);
+  
+  // Setup touch/swipe support
+  let touchStartX = 0;
+  let touchEndX = 0;
+  
+  const handleTouchStart = (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+  };
+  
+  const handleTouchEnd = (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 50) { // Minimum swipe distance
+      if (diff > 0) {
+        navigateClassCarousel(1); // Swipe left = next
+      } else {
+        navigateClassCarousel(-1); // Swipe right = prev
+      }
+    }
+  };
+  
+  carouselWrapper.removeEventListener('touchstart', classCarouselState.touchStart);
+  carouselWrapper.removeEventListener('touchend', classCarouselState.touchEnd);
+  classCarouselState.touchStart = handleTouchStart;
+  classCarouselState.touchEnd = handleTouchEnd;
+  carouselWrapper.addEventListener('touchstart', handleTouchStart);
+  carouselWrapper.addEventListener('touchend', handleTouchEnd);
+  
+  // Show modal - use same pattern as other modals (confirm-modal)
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    
+    // Update carousel position after modal is shown (to get correct dimensions)
+    setTimeout(() => {
+      updateClassCarousel();
+    }, 50);
+  } else {
+    console.error('Modal element not found!');
+    toast('Error: Class selection modal not found. Please refresh the page.', 'bad');
+  }
+  
+  // Close on outside click (disabled - user must select a class)
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      if (!allowChange) {
+        toast('You must select a class to continue!', 'warn');
+        return;
+      }
+      closeClassSelectionModal();
+    }
+  };
+}
+
+// Navigate class carousel
+function navigateClassCarousel(direction) {
+  const totalClasses = classCarouselState.classes.length;
+  if (totalClasses === 0) return;
+  
+  // Infinite loop: wrap around
+  classCarouselState.currentIndex += direction;
+  if (classCarouselState.currentIndex < 0) {
+    classCarouselState.currentIndex = totalClasses - 1;
+  } else if (classCarouselState.currentIndex >= totalClasses) {
+    classCarouselState.currentIndex = 0;
+  }
+  
+  updateClassCarousel();
+}
+
+// Go to specific class index
+function goToClass(index) {
+  if (index >= 0 && index < classCarouselState.classes.length) {
+    classCarouselState.currentIndex = index;
+    updateClassCarousel();
+  }
+}
+
+// Update carousel position and active states
+function updateClassCarousel() {
+  const carousel = document.getElementById('class-carousel');
+  const carouselWrapper = document.getElementById('class-carousel-wrapper');
+  const indicators = document.getElementById('class-carousel-indicators');
+  if (!carousel || !carouselWrapper) return;
+  
+  const currentIndex = classCarouselState.currentIndex;
+  
+  // Get the actual width of the wrapper (after all CSS is applied)
+  const wrapperWidth = carouselWrapper.getBoundingClientRect().width;
+  
+  // Each card is 100% of wrapper width, so we move by wrapperWidth for each card
+  const translateX = -currentIndex * wrapperWidth;
+  carousel.style.transform = `translateX(${translateX}px)`;
+  
+  // Update active states
+  const cards = carousel.querySelectorAll('.class-card');
+  const indicatorEls = indicators ? indicators.querySelectorAll('.class-carousel-indicator') : [];
+  
+  cards.forEach((card, index) => {
+    if (index === currentIndex) {
+      card.classList.add('active');
+    } else {
+      card.classList.remove('active');
+    }
+  });
+  
+  indicatorEls.forEach((indicator, index) => {
+    if (index === currentIndex) {
+      indicator.classList.add('active');
+    } else {
+      indicator.classList.remove('active');
+    }
+  });
+}
+
+// Close class selection modal
+function closeClassSelectionModal() {
+  const modal = document.getElementById('class-selection-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+  
+  // Remove event listeners
+  if (classCarouselState.keyHandler) {
+    document.removeEventListener('keydown', classCarouselState.keyHandler);
+    classCarouselState.keyHandler = null;
+  }
+  
+  const carouselWrapper = document.getElementById('class-carousel-wrapper');
+  if (carouselWrapper && classCarouselState.touchStart && classCarouselState.touchEnd) {
+    carouselWrapper.removeEventListener('touchstart', classCarouselState.touchStart);
+    carouselWrapper.removeEventListener('touchend', classCarouselState.touchEnd);
+    classCarouselState.touchStart = null;
+    classCarouselState.touchEnd = null;
+  }
+}
+
+// Select class
+function selectClass(classId, isChange = false) {
+  if (!save) return;
+  
+  // Check if changing class (costs souls)
+  if (isChange) {
+    const cost = 15000;
+    if (!combatSystem.souls || combatSystem.souls < cost) {
+      toast(`Not enough souls! Need ${cost} souls to change class.`, 'bad');
+      return;
+    }
+    
+    // Deduct souls
+    combatSystem.souls -= cost;
+    if (save.combat) {
+      save.combat.souls = combatSystem.souls;
+    }
+    toast(`Class changed! -${cost} souls.`, 'good');
+  }
+  
+  // Set class
+  if (!save.combat) {
+    save.combat = {};
+  }
+  save.combat.playerClass = classId;
+  combatSystem.playerClass = classId;
+  
+  // Unequip incompatible weapons
+  const classData = CHARACTER_CLASSES[classId];
+  if (classData && classData.allowedWeapons) {
+    const equipped = combatSystem.player.equipped;
+    let unequipped = false;
+    
+    if (equipped.weaponRight && !classData.allowedWeapons.includes(equipped.weaponRight.weaponType)) {
+      addItemToInventory(equipped.weaponRight);
+      equipped.weaponRight = null;
+      unequipped = true;
+    }
+    
+    if (equipped.weaponLeft && equipped.weaponLeft.weaponType !== 'SHIELD' && !classData.allowedWeapons.includes(equipped.weaponLeft.weaponType)) {
+      addItemToInventory(equipped.weaponLeft);
+      equipped.weaponLeft = null;
+      unequipped = true;
+    }
+    
+    if (unequipped) {
+      toast('Some equipped weapons are incompatible with your new class and have been unequipped.', 'warn');
+    }
+  }
+  
+  // Give starting weapon if player doesn't have one equipped
+  if (!isChange && !combatSystem.player.equipped.weaponRight) {
+    const startingWeaponType = classData.allowedWeapons[0]; // Use first allowed weapon type
+    if (startingWeaponType) {
+      const weaponData = WEAPON_TYPES[startingWeaponType];
+      if (weaponData) {
+        // Determine damage type for starting weapon
+        let startingWeaponDamageType = 'PHYSICAL';
+        if (startingWeaponType === 'WAND' || startingWeaponType === 'STAFF') {
+          startingWeaponDamageType = 'MAGICAL';
+        }
+        
+        // Create a basic starting weapon (level 1, Common rarity)
+        const startingWeapon = {
+          id: generateUniqueItemId('weapon'),
+          type: 'weapon',
+          weaponType: startingWeaponType,
+          name: `Starting ${weaponData.name}`,
+          level: 1,
+          rarity: 'COMMON',
+          damageType: startingWeaponDamageType,
+          attackSpeed: weaponData.attackSpeed ? weaponData.attackSpeed.min : null,
+          effect: null,
+          hands: weaponData.hands,
+          icon: getWeaponIcon(startingWeaponType),
+          stats: {
+            damage: Math.floor(weaponData.baseDamage * 1.1) // Slightly better than base
+          }
+        };
+        
+        // Equip the starting weapon
+        combatSystem.player.equipped.weaponRight = startingWeapon;
+        
+        // Update save equipment
+        if (save && save.inventory) {
+          if (!save.inventory.equipment) {
+            save.inventory.equipment = {};
+          }
+          save.inventory.equipment.weaponRight = startingWeapon;
+        }
+        
+        // Update inventory display if modal is open
+        if (typeof renderInventory === 'function') {
+          renderInventory();
+        }
+        
+        toast(`Starting weapon equipped: ${startingWeapon.name}`, 'good');
+      }
+    }
+  }
+  
+  // Recalculate stats
+  calculatePlayerStats();
+  renderCombat();
+  saveCombatState();
+  
+  // Close modal
+  closeClassSelectionModal();
+  
+  if (!isChange) {
+    toast(`Class selected: ${CHARACTER_CLASSES[classId].name}`, 'good');
+  }
+}
+
+// Change class (for existing players)
+function changeClass() {
+  if (!save || !save.combat || !save.combat.playerClass) {
+    toast('You must select a class first!', 'warn');
+    return;
+  }
+  
+  showClassSelectionModal(true);
 }
 
 // Get player stats
@@ -3056,7 +3982,12 @@ if (typeof window !== 'undefined') {
     createDeveloperSword: createDeveloperSword,
     addItemToInventory: addItemToInventory,
     ITEM_RARITY: ITEM_RARITY,
-    WEAPON_TYPES: WEAPON_TYPES
+    WEAPON_TYPES: WEAPON_TYPES,
+    changeClass: changeClass,
+    showClassSelection: showClassSelectionModal,
+    CHARACTER_CLASSES: CHARACTER_CLASSES,
+    formatNumber: formatNumber,
+    DAMAGE_TYPES: DAMAGE_TYPES
   };
 }
 
