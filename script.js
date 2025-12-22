@@ -1089,6 +1089,14 @@ const casinoStakePercentEl = document.getElementById('casino-stake-percent');
 const casinoStakeAmountEl = document.getElementById('casino-stake-amount');
 const casinoFaceSelectedEl = document.getElementById('casino-face-selected');
 
+// Merchant modal elements
+const merchantModal = document.getElementById('merchant-modal');
+const merchantCloseBtn = document.getElementById('merchant-close');
+const merchantTabBtns = document.querySelectorAll('.merchant-tab-btn');
+const merchantWeaponsGrid = document.getElementById('merchant-weapons-grid');
+const merchantArmorGrid = document.getElementById('merchant-armor-grid');
+const merchantAccessoriesGrid = document.getElementById('merchant-accessories-grid');
+
 const bulkButtons = Array.from(document.querySelectorAll('#bulk-buttons .bulk'));
 
 const buildingsList = document.getElementById('buildings-list');
@@ -10338,10 +10346,10 @@ debugTools.addEventListener('click', (e) => {
       }
       break;
     case 'addDevSword':
-      if (window.combatSystem && window.combatSystem.createDeveloperSword && window.combatSystem.addItemToInventory) {
-        const devSword = window.combatSystem.createDeveloperSword();
-        window.combatSystem.addItemToInventory(devSword);
-        toast('Added Developer Sword to inventory.', 'good');
+      if (window.combatSystem && (window.combatSystem.createDeveloperStone || window.combatSystem.createDeveloperSword) && window.combatSystem.addItemToInventory) {
+        const devStone = window.combatSystem.createDeveloperStone ? window.combatSystem.createDeveloperStone() : window.combatSystem.createDeveloperSword();
+        window.combatSystem.addItemToInventory(devStone);
+        toast('Added Developer Stone to inventory.', 'good');
         // Refresh inventory display if it's open
         if (window.experienceSystem && window.experienceSystem.inventory && window.experienceSystem.inventory.render) {
           window.experienceSystem.inventory.render();
@@ -11392,6 +11400,438 @@ function closeCasinoModal() {
   selectedDiceFace = null;
 }
 
+// ===== MERCHANT SYSTEM - Her Barrus =====
+
+// Merchant prices
+const MERCHANT_PRICES = {
+  WEAPON_ONEHANDED: 3000,
+  WEAPON_TWOHANDED: 4000,
+  ARMOR: 1000,
+  ACCESSORY: 1500
+};
+
+// Current merchant items (regenerated on open)
+let merchantWeapons = [];
+let merchantArmor = [];
+let merchantAccessories = [];
+
+// Open merchant modal
+function openMerchantModal() {
+  if (!merchantModal) return;
+  
+  // Generate merchant items
+  generateMerchantItems();
+  
+  // Render items
+  renderMerchantItems();
+  
+  // Show first tab
+  switchMerchantTab('weapons');
+  
+  // Open modal
+  merchantModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+}
+
+// Close merchant modal
+function closeMerchantModal() {
+  if (merchantModal) {
+    merchantModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+  }
+}
+
+// Generate merchant items
+function generateMerchantItems() {
+  merchantWeapons = [];
+  merchantArmor = [];
+  merchantAccessories = [];
+  
+  // Generate weapons (all types)
+  if (window.combatSystem && window.combatSystem.WEAPON_TYPES) {
+    const weaponTypes = Object.keys(window.combatSystem.WEAPON_TYPES).filter(type => type !== 'SHIELD');
+    weaponTypes.forEach(weaponType => {
+      if (window.combatSystem && window.combatSystem.generateMerchantWeapon) {
+        const weapon = window.combatSystem.generateMerchantWeapon(weaponType);
+        if (weapon) {
+          merchantWeapons.push(weapon);
+        }
+      }
+    });
+  }
+  
+  // Generate armor (all types)
+  let armorTypes = ['helmet', 'shoulders', 'chest', 'gloves', 'legs', 'boots'];
+  if (window.combatSystem && window.combatSystem.ARMOR_TYPES) {
+    armorTypes = Object.values(window.combatSystem.ARMOR_TYPES);
+  }
+  armorTypes.forEach(armorType => {
+    if (window.combatSystem && window.combatSystem.generateMerchantArmor) {
+      const armor = window.combatSystem.generateMerchantArmor(armorType);
+      if (armor) {
+        merchantArmor.push(armor);
+      }
+    }
+  });
+  
+  // Generate accessories (rings and amulets)
+  let accessoryTypes = ['ring', 'amulet'];
+  if (window.combatSystem && window.combatSystem.ACCESSORY_TYPES) {
+    accessoryTypes = Object.values(window.combatSystem.ACCESSORY_TYPES);
+  }
+  accessoryTypes.forEach(accessoryType => {
+    if (window.combatSystem && window.combatSystem.generateMerchantAccessory) {
+      const accessory = window.combatSystem.generateMerchantAccessory(accessoryType);
+      if (accessory) {
+        merchantAccessories.push(accessory);
+      }
+    }
+  });
+}
+
+// Render merchant items
+function renderMerchantItems() {
+  // Render weapons
+  if (merchantWeaponsGrid) {
+    merchantWeaponsGrid.innerHTML = '';
+    merchantWeapons.forEach(weapon => {
+      const price = weapon.hands === 2 ? MERCHANT_PRICES.WEAPON_TWOHANDED : MERCHANT_PRICES.WEAPON_ONEHANDED;
+      const itemEl = createMerchantItemElement(weapon, price, 'weapon');
+      merchantWeaponsGrid.appendChild(itemEl);
+    });
+  }
+  
+  // Render armor
+  if (merchantArmorGrid) {
+    merchantArmorGrid.innerHTML = '';
+    merchantArmor.forEach(armor => {
+      const itemEl = createMerchantItemElement(armor, MERCHANT_PRICES.ARMOR, 'armor');
+      merchantArmorGrid.appendChild(itemEl);
+    });
+  }
+  
+  // Render accessories
+  if (merchantAccessoriesGrid) {
+    merchantAccessoriesGrid.innerHTML = '';
+    merchantAccessories.forEach(accessory => {
+      const itemEl = createMerchantItemElement(accessory, MERCHANT_PRICES.ACCESSORY, 'accessory');
+      merchantAccessoriesGrid.appendChild(itemEl);
+    });
+  }
+}
+
+// Create merchant item element
+function createMerchantItemElement(item, price, itemType) {
+  const itemEl = document.createElement('div');
+  itemEl.className = 'merchant-item';
+  itemEl.dataset.itemId = item.id;
+  
+  // For template items, show default color
+  const rarityColor = item.rarity && window.combatSystem && window.combatSystem.getItemRarityColor 
+    ? window.combatSystem.getItemRarityColor(item.rarity)
+    : '#9d9d9d';
+  
+  // Get highest wave for description
+  const highestWave = window.combatSystem && window.combatSystem.highestWaveDefeated ? window.combatSystem.highestWaveDefeated : 0;
+  
+  let itemHTML = `
+    <div class="merchant-item-header" style="border-color: ${rarityColor};">
+      <span class="merchant-item-icon">${item.icon || '📦'}</span>
+      <div class="merchant-item-info">
+        <div class="merchant-item-name" style="color: ${rarityColor};">${item.name}</div>
+        <div class="merchant-item-level">Level: Based on wave ${highestWave || '?'}</div>
+      </div>
+    </div>
+    <div class="merchant-item-description">
+      ${getMerchantItemDescription(item, itemType)}
+    </div>
+    <div class="merchant-item-stats">
+  `;
+  
+  // Show stats
+  if (item.stats) {
+    Object.keys(item.stats).forEach(statKey => {
+      const statValue = item.stats[statKey];
+      if (statValue > 0) {
+        let statName = statKey;
+        let statDisplay = statValue;
+        
+        if (statKey === 'hp') statName = 'HP';
+        else if (statKey === 'armor') statName = 'Armor';
+        else if (statKey === 'dodge') statName = 'Dodge';
+        else if (statKey === 'hpRegen') statName = 'HP Regen';
+        else if (statKey === 'maxMana') statName = 'Max Mana';
+        else if (statKey === 'manaRegen') statName = 'Mana Regen';
+        else if (statKey === 'critChance') statName = 'Crit Chance';
+        else if (statKey === 'critMultiplier') statName = 'Crit Multiplier';
+        else if (statKey === 'damage') statName = 'Damage';
+        else if (statKey.startsWith('elementDamage_')) {
+          const element = statKey.replace('elementDamage_', '');
+          if (window.combatSystem && window.combatSystem.ELEMENT_TYPES && window.combatSystem.ELEMENT_TYPES[element]) {
+            const elementData = window.combatSystem.ELEMENT_TYPES[element];
+            statName = `${elementData.name} Damage`;
+            itemHTML += `<div class="merchant-item-stat" style="color: ${elementData.color};">+${statDisplay} ${statName}</div>`;
+            return;
+          }
+        }
+        
+        if (statKey === 'dodge' || statKey === 'critChance' || statKey === 'hpRegen' || statKey === 'manaRegen') {
+          statDisplay = statValue.toFixed(1);
+          if (statKey === 'dodge' || statKey === 'critChance') {
+            statDisplay += '%';
+          } else {
+            statDisplay += '/s';
+          }
+        } else if (statKey === 'critMultiplier') {
+          statDisplay = statValue.toFixed(2) + 'x';
+        } else {
+          statDisplay = Math.floor(statValue);
+        }
+        
+        itemHTML += `<div class="merchant-item-stat">+${statDisplay} ${statName}</div>`;
+      }
+    });
+  }
+  
+  // Show placeholder for template items
+  if (item.isMerchantTemplate) {
+    itemHTML += `<div class="merchant-item-stat" style="color: var(--muted); font-style: italic;">Stats will be generated on purchase</div>`;
+  } else {
+    // Show actual stats if item has them (shouldn't happen for merchant items)
+    if (item.stats && Object.keys(item.stats).length > 0) {
+      Object.keys(item.stats).forEach(statKey => {
+        const statValue = item.stats[statKey];
+        if (statValue > 0) {
+          let statName = statKey;
+          let statDisplay = statValue;
+          
+          if (statKey === 'hp') statName = 'HP';
+          else if (statKey === 'armor') statName = 'Armor';
+          else if (statKey === 'dodge') statName = 'Dodge';
+          else if (statKey === 'hpRegen') statName = 'HP Regen';
+          else if (statKey === 'maxMana') statName = 'Max Mana';
+          else if (statKey === 'manaRegen') statName = 'Mana Regen';
+          else if (statKey === 'critChance') statName = 'Crit Chance';
+          else if (statKey === 'critMultiplier') statName = 'Crit Multiplier';
+          
+          if (statKey === 'dodge' || statKey === 'critChance' || statKey === 'hpRegen' || statKey === 'manaRegen') {
+            statDisplay = statValue.toFixed(1);
+            if (statKey === 'dodge' || statKey === 'critChance') {
+              statDisplay += '%';
+            } else {
+              statDisplay += '/s';
+            }
+          } else if (statKey === 'critMultiplier') {
+            statDisplay = statValue.toFixed(2) + 'x';
+          } else {
+            statDisplay = Math.floor(statValue);
+          }
+          
+          itemHTML += `<div class="merchant-item-stat">+${statDisplay} ${statName}</div>`;
+        }
+      });
+    }
+    
+    // Show damage and attack speed for weapons
+    if (itemType === 'weapon') {
+      if (item.damage) {
+        const damageTypeData = item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES 
+          ? window.combatSystem.DAMAGE_TYPES[item.damageType] 
+          : null;
+        const damageTypeName = damageTypeData ? damageTypeData.name : '';
+        const damageTypeColor = damageTypeData ? damageTypeData.color : '#9d9d9d';
+        itemHTML += `<div class="merchant-item-stat">Damage: +${item.damage}${damageTypeName ? ` <span style="color: ${damageTypeColor};">${damageTypeName}</span>` : ''}</div>`;
+      }
+      if (item.attackSpeed) {
+        itemHTML += `<div class="merchant-item-stat">Attack Speed: ${item.attackSpeed.toFixed(2)}/s</div>`;
+      }
+    }
+  }
+  
+  itemHTML += `
+    </div>
+    <div class="merchant-item-footer">
+      <div class="merchant-item-price">💀 ${price.toLocaleString()} Souls</div>`;
+  
+  // Disable buy button for accessories
+  if (itemType === 'accessory') {
+    itemHTML += `<button class="btn merchant-buy-btn" disabled style="opacity: 0.5; cursor: not-allowed;" title="Accessories coming soon!">Coming Soon</button>`;
+  } else {
+    itemHTML += `<button class="btn merchant-buy-btn" data-item-id="${item.id}" data-price="${price}">Buy</button>`;
+  }
+  
+  itemHTML += `
+    </div>
+  `;
+  
+  itemEl.innerHTML = itemHTML;
+  return itemEl;
+}
+
+// Get merchant item description
+function getMerchantItemDescription(item, itemType) {
+  const highestWave = window.combatSystem && window.combatSystem.highestWaveDefeated ? window.combatSystem.highestWaveDefeated : 0;
+  
+  if (itemType === 'weapon') {
+    const weaponData = window.combatSystem && window.combatSystem.WEAPON_TYPES && window.combatSystem.WEAPON_TYPES[item.weaponType]
+      ? window.combatSystem.WEAPON_TYPES[item.weaponType]
+      : null;
+    
+    let desc = `<div style="color: var(--muted); font-size: 0.9em; margin-bottom: 8px;">`;
+    desc += `<strong style="color: var(--text);">On purchase:</strong><br>`;
+    desc += `• Random rarity: <span style="color: #0070dd;">Rare</span>, <span style="color: #a335ee;">Epic</span>, or <span style="color: #ff8000;">Legendary</span><br>`;
+    desc += `• Level: ${highestWave || '?'} (based on highest wave defeated)<br>`;
+    desc += `• Base damage + random stats (2-5 affixes)<br>`;
+    
+    if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
+      desc += `• May have primary elemental damage (Fire, Poison, Cold, Lightning)<br>`;
+      desc += `• May have additional elemental damage<br>`;
+    } else if (item.weaponType === 'DAGGER') {
+      desc += `• May have additional elemental damage<br>`;
+    }
+    
+    if (weaponData && weaponData.hands === 2) {
+      desc += `• Two-handed weapon`;
+    } else {
+      desc += `• One-handed weapon`;
+    }
+    
+    desc += `</div>`;
+    return desc;
+  } else if (itemType === 'armor') {
+    let desc = `<div style="color: var(--muted); font-size: 0.9em; margin-bottom: 8px;">`;
+    desc += `<strong style="color: var(--text);">On purchase:</strong><br>`;
+    desc += `• Random rarity: <span style="color: #0070dd;">Rare</span>, <span style="color: #a335ee;">Epic</span>, or <span style="color: #ff8000;">Legendary</span><br>`;
+    desc += `• Level: ${highestWave || '?'} (based on highest wave defeated)<br>`;
+    desc += `• Random stats: 3-6 affixes<br>`;
+    desc += `• Possible stats: HP, Armor, Dodge, HP Regen, Max Mana, Mana Regen`;
+    desc += `</div>`;
+    return desc;
+  } else if (itemType === 'accessory') {
+    let desc = `<div style="color: var(--muted); font-size: 0.9em; margin-bottom: 8px;">`;
+    desc += `<strong style="color: var(--warn);">Coming soon!</strong><br>`;
+    desc += `Accessories will be available in a future update.`;
+    desc += `</div>`;
+    return desc;
+  }
+  
+  return '';
+}
+
+// Switch merchant tab
+function switchMerchantTab(tabName) {
+  // Update tab buttons
+  merchantTabBtns.forEach(btn => {
+    if (btn.dataset.tab === tabName) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  
+  // Update tab content
+  const tabContents = document.querySelectorAll('.merchant-tab-content');
+  tabContents.forEach(content => {
+    if (content.id === `merchant-${tabName}-tab`) {
+      content.classList.add('active');
+    } else {
+      content.classList.remove('active');
+    }
+  });
+}
+
+// Buy merchant item
+function buyMerchantItem(itemId, price) {
+  if (!window.combatSystem) {
+    toast('Combat system not available!', 'bad');
+    return;
+  }
+  
+  // Check if souls is available (can be 0, which is valid)
+  const currentSouls = window.combatSystem.souls !== undefined ? window.combatSystem.souls : 0;
+  
+  if (currentSouls < price) {
+    toast(`Not enough souls! Need ${price.toLocaleString()}, have ${currentSouls.toLocaleString()}`, 'bad');
+    return;
+  }
+  
+  // Find item
+  let item = null;
+  let itemType = null;
+  
+  item = merchantWeapons.find(w => w.id === itemId);
+  if (item) itemType = 'weapon';
+  
+  if (!item) {
+    item = merchantArmor.find(a => a.id === itemId);
+    if (item) itemType = 'armor';
+  }
+  
+  if (!item) {
+    item = merchantAccessories.find(acc => acc.id === itemId);
+    if (item) {
+      toast('Accessories are not available for purchase yet!', 'warn');
+      return;
+    }
+  }
+  
+  if (!item) {
+    toast('Item not found!', 'bad');
+    return;
+  }
+  
+  // Check inventory space
+  if (!window.combatSystem.addItemToInventory) {
+    toast('Inventory system not available!', 'bad');
+    return;
+  }
+  
+  // Deduct souls
+  const newSouls = currentSouls - price;
+  window.combatSystem.souls = newSouls;
+  
+  // Update souls display
+  const soulsDisplay = document.getElementById('souls-display');
+  if (soulsDisplay && window.combatSystem.formatNumber) {
+    soulsDisplay.textContent = window.combatSystem.formatNumber(newSouls);
+  } else if (soulsDisplay) {
+    soulsDisplay.textContent = newSouls.toLocaleString();
+  }
+  
+  // Generate stats for the item before adding to inventory
+  if (item.isMerchantTemplate) {
+    if (itemType === 'weapon' && window.combatSystem.generateMerchantWeaponStats) {
+      item = window.combatSystem.generateMerchantWeaponStats(item);
+    } else if (itemType === 'armor' && window.combatSystem.generateMerchantArmorStats) {
+      item = window.combatSystem.generateMerchantArmorStats(item);
+    } else if (itemType === 'accessory' && window.combatSystem.generateMerchantAccessoryStats) {
+      item = window.combatSystem.generateMerchantAccessoryStats(item);
+    }
+  }
+  
+  // Add item to inventory
+  window.combatSystem.addItemToInventory(item);
+  
+  // Remove item from merchant
+  if (itemType === 'weapon') {
+    merchantWeapons = merchantWeapons.filter(w => w.id !== itemId);
+  } else if (itemType === 'armor') {
+    merchantArmor = merchantArmor.filter(a => a.id !== itemId);
+  } else if (itemType === 'accessory') {
+    merchantAccessories = merchantAccessories.filter(acc => acc.id !== itemId);
+  }
+  
+  // Re-render
+  renderMerchantItems();
+  
+  toast(`Purchased ${item.name}!`, 'good');
+  
+  // Refresh inventory if open
+  if (window.experienceSystem && window.experienceSystem.inventory && window.experienceSystem.inventory.render) {
+    window.experienceSystem.inventory.render();
+  }
+}
+
 function updateCasinoUI() {
   if (!casinoStakePercentEl || !casinoStakeAmountEl || !casinoFaceSelectedEl || !casinoRollBtn) return;
   
@@ -11506,6 +11946,57 @@ function rollCasinoDice() {
 }
 
 // Casino modal event handlers
+// Initialize merchant event handlers
+const merchantBtn = document.getElementById('merchant-btn');
+if (merchantBtn) {
+  merchantBtn.addEventListener('click', () => {
+    openMerchantModal();
+  });
+}
+
+if (merchantCloseBtn) {
+  merchantCloseBtn.addEventListener('click', closeMerchantModal);
+}
+
+// Merchant tab switching
+if (merchantTabBtns && merchantTabBtns.length > 0) {
+  merchantTabBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tabName = btn.dataset.tab;
+      if (tabName) {
+        switchMerchantTab(tabName);
+      }
+    });
+  });
+}
+
+// Merchant buy buttons (delegated event listener)
+if (merchantModal) {
+  merchantModal.addEventListener('click', (e) => {
+    if (e.target.classList.contains('merchant-buy-btn')) {
+      const itemId = e.target.dataset.itemId;
+      const price = parseInt(e.target.dataset.price, 10);
+      if (itemId && price) {
+        buyMerchantItem(itemId, price);
+      }
+    }
+  });
+  
+  // Close merchant modal on background click
+  merchantModal.addEventListener('click', (e) => {
+    if (e.target === merchantModal) {
+      closeMerchantModal();
+    }
+  });
+}
+
+// Close merchant modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && merchantModal && merchantModal.getAttribute('aria-hidden') === 'false') {
+    closeMerchantModal();
+  }
+});
+
 if (casinoCloseBtn) {
   casinoCloseBtn.addEventListener('click', closeCasinoModal);
 }

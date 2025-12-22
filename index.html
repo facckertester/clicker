@@ -246,6 +246,7 @@
           <button id="hints-toggle-btn" class="btn tiny" title="Toggle hints">💡</button>
           <button id="stats-btn" class="btn tiny">Stats</button>
           <button id="inventory-btn" class="btn tiny" title="Inventory">🎒</button>
+          <button id="merchant-btn" class="btn tiny" title="Her Barrus - Merchant">🏪</button>
           <button id="general-btn" class="btn tiny" title="Call General for Defense">⚔️</button>
           <button id="debug-open" class="btn tiny secondary">debug</button>
         </div>
@@ -698,6 +699,40 @@
 
 <!-- King element (appears/disappears via script) -->
 <div id="king" class="king" title="King"></div>
+
+<!-- Merchant modal - Her Barrus -->
+<div id="merchant-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card merchant-modal-card" role="document" aria-labelledby="merchant-title">
+    <div class="modal-header">
+      <h3 id="merchant-title">🏪 Her Barrus - Merchant</h3>
+      <button class="modal-close" id="merchant-close" aria-label="Close merchant">✕</button>
+    </div>
+    <div class="modal-body merchant-body">
+      <div class="merchant-tabs">
+        <button class="merchant-tab-btn active" data-tab="weapons">Weapons</button>
+        <button class="merchant-tab-btn" data-tab="armor">Armor</button>
+        <button class="merchant-tab-btn" data-tab="accessories">Accessories</button>
+      </div>
+      <div class="merchant-content">
+        <div id="merchant-weapons-tab" class="merchant-tab-content active">
+          <div class="merchant-items-grid" id="merchant-weapons-grid">
+            <!-- Weapons will be generated here -->
+          </div>
+        </div>
+        <div id="merchant-armor-tab" class="merchant-tab-content">
+          <div class="merchant-items-grid" id="merchant-armor-grid">
+            <!-- Armor will be generated here -->
+          </div>
+        </div>
+        <div id="merchant-accessories-tab" class="merchant-tab-content">
+          <div class="merchant-items-grid" id="merchant-accessories-grid">
+            <!-- Accessories will be generated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Casino modal -->
 <div id="casino-modal" role="dialog" aria-modal="true" aria-hidden="true">

@@ -745,18 +745,6 @@ function getItemTooltipHTML(item, slotName) {
   if (item.type === 'weapon') {
     html += `<div class="tooltip-line"></div>`;
     
-    // Display damage type
-    if (item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES) {
-      const damageTypeData = window.combatSystem.DAMAGE_TYPES[item.damageType];
-      if (damageTypeData) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Damage Type:</span>
-            <span class="tooltip-stat-value" style="color: ${damageTypeData.color}; font-weight: bold;">${damageTypeData.name}</span>
-          </div>
-        `;
-      }
-    }
     
     // Display classes that can use this weapon
     if (window.combatSystem && window.combatSystem.CHARACTER_CLASSES && item.weaponType) {
@@ -818,8 +806,9 @@ function getItemTooltipHTML(item, slotName) {
       }
     }
     
-    // Display element if weapon has one
-    if (item.element && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+    // Display primary element if weapon has one (only for magical weapons)
+    // Physical weapons don't have primary element, only additional element damage
+    if (item.element && item.damageType === 'MAGICAL' && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
       const elementData = window.combatSystem.ELEMENT_TYPES[item.element];
       if (elementData) {
         html += `
@@ -829,22 +818,11 @@ function getItemTooltipHTML(item, slotName) {
           </div>
         `;
         
-        // Show element damage for WAND and STAFF
-        if ((item.weaponType === 'WAND' || item.weaponType === 'STAFF') && item.stats) {
-          const elementKey = `elementDamage_${item.element}`;
-          if (item.stats[elementKey]) {
-            const multiplier = item.weaponType === 'STAFF' ? 'x2' : '';
-            html += `
-              <div class="tooltip-stat">
-                <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Damage:</span>
-                <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[elementKey]}${multiplier}</span>
-              </div>
-            `;
-          }
-        }
+        // For WAND and STAFF, primary element damage is part of magical damage, not shown separately
+        // (it's already included in the main damage calculation)
         
-        // Show element effect descriptions with calculated chances
-        const calculateEffectChance = (baseChance, rarity, level) => {
+        // Show element effect descriptions with calculated chances (high chance for primary element)
+        const calculateEffectChance = (baseChance, rarity, level, isPrimary = true) => {
           const rarityMultipliers = {
             'COMMON': 1.0,
             'UNCOMMON': 1.2,
@@ -854,7 +832,10 @@ function getItemTooltipHTML(item, slotName) {
           };
           const rarityMultiplier = rarityMultipliers[rarity] || 1.0;
           const levelBonus = Math.min(0.5, (level || 1) * 0.02);
-          const finalChance = Math.min(95, baseChance * 100 * rarityMultiplier * (1 + levelBonus));
+          // Primary element uses baseChance (15% for fire, 20% for poison, etc.)
+          // Additional element would use baseChance * 0.33 (5% for fire, 6.7% for poison, etc.)
+          const effectiveBaseChance = isPrimary ? baseChance : baseChance * 0.33;
+          const finalChance = Math.min(95, effectiveBaseChance * 100 * rarityMultiplier * (1 + levelBonus));
           return Math.round(finalChance);
         };
         
@@ -889,11 +870,11 @@ function getItemTooltipHTML(item, slotName) {
           const desc = elementDescriptions[item.element];
           let chanceText = '';
           if (item.element === 'COLD') {
-            const slowChance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel);
-            const freezeChance = calculateEffectChance(desc.freezeBase, itemRarity, itemLevel);
+            const slowChance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel, true);
+            const freezeChance = calculateEffectChance(desc.freezeBase, itemRarity, itemLevel, true);
             chanceText = `${slowChance}% slow, ${freezeChance}% freeze`;
           } else {
-            const chance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel);
+            const chance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel, true);
             chanceText = `${chance}%`;
           }
           html += `
@@ -905,11 +886,22 @@ function getItemTooltipHTML(item, slotName) {
       }
     }
     
-    if (item.damage) {
+    // Display main damage with damage type
+    const weaponDamage = item.damage || (item.stats && item.stats.damage ? item.stats.damage : 0);
+    if (weaponDamage > 0) {
+      const damageTypeData = item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES 
+        ? window.combatSystem.DAMAGE_TYPES[item.damageType] 
+        : null;
+      const damageTypeName = damageTypeData ? damageTypeData.name : '';
+      const damageTypeColor = damageTypeData ? damageTypeData.color : '#9d9d9d';
+      
       html += `
         <div class="tooltip-stat">
           <span class="tooltip-stat-label">Damage:</span>
-          <span class="tooltip-stat-value">+${item.damage}</span>
+          <span class="tooltip-stat-value">
+            +${weaponDamage}
+            ${damageTypeName ? ` <span style="color: ${damageTypeColor}; font-weight: bold;">${damageTypeName}</span>` : ''}
+          </span>
         </div>
       `;
     }
@@ -994,7 +986,139 @@ function getItemTooltipHTML(item, slotName) {
           </div>
         `;
       }
+      if (item.stats && item.stats.maxMana) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Max Mana:</span>
+            <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
+          </div>
+        `;
+      }
+      if (item.stats && item.stats.manaRegen) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">Mana Regen:</span>
+            <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+          </div>
+        `;
+      }
+      
+      // Show element resistances for shields if present
+      if (item.stats && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+        Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
+          const resistanceKey = `${element.toLowerCase()}Resistance`;
+          if (item.stats[resistanceKey]) {
+            const elementData = window.combatSystem.ELEMENT_TYPES[element];
+            html += `
+              <div class="tooltip-stat">
+                <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Resistance:</span>
+                <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
+              </div>
+            `;
+          }
+        });
+      }
     } else {
+      // Show additional element damage if present (secondary element damage)
+      // For physical weapons: show all element damage stats as additional damage
+      // For magical weapons: show only additional element damage (not primary element)
+      if (item.stats) {
+        // Check for any element damage stats
+        Object.keys(item.stats).forEach(statKey => {
+          if (statKey.startsWith('elementDamage_')) {
+            const element = statKey.replace('elementDamage_', '');
+            
+            // For magical weapons, skip if this is the primary element (it's already part of magical damage)
+            // Primary element is shown in the weapon name and is part of the main damage
+            if (item.damageType === 'MAGICAL' && item.element === element) {
+              return; // Skip primary element for magical weapons
+            }
+            
+            // Show as additional element damage
+            if (window.combatSystem && window.combatSystem.ELEMENT_TYPES && window.combatSystem.ELEMENT_TYPES[element]) {
+              const elementData = window.combatSystem.ELEMENT_TYPES[element];
+              const elementDamage = item.stats[statKey];
+              if (elementDamage > 0) {
+                html += `
+                  <div class="tooltip-stat">
+                    <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Damage:</span>
+                    <span class="tooltip-stat-value" style="color: ${elementData.color}">+${elementDamage}</span>
+                  </div>
+                `;
+              }
+            }
+          }
+        });
+      }
+      
+      // For other weapons, show additional stats (hp, armor, dodge, hpRegen, maxMana, manaRegen)
+      if (item.stats) {
+        if (item.stats.hp) {
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">HP:</span>
+              <span class="tooltip-stat-value">+${item.stats.hp}</span>
+            </div>
+          `;
+        }
+        if (item.stats.armor) {
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">Armor:</span>
+              <span class="tooltip-stat-value">+${item.stats.armor}</span>
+            </div>
+          `;
+        }
+        if (item.stats.dodge) {
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">Dodge:</span>
+              <span class="tooltip-stat-value">+${item.stats.dodge.toFixed(1)}%</span>
+            </div>
+          `;
+        }
+        if (item.stats.hpRegen) {
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">HP Regen:</span>
+              <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
+            </div>
+          `;
+        }
+        if (item.stats.maxMana) {
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">Max Mana:</span>
+              <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
+            </div>
+          `;
+        }
+        if (item.stats.manaRegen) {
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">Mana Regen:</span>
+              <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+            </div>
+          `;
+        }
+        
+        // Show element resistances if present
+        if (window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+          Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
+            const resistanceKey = `${element.toLowerCase()}Resistance`;
+            if (item.stats[resistanceKey]) {
+              const elementData = window.combatSystem.ELEMENT_TYPES[element];
+              html += `
+                <div class="tooltip-stat">
+                  <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Resistance:</span>
+                  <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
+                </div>
+              `;
+            }
+          });
+        }
+      }
+      
       // For other weapons, show damage, crit, and effect stats
       if (item.effect) {
         const effectNames = {
@@ -1053,6 +1177,38 @@ function getItemTooltipHTML(item, slotName) {
           <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
         </div>
       `;
+    }
+    if (item.stats.maxMana) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Max Mana:</span>
+          <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
+        </div>
+      `;
+    }
+    if (item.stats.manaRegen) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Mana Regen:</span>
+          <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+        </div>
+      `;
+    }
+    
+    // Show element resistances if present
+    if (window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+      Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
+        const resistanceKey = `${element.toLowerCase()}Resistance`;
+        if (item.stats[resistanceKey]) {
+          const elementData = window.combatSystem.ELEMENT_TYPES[element];
+          html += `
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Resistance:</span>
+              <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
+            </div>
+          `;
+        }
+      });
     }
   }
   

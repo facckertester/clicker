@@ -28,6 +28,12 @@ const DAMAGE_TYPES = {
     name: 'Dark',
     color: '#8e44ad',
     description: 'Dark damage'
+  },
+  PURE: {
+    id: 'PURE',
+    name: 'Pure',
+    color: '#ffffff',
+    description: 'Pure damage (universal, can be used by all classes)'
   }
 };
 
@@ -44,7 +50,7 @@ const CHARACTER_CLASSES = {
       blockChanceBonus: 15,      // +15% block chance
       reflectChanceBonus: 10     // +10% reflect chance
     },
-    allowedWeapons: ['SWORD', 'TWOHANDED_SWORD', 'SHIELD']
+    allowedWeapons: ['SWORD', 'TWOHANDED_SWORD', 'SHIELD', 'STONE']
   },
   MAGE: {
     id: 'MAGE',
@@ -57,7 +63,7 @@ const CHARACTER_CLASSES = {
       maxManaMultiplier: 1.25,         // +25% max mana
       elementEffectChanceBonus: 20      // +20% chance to apply elemental effects
     },
-    allowedWeapons: ['SWORD', 'WAND', 'STAFF', 'DAGGER']
+    allowedWeapons: ['SWORD', 'WAND', 'STAFF', 'DAGGER', 'STONE']
   },
   ROGUE: {
     id: 'ROGUE',
@@ -70,20 +76,21 @@ const CHARACTER_CLASSES = {
       dodgeChanceBonus: 20,      // +20% dodge chance
       attackSpeedMultiplier: 1.15 // +15% attack speed
     },
-    allowedWeapons: ['DAGGER']
+    allowedWeapons: ['DAGGER', 'STONE']
   },
   PALADIN: {
     id: 'PALADIN',
     name: 'Paladin',
     description: 'Balanced class with defense and HP regeneration',
-    damageType: 'HOLY',
+    damageTypes: ['HOLY', 'PHYSICAL'], // Can use both Holy and Physical damage
+    damageType: 'HOLY', // Primary type for backward compatibility
     bonuses: {
       hpMultiplier: 1.2,         // +20% HP
       armorMultiplier: 1.15,      // +15% armor from items
       hpRegenMultiplier: 1.5,     // +50% HP regeneration
       blockChanceBonus: 10        // +10% block chance
     },
-    allowedWeapons: ['SWORD', 'MACE', 'SHIELD']
+    allowedWeapons: ['SWORD', 'MACE', 'SHIELD', 'STONE']
   },
   BERSERKER: {
     id: 'BERSERKER',
@@ -96,33 +103,35 @@ const CHARACTER_CLASSES = {
       hpMultiplier: 0.85,        // -15% HP (penalty)
       critChanceBonus: 10        // +10% crit chance
     },
-    allowedWeapons: ['SWORD', 'TWOHANDED_SWORD', 'MACE', 'SHIELD']
+    allowedWeapons: ['SWORD', 'TWOHANDED_SWORD', 'MACE', 'SHIELD', 'STONE']
   },
   RANGER: {
     id: 'RANGER',
     name: 'Ranger',
     description: 'Ranged combat specialist with DoT effects',
-    damageType: 'PHYSICAL', // Primary type, but can also use MAGICAL
+    damageTypes: ['PHYSICAL', 'MAGICAL'], // Can use both Physical and Magical damage
+    damageType: 'PHYSICAL', // Primary type for backward compatibility
     bonuses: {
       bowCrossbowDamageMultiplier: 1.3, // +30% damage from bows and crossbows
       dotDamageMultiplier: 1.25,        // +25% DoT damage (poison, bleed)
       dodgeChanceBonus: 15,              // +15% dodge chance
       dotDurationMultiplier: 1.2         // +20% DoT effect duration
     },
-    allowedWeapons: ['BOW', 'CROSSBOW']
+    allowedWeapons: ['BOW', 'CROSSBOW', 'STONE']
   },
   NECROMANCER: {
     id: 'NECROMANCER',
     name: 'Necromancer',
     description: 'DoT specialist with poison and bleed focus',
-    damageType: 'DARK',
+    damageTypes: ['DARK', 'MAGICAL'], // Can use Dark and Magical damage
+    damageType: 'DARK', // Primary type for backward compatibility
     bonuses: {
       dotDamageMultiplier: 1.5,         // +50% DoT damage (poison, bleed)
       dotEffectChanceBonus: 30,         // +30% chance to apply DoT effects
       maxManaMultiplier: 1.25,          // +25% max mana
       hpRegenMultiplier: 1.15           // +15% HP regeneration
     },
-    allowedWeapons: ['DAGGER', 'WAND', 'STAFF', 'SHIELD']
+    allowedWeapons: ['DAGGER', 'WAND', 'STAFF', 'SHIELD', 'STONE']
   }
 };
 
@@ -291,6 +300,12 @@ const ARMOR_TYPES = {
   BOOTS: 'boots'
 };
 
+// Accessory types (rings and amulets)
+const ACCESSORY_TYPES = {
+  RING: 'ring',
+  AMULET: 'amulet'
+};
+
 // Generate item based on boss level and rarity
 function generateItem(bossLevel, rarity) {
   const rarityData = ITEM_RARITY[rarity];
@@ -328,12 +343,56 @@ function generateItem(bossLevel, rarity) {
     const critMultiplierBase = weaponData.critMultiplierBase || 0.1;
     const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.05) * rarityData.multiplier) * 100) / 100;
     
-    // Random element (30-50% chance depending on rarity)
-    let element = null;
-    const elementChance = 0.3 + (rarityData.multiplier - 1) * 0.05;
-    if (Math.random() < elementChance) {
-      const elements = Object.keys(ELEMENT_TYPES);
-      element = elements[Math.floor(Math.random() * elements.length)];
+    // Determine weapon damage type based on weapon type FIRST
+    // Default: SWORD, TWOHANDED_SWORD, DAGGER, BOW, CROSSBOW = PHYSICAL
+    // WAND, STAFF = MAGICAL
+    // MACE = HOLY or PHYSICAL (random, as only Paladin can use it)
+    let weaponDamageType = 'PHYSICAL';
+    if (weaponType === 'WAND' || weaponType === 'STAFF') {
+      weaponDamageType = 'MAGICAL';
+    } else if (weaponType === 'MACE') {
+      // Mace can be HOLY or PHYSICAL (only Paladin can use it, who can use both)
+      weaponDamageType = Math.random() < 0.5 ? 'HOLY' : 'PHYSICAL';
+    }
+    
+    // Element logic:
+    // - For PHYSICAL weapons: no primary element, only additional element damage (low chance to apply effect)
+    // - For MAGICAL weapons (WAND/STAFF): can be pure magical (no element) or with primary element (high chance to apply effect)
+    let primaryElement = null; // Primary element (only for magical weapons)
+    let additionalElement = null; // Additional element (for physical weapons or secondary element for magical)
+    
+    // For magical weapons, determine if it has a primary element
+    if (weaponType === 'WAND' || weaponType === 'STAFF') {
+      // 50-70% chance to have a primary element (depending on rarity)
+      const primaryElementChance = 0.5 + (rarityData.multiplier - 1) * 0.05;
+      if (Math.random() < primaryElementChance) {
+        const elements = Object.keys(ELEMENT_TYPES);
+        primaryElement = elements[Math.floor(Math.random() * elements.length)];
+      }
+    }
+    
+    // For physical weapons, can have additional element damage (separate from primary element)
+    // This is a secondary element that can be different from primary element (for magical weapons)
+    if (weaponDamageType === 'PHYSICAL') {
+      // 10-20% chance for additional element damage (depending on rarity)
+      const additionalElementChance = 0.1 + (rarityData.multiplier - 1) * 0.02;
+      if (Math.random() < additionalElementChance) {
+        const elements = Object.keys(ELEMENT_TYPES);
+        additionalElement = elements[Math.floor(Math.random() * elements.length)];
+      }
+    } else if (weaponType === 'WAND' || weaponType === 'STAFF') {
+      // For magical weapons, can have additional element different from primary
+      // 20-30% chance for additional element (if no primary element, higher chance)
+      const additionalElementChance = primaryElement ? 0.2 : 0.4;
+      if (Math.random() < additionalElementChance) {
+        const elements = Object.keys(ELEMENT_TYPES);
+        let candidateElement = elements[Math.floor(Math.random() * elements.length)];
+        // Make sure additional element is different from primary
+        while (candidateElement === primaryElement && primaryElement) {
+          candidateElement = elements[Math.floor(Math.random() * elements.length)];
+        }
+        additionalElement = candidateElement;
+      }
     }
     
     // For shields, use special stats (blockChance and reflectChance)
@@ -386,14 +445,6 @@ function generateItem(bossLevel, rarity) {
       };
       
       return item;
-    }
-    
-    // Determine weapon damage type based on weapon type
-    // Default: SWORD, TWOHANDED_SWORD, DAGGER, MACE, BOW, CROSSBOW = PHYSICAL
-    // WAND, STAFF = MAGICAL
-    let weaponDamageType = 'PHYSICAL';
-    if (weaponType === 'WAND' || weaponType === 'STAFF') {
-      weaponDamageType = 'MAGICAL';
     }
     
     // DIABLO 3/POE STYLE: Generate random affixes based on rarity
@@ -461,30 +512,23 @@ function generateItem(bossLevel, rarity) {
       }
     });
     
-    // Add element damage for WAND and STAFF (primary element damage)
-    // REBALANCE: Increased element damage for Staff (proposal 6)
-    if (element && (weaponType === 'WAND' || weaponType === 'STAFF')) {
-      const elementData = ELEMENT_TYPES[element];
+    // Add primary element damage for WAND and STAFF (if has primary element)
+    if (primaryElement && (weaponType === 'WAND' || weaponType === 'STAFF')) {
       // Staff gets 15% element damage, Wand gets 10%
       const elementDamagePercent = weaponType === 'STAFF' ? 0.15 : 0.1;
       let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
       if (elementDamage > 0) {
-        weaponStats[`elementDamage_${element}`] = elementDamage;
+        weaponStats[`elementDamage_${primaryElement}`] = elementDamage;
       }
     }
     
-    // Add additional element damage for PHYSICAL weapons (secondary element damage)
-    // Physical weapons can have additional elemental damage (10-20% chance depending on rarity)
-    if (weaponDamageType === 'PHYSICAL' && element) {
-      const additionalElementChance = 0.1 + (rarityData.multiplier - 1) * 0.02;
-      if (Math.random() < additionalElementChance) {
-        const elementData = ELEMENT_TYPES[element];
-        // Additional element damage is 5-10% of base damage
-        const elementDamagePercent = 0.05 + Math.random() * 0.05;
-        let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
-        if (elementDamage > 0) {
-          weaponStats[`elementDamage_${element}`] = elementDamage;
-        }
+    // Add additional element damage (for physical weapons or secondary element for magical weapons)
+    if (additionalElement) {
+      // Additional element damage is 5-10% of base damage
+      const elementDamagePercent = 0.05 + Math.random() * 0.05;
+      let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
+      if (elementDamage > 0) {
+        weaponStats[`elementDamage_${additionalElement}`] = elementDamage;
       }
     }
     
@@ -494,20 +538,24 @@ function generateItem(bossLevel, rarity) {
     if (weaponType === 'DAGGER') {
       weaponHand = Math.random() < 0.5 ? 'left' : 'right';
       daggerName = weaponHand === 'left' ? 'Left Dagger' : 'Right Dagger';
+      
+      // Left dagger can only be used by Rogue, so it's always PHYSICAL
+      if (weaponHand === 'left') {
+        weaponDamageType = 'PHYSICAL';
+      }
     }
     
-    // Build weapon name with element
+    // Build weapon name with primary element (only for magical weapons with primary element)
+    // Physical weapons don't show element in name (element is only additional damage)
     let weaponName = weaponData.name;
-    if (element) {
-      const elementData = ELEMENT_TYPES[element];
-      weaponName = `${elementData.name} ${weaponName}`;
-    }
     if (weaponType === 'DAGGER') {
       weaponName = daggerName;
-      if (element) {
-        const elementData = ELEMENT_TYPES[element];
-        weaponName = `${elementData.name} ${weaponName}`;
-      }
+    }
+    
+    // Only add element to name if it's a primary element (for magical weapons)
+    if (primaryElement && (weaponType === 'WAND' || weaponType === 'STAFF')) {
+      const elementData = ELEMENT_TYPES[primaryElement];
+      weaponName = `${elementData.name} ${weaponName}`;
     }
     
     const item = {
@@ -520,7 +568,8 @@ function generateItem(bossLevel, rarity) {
       damage: damage,
       damageType: weaponDamageType, // Store damage type (PHYSICAL, MAGICAL, etc.)
       attackSpeed: attackSpeed,
-      element: element, // Store element type (for additional element damage)
+      element: primaryElement, // Store primary element (only for magical weapons, null for physical)
+      additionalElement: additionalElement, // Store additional element (for physical weapons or secondary element for magical)
       hands: weaponData.hands,
       icon: getWeaponIcon(weaponType),
       stats: weaponStats
@@ -583,7 +632,8 @@ function getWeaponIcon(weaponType) {
     BOW: '🏹',
     CROSSBOW: '🏹',
     MACE: '🔨',
-    SHIELD: '🛡️'
+    SHIELD: '🛡️',
+    STONE: '🪨'
   };
   return icons[weaponType] || '⚔️';
 }
@@ -1175,20 +1225,21 @@ function addItemToInventory(item) {
   }
 }
 
-// Create developer sword (debug item)
-function createDeveloperSword() {
-  const devSword = {
+// Create developer stone (debug item)
+function createDeveloperStone() {
+  const devStone = {
     id: generateUniqueItemId('weapon'),
     type: 'weapon',
-    weaponType: 'SWORD',
-    name: 'Developer Sword',
+    weaponType: 'STONE',
+    name: 'Developer Stone',
     level: 999,
     rarity: 'LEGENDARY',
     damage: 100000,
+    damageType: 'PURE', // Pure damage type - universal, can be used by all classes
     attackSpeed: 10.0,
-    effect: 'bleed',
+    effect: null, // No effect for stone
     hands: 1,
-    icon: '⚔️',
+    icon: '🪨',
     stats: {
       hp: 100000,
       damage: 100000,
@@ -1201,7 +1252,12 @@ function createDeveloperSword() {
     }
   };
   
-  return devSword;
+  return devStone;
+}
+
+// Backward compatibility alias
+function createDeveloperSword() {
+  return createDeveloperStone();
 }
 
 // Equip item
@@ -1334,6 +1390,26 @@ function equipItem(item, slot) {
       if (slot && slot !== 'weapon-right') {
         addItemToInventory(item);
         toast('Sword can only be equipped in right hand!', 'warn');
+        return;
+      }
+      
+      currentItem = combatSystem.player.equipped.weaponRight;
+      if (currentItem) addItemToInventory(currentItem);
+      combatSystem.player.equipped.weaponRight = item;
+      
+      // Shield can stay in left hand
+      // Remove incompatible left weapon
+      if (combatSystem.player.equipped.weaponLeft && 
+          combatSystem.player.equipped.weaponLeft.weaponType !== 'SHIELD') {
+        addItemToInventory(combatSystem.player.equipped.weaponLeft);
+        combatSystem.player.equipped.weaponLeft = null;
+      }
+    }
+    // STONE - только правая рука (одноручное оружие)
+    else if (item.weaponType === 'STONE') {
+      if (slot && slot !== 'weapon-right') {
+        addItemToInventory(item);
+        toast('Stone can only be equipped in right hand!', 'warn');
         return;
       }
       
@@ -1638,12 +1714,19 @@ function playerAttack() {
     }
   }
   
-  // Get player class damage type
-  let playerDamageType = 'PHYSICAL'; // Default
+  // Get player class damage types (can be array for classes with multiple types)
+  // PURE damage is universal and always available to all classes
+  let playerDamageTypes = ['PHYSICAL', 'PURE']; // Default (PURE is always available)
   if (save && save.combat && save.combat.playerClass) {
     const classData = CHARACTER_CLASSES[save.combat.playerClass];
-    if (classData && classData.damageType) {
-      playerDamageType = classData.damageType;
+    if (classData) {
+      // Check if class has multiple damage types
+      if (classData.damageTypes && Array.isArray(classData.damageTypes)) {
+        playerDamageTypes = [...classData.damageTypes, 'PURE']; // Add PURE to all classes
+      } else if (classData.damageType) {
+        // Single damage type (backward compatibility)
+        playerDamageTypes = [classData.damageType, 'PURE']; // Add PURE to all classes
+      }
     }
   }
   
@@ -1686,8 +1769,11 @@ function playerAttack() {
     // Get weapon damage type (default to PHYSICAL if not set for backward compatibility)
     const weaponDamageType = rightWeapon.damageType || 'PHYSICAL';
     
-    // Convert damage if weapon type doesn't match player class type (10:1 conversion)
-    if (weaponDamageType !== playerDamageType) {
+    // Convert damage if weapon type doesn't match any of player class types (10:1 conversion)
+    // PURE damage type is universal and never needs conversion
+    // If weapon type matches one of the class's damage types, no conversion needed
+    const needsConversion = weaponDamageType !== 'PURE' && !playerDamageTypes.includes(weaponDamageType);
+    if (needsConversion) {
       weaponDamage = Math.floor(weaponDamage / 10); // 10:1 conversion
     }
     
@@ -1754,56 +1840,55 @@ function playerAttack() {
     damage = Math.max(1, damage * (1 - damageReduction));
   }
   
-  // Apply element damage for WAND and STAFF
-  // DIABLO 3/POE STYLE: Apply elemental resistances
-  let elementDamage = 0;
-  if (rightWeapon && rightWeapon.element) {
-    const element = rightWeapon.element;
-    const elementKey = `elementDamage_${element}`;
-    if (rightWeapon.stats && rightWeapon.stats[elementKey]) {
-      elementDamage = rightWeapon.stats[elementKey];
-      
-      // Apply elemental resistance (reduce damage by resistance percentage)
-      if (combatSystem.boss.elementResistances && combatSystem.boss.elementResistances[element] !== undefined) {
-        const resistance = combatSystem.boss.elementResistances[element];
-        elementDamage = Math.floor(elementDamage * (1 - resistance / 100));
-      }
-      
-      // Apply class element damage multiplier (Mage)
-      if (save && save.combat && save.combat.playerClass) {
-        const classData = CHARACTER_CLASSES[save.combat.playerClass];
-        if (classData && classData.bonuses && classData.bonuses.elementDamageMultiplier) {
-          elementDamage = Math.floor(elementDamage * classData.bonuses.elementDamageMultiplier);
-        }
-      }
-      
-      // Element damage is not affected by crit or armor, but affected by resistance
-      if (elementDamage > 0) {
-        showCombatText(`-${Math.floor(elementDamage)} ${ELEMENT_TYPES[element].name}`, ELEMENT_TYPES[element].color, combatSystem.boss, 'right');
-      }
-    }
-  }
-  
-  // Get damage type info for display
-  const damageTypeData = DAMAGE_TYPES[playerDamageType];
-  const damageColor = damageTypeData ? damageTypeData.color : '#c0c0c0';
-  const damageTypeName = damageTypeData ? damageTypeData.name : 'Physical';
-  
   // Apply main damage (converted to player's damage type)
+  // Damage is already the correct type (PHYSICAL, MAGICAL, HOLY, or DARK) based on class
   combatSystem.boss.hp -= damage;
   combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
   // Show crit damage larger and to the left, normal damage in center
-  showCombatText(`-${Math.floor(damage)} ${damageTypeName}`, damageColor, combatSystem.boss, isCrit ? 'left' : 'center', isCrit ? '1.5rem' : null);
+  showCombatText(`-${Math.floor(damage)}`, '#ff6666', combatSystem.boss, isCrit ? 'left' : 'center', isCrit ? '1.5rem' : null);
   
-  // Apply element damage (after resistance calculation)
-  if (elementDamage > 0) {
-    combatSystem.boss.hp -= elementDamage;
-    combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
+  // Apply element damage (primary and additional)
+  // DIABLO 3/POE STYLE: Apply elemental resistances
+  if (rightWeapon && rightWeapon.stats) {
+    // Process all element damage stats
+    Object.keys(rightWeapon.stats).forEach(statKey => {
+      if (statKey.startsWith('elementDamage_')) {
+        const element = statKey.replace('elementDamage_', '');
+        let elementDamage = rightWeapon.stats[statKey];
+        
+        // Apply elemental resistance (reduce damage by resistance percentage)
+        if (combatSystem.boss.elementResistances && combatSystem.boss.elementResistances[element] !== undefined) {
+          const resistance = combatSystem.boss.elementResistances[element];
+          elementDamage = Math.floor(elementDamage * (1 - resistance / 100));
+        }
+        
+        // Apply class element damage multiplier (Mage)
+        if (save && save.combat && save.combat.playerClass) {
+          const classData = CHARACTER_CLASSES[save.combat.playerClass];
+          if (classData && classData.bonuses && classData.bonuses.elementDamageMultiplier) {
+            elementDamage = Math.floor(elementDamage * classData.bonuses.elementDamageMultiplier);
+          }
+        }
+        
+        // Apply element damage
+        if (elementDamage > 0) {
+          combatSystem.boss.hp -= elementDamage;
+          combatSystem.boss.hp = Math.max(0, combatSystem.boss.hp);
+          showCombatText(`-${Math.floor(elementDamage)} ${ELEMENT_TYPES[element].name}`, ELEMENT_TYPES[element].color, combatSystem.boss, 'right');
+        }
+      }
+    });
   }
   
   // Apply weapon element effects
+  // Primary element (for magical weapons) - high chance to apply effect
   if (rightWeapon && rightWeapon.element) {
-    applyElementEffect(rightWeapon.element, isCrit, rightWeapon);
+    applyElementEffect(rightWeapon.element, isCrit, rightWeapon, true); // true = isPrimaryElement
+  }
+  
+  // Additional element (for physical weapons or secondary element for magical) - low chance to apply effect
+  if (rightWeapon && rightWeapon.additionalElement) {
+    applyElementEffect(rightWeapon.additionalElement, isCrit, rightWeapon, false); // false = isPrimaryElement
   }
   
   if (combatSystem.boss.hp <= 0) {
@@ -1817,7 +1902,8 @@ function playerAttack() {
 }
 
 // Apply element effect
-function applyElementEffect(element, isCrit, weapon) {
+// isPrimaryElement: true for primary element (high chance), false for additional element (low chance)
+function applyElementEffect(element, isCrit, weapon, isPrimaryElement = true) {
   if (!combatSystem.boss) return;
   
   // Initialize effects object if needed
@@ -1834,6 +1920,8 @@ function applyElementEffect(element, isCrit, weapon) {
   }
   
   // Calculate effect chance based on weapon rarity and level
+  // Primary element has much higher base chance than additional element
+  let baseEffectChance = isPrimaryElement ? 0.15 : 0.05; // 15% for primary, 5% for additional
   let effectChanceMultiplier = 1.0;
   if (weapon) {
     // Base chance multiplier from rarity (1.0 for COMMON, up to 2.0 for LEGENDARY)
@@ -1858,8 +1946,8 @@ function applyElementEffect(element, isCrit, weapon) {
   switch (element) {
     case 'FIRE':
       // Fire: extra fire damage, chance to burn (stacks up to 30)
-      // Base chance 15%, scales with rarity and level
-      const burnChance = Math.min(0.95, 0.15 * effectChanceMultiplier);
+      // Base chance scales with rarity and level, higher for primary element
+      const burnChance = Math.min(0.95, baseEffectChance * effectChanceMultiplier);
       if (Math.random() < burnChance) {
         const burnDamage = Math.floor(combatSystem.player.damage * 0.05);
         if (!combatSystem.boss.effects.burning) {
@@ -1886,9 +1974,9 @@ function applyElementEffect(element, isCrit, weapon) {
       
     case 'POISON':
       // Poison: extra poison damage, increases incoming damage, chance to poison (stacks up to 30)
-      // Base chance 20%, scales with rarity and level
+      // Base chance scales with rarity and level, higher for primary element
       // Duration: 15 seconds for boss (longer than player poison)
-      const poisonChance = Math.min(0.95, 0.20 * effectChanceMultiplier);
+      const poisonChance = Math.min(0.95, baseEffectChance * effectChanceMultiplier);
       const poisonDuration = 15000; // 15 seconds for boss
       if (Math.random() < poisonChance) {
         let poisonDamage = Math.floor(combatSystem.player.damage * 0.02);
@@ -1925,9 +2013,9 @@ function applyElementEffect(element, isCrit, weapon) {
       
     case 'COLD':
       // Cold: extra cold damage, chance to slow (stacks up to 5 times), chance to freeze (3 seconds)
-      // Base chances: slow 25%, freeze 8%, scales with rarity and level
-      const slowChance = Math.min(0.95, 0.25 * effectChanceMultiplier);
-      const freezeChance = Math.min(0.95, 0.08 * effectChanceMultiplier);
+      // Base chances scale with rarity and level, higher for primary element
+      const slowChance = Math.min(0.95, baseEffectChance * 1.67 * effectChanceMultiplier); // ~25% for primary, ~8% for additional
+      const freezeChance = Math.min(0.95, baseEffectChance * 0.53 * effectChanceMultiplier); // ~8% for primary, ~2.5% for additional
       
       if (Math.random() < slowChance) {
         if (!combatSystem.boss.effects.coldStacks) {
@@ -1958,8 +2046,8 @@ function applyElementEffect(element, isCrit, weapon) {
       
     case 'LIGHTNING':
       // Lightning: extra lightning damage, chance to increase crit chance (stacks up to 5 times, 5 seconds)
-      // Base chance 20%, scales with rarity and level
-      const shockChance = Math.min(0.95, 0.20 * effectChanceMultiplier);
+      // Base chance scales with rarity and level, higher for primary element
+      const shockChance = Math.min(0.95, baseEffectChance * 1.33 * effectChanceMultiplier); // ~20% for primary, ~6.7% for additional
       if (Math.random() < shockChance) {
         if (!combatSystem.boss.effects.shocked) {
           combatSystem.boss.effects.shocked = [];
@@ -1983,8 +2071,8 @@ function applyElementEffect(element, isCrit, weapon) {
       
     case 'BLEED':
       // Bleed: no extra damage, chance to bleed (stacks up to 15 times, each stack breaks armor)
-      // Base chance 25%, scales with rarity and level
-      const bleedChance = Math.min(0.95, 0.25 * effectChanceMultiplier);
+      // Base chance scales with rarity and level, higher for primary element
+      const bleedChance = Math.min(0.95, baseEffectChance * 1.67 * effectChanceMultiplier); // ~25% for primary, ~8% for additional
       if (Math.random() < bleedChance) {
         if (!combatSystem.boss.effects.bleeding) {
           combatSystem.boss.effects.bleeding = [];
@@ -3963,31 +4051,444 @@ function getItemRarityColor(rarity) {
 
 // Export functions and constants
 if (typeof window !== 'undefined') {
-  window.combatSystem = {
-    init: initCombatSystem,
-    start: startCombat,
-    end: endCombat,
-    attack: playerAttack,
-    equip: equipItem,
-    unequip: unequipItem,
-    getSouls: () => combatSystem.souls,
-    isActive: () => combatSystem.active,
-    render: renderCombat,
-    save: saveCombatState,
-    ELEMENT_TYPES,
-    calculateStats: calculatePlayerStats,
-    getEquipped: getEquippedItems,
-    getPlayerStats: getPlayerStats,
-    getItemRarityColor: getItemRarityColor,
-    createDeveloperSword: createDeveloperSword,
-    addItemToInventory: addItemToInventory,
-    ITEM_RARITY: ITEM_RARITY,
-    WEAPON_TYPES: WEAPON_TYPES,
-    changeClass: changeClass,
-    showClassSelection: showClassSelectionModal,
-    CHARACTER_CLASSES: CHARACTER_CLASSES,
-    formatNumber: formatNumber,
-    DAMAGE_TYPES: DAMAGE_TYPES
+  // Create getter/setter for souls to allow direct access
+  Object.defineProperty(window, 'combatSystem', {
+    value: {
+      init: initCombatSystem,
+      start: startCombat,
+      createDeveloperStone: createDeveloperStone,
+      createDeveloperSword: createDeveloperSword, // Backward compatibility
+      end: endCombat,
+      attack: playerAttack,
+      equip: equipItem,
+      unequip: unequipItem,
+      getSouls: () => combatSystem.souls,
+      isActive: () => combatSystem.active,
+      render: renderCombat,
+      save: saveCombatState,
+      ELEMENT_TYPES,
+      calculateStats: calculatePlayerStats,
+      getEquipped: getEquippedItems,
+      getPlayerStats: getPlayerStats,
+      getItemRarityColor: getItemRarityColor,
+      createDeveloperStone: createDeveloperStone,
+      createDeveloperSword: createDeveloperSword, // Backward compatibility
+      addItemToInventory: addItemToInventory,
+      ITEM_RARITY: ITEM_RARITY,
+      WEAPON_TYPES: WEAPON_TYPES,
+      changeClass: changeClass,
+      showClassSelection: showClassSelectionModal,
+      CHARACTER_CLASSES: CHARACTER_CLASSES,
+      formatNumber: formatNumber,
+      DAMAGE_TYPES: DAMAGE_TYPES,
+      generateMerchantWeapon: generateMerchantWeapon,
+      generateMerchantArmor: generateMerchantArmor,
+      generateMerchantAccessory: generateMerchantAccessory,
+      generateMerchantWeaponStats: generateMerchantWeaponStats,
+      generateMerchantArmorStats: generateMerchantArmorStats,
+      generateMerchantAccessoryStats: generateMerchantAccessoryStats,
+      ARMOR_TYPES: ARMOR_TYPES,
+      ACCESSORY_TYPES: ACCESSORY_TYPES,
+      highestWaveDefeated: 0
+    },
+    writable: false,
+    configurable: true
+  });
+  
+  // Add souls getter/setter
+  Object.defineProperty(window.combatSystem, 'souls', {
+    get: () => combatSystem.souls,
+    set: (value) => {
+      combatSystem.souls = value;
+      if (save && save.combat) {
+        save.combat.souls = value;
+      }
+    },
+    enumerable: true,
+    configurable: true
+  });
+  
+  // Add highestWaveDefeated getter/setter
+  Object.defineProperty(window.combatSystem, 'highestWaveDefeated', {
+    get: () => combatSystem.highestWaveDefeated,
+    set: (value) => {
+      combatSystem.highestWaveDefeated = value;
+      if (save && save.combat) {
+        save.combat.highestWaveDefeated = value;
+      }
+    },
+    enumerable: true,
+    configurable: true
+  });
+}
+
+// ===== MERCHANT SYSTEM - Her Barrus =====
+
+// Generate merchant weapon template (blank item, stats and rarity generated on purchase)
+function generateMerchantWeapon(weaponType) {
+  const weaponData = WEAPON_TYPES[weaponType];
+  if (!weaponData) return null;
+  
+  // Rarity will be determined on purchase
+  // Level will be determined on purchase based on highestWaveDefeated
+  const currentWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = currentWave; // Will be recalculated on purchase
+  
+  // Build weapon name (simple name without elements, as stats will be generated on purchase)
+  let weaponName = weaponData.name;
+  if (weaponType === 'DAGGER') {
+    // For daggers, randomly assign hand (will be finalized on purchase)
+    weaponName = Math.random() < 0.5 ? 'Left Dagger' : 'Right Dagger';
+  }
+  
+  // Create blank item template (stats and rarity will be generated on purchase)
+  const item = {
+    id: generateUniqueItemId('weapon'),
+    type: 'weapon',
+    weaponType: weaponType,
+    name: weaponName, // No rarity prefix yet
+    level: itemLevel, // Will be recalculated on purchase
+    rarity: null, // Will be generated on purchase
+    hands: weaponData.hands,
+    icon: getWeaponIcon(weaponType),
+    stats: {}, // Empty stats - will be generated on purchase
+    isMerchantTemplate: true // Flag to indicate this is a template
   };
+  
+  return item;
+}
+
+// Generate stats for merchant weapon on purchase
+function generateMerchantWeaponStats(item) {
+  if (!item || !item.isMerchantTemplate) return item;
+  
+  const weaponData = WEAPON_TYPES[item.weaponType];
+  if (!weaponData) return item;
+  
+  // Generate rarity on purchase: RARE, EPIC, or LEGENDARY
+  const rarities = ['RARE', 'EPIC', 'LEGENDARY'];
+  const rarity = rarities[Math.floor(Math.random() * rarities.length)];
+  const rarityData = ITEM_RARITY[rarity];
+  
+  // Update item rarity
+  item.rarity = rarity;
+  
+  // Get level based on highest wave defeated
+  const highestWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = Math.max(1, highestWave); // Level = highest wave defeated (min 1)
+  
+  // Calculate damage
+  const baseDamage = weaponData.baseDamage || 10;
+  const damage = Math.floor(baseDamage * (1 + itemLevel * 0.1) * rarityData.multiplier);
+  
+  // Calculate attack speed
+  let attackSpeed = 1.0;
+  if (weaponData.attackSpeed) {
+    const minSpeed = weaponData.attackSpeed.min || 0.5;
+    const maxSpeed = weaponData.attackSpeed.max || 1.0;
+    attackSpeed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+  }
+  
+  // Calculate crit stats
+  const critChanceBase = weaponData.critChanceBase || 0.5;
+  const baseCritChance = Math.floor((critChanceBase * (1 + itemLevel * 0.15) * rarityData.multiplier) * 10) / 10;
+  const critChance = Math.min(item.rarity === 'LEGENDARY' ? 95 : 70, baseCritChance);
+  
+  const critMultiplierBase = weaponData.critMultiplierBase || 0.1;
+  const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.05) * rarityData.multiplier) * 100) / 100;
+  
+  // Determine weapon damage type
+  let weaponDamageType = 'PHYSICAL';
+  if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
+    weaponDamageType = 'MAGICAL';
+  } else if (item.weaponType === 'MACE') {
+    weaponDamageType = Math.random() < 0.5 ? 'HOLY' : 'PHYSICAL';
+  }
+  
+  // For daggers, determine hand
+  let weaponHand = null;
+  if (item.weaponType === 'DAGGER') {
+    // Check if name contains "Left" or "Right"
+    if (item.name.includes('Left')) {
+      weaponHand = 'left';
+      weaponDamageType = 'PHYSICAL';
+    } else {
+      weaponHand = 'right';
+    }
+  }
+  
+  // Random element logic
+  let primaryElement = null;
+  let additionalElement = null;
+  
+  if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
+    const primaryElementChance = 0.5 + (rarityData.multiplier - 1) * 0.05;
+    if (Math.random() < primaryElementChance) {
+      const elements = Object.keys(ELEMENT_TYPES);
+      primaryElement = elements[Math.floor(Math.random() * elements.length)];
+    }
+  }
+  
+  if (weaponDamageType === 'PHYSICAL') {
+    const additionalElementChance = 0.1 + (rarityData.multiplier - 1) * 0.02;
+    if (Math.random() < additionalElementChance) {
+      const elements = Object.keys(ELEMENT_TYPES);
+      additionalElement = elements[Math.floor(Math.random() * elements.length)];
+    }
+  } else if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
+    const additionalElementChance = primaryElement ? 0.2 : 0.4;
+    if (Math.random() < additionalElementChance) {
+      const elements = Object.keys(ELEMENT_TYPES);
+      let candidateElement = elements[Math.floor(Math.random() * elements.length)];
+      while (candidateElement === primaryElement && primaryElement) {
+        candidateElement = elements[Math.floor(Math.random() * elements.length)];
+      }
+      additionalElement = candidateElement;
+    }
+  }
+  
+  // Generate weapon stats
+  const weaponStats = {
+    damage: damage
+  };
+  
+  if (critChance > 0) {
+    weaponStats.critChance = critChance;
+  }
+  if (critMultiplier > 0) {
+    weaponStats.critMultiplier = critMultiplier;
+  }
+  
+  // Random secondary affixes (2-5 for merchant items)
+  const affixCount = 2 + Math.floor(Math.random() * 4);
+  const availableAffixes = ['hp', 'armor', 'dodge', 'hpRegen', 'maxMana'];
+  const selectedAffixes = [];
+  
+  for (let i = 0; i < affixCount && availableAffixes.length > 0; i++) {
+    const randomIndex = Math.floor(Math.random() * availableAffixes.length);
+    const affix = availableAffixes.splice(randomIndex, 1)[0];
+    selectedAffixes.push(affix);
+  }
+  
+  // Generate values for selected affixes
+  selectedAffixes.forEach(affix => {
+    let baseValue = 0;
+    switch (affix) {
+      case 'hp':
+        baseValue = (10 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.hp = Math.floor(baseValue);
+        break;
+      case 'armor':
+        baseValue = (2 + itemLevel * 0.3) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.armor = Math.floor(baseValue);
+        break;
+      case 'dodge':
+        baseValue = (0.3 + itemLevel * 0.05) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.dodge = Math.floor(baseValue * 10) / 10;
+        break;
+      case 'hpRegen':
+        baseValue = (0.1 + itemLevel * 0.03) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.hpRegen = Math.floor(baseValue * 10) / 10;
+        break;
+      case 'maxMana':
+        baseValue = (5 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.maxMana = Math.floor(baseValue);
+        break;
+    }
+  });
+  
+  // Add primary element damage for WAND and STAFF
+  if (primaryElement && (item.weaponType === 'WAND' || item.weaponType === 'STAFF')) {
+    const elementDamagePercent = item.weaponType === 'STAFF' ? 0.15 : 0.1;
+    let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
+    if (elementDamage > 0) {
+      weaponStats[`elementDamage_${primaryElement}`] = elementDamage;
+    }
+  }
+  
+  // Add additional element damage
+  if (additionalElement) {
+    const elementDamagePercent = 0.05 + Math.random() * 0.05;
+    let elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
+    if (elementDamage > 0) {
+      weaponStats[`elementDamage_${additionalElement}`] = elementDamage;
+    }
+  }
+  
+  // Update item with generated stats
+  item.level = itemLevel;
+  item.damage = damage;
+  item.damageType = weaponDamageType;
+  item.attackSpeed = attackSpeed;
+  item.element = primaryElement;
+  item.additionalElement = additionalElement;
+  item.stats = weaponStats;
+  delete item.isMerchantTemplate; // Remove template flag
+  
+  // Update weapon name with rarity and element if applicable
+  let finalName = item.name;
+  if (primaryElement && (item.weaponType === 'WAND' || item.weaponType === 'STAFF')) {
+    const elementData = ELEMENT_TYPES[primaryElement];
+    finalName = `${elementData.name} ${finalName}`;
+  }
+  item.name = `${rarityData.name} ${finalName}`;
+  
+  if (weaponHand) {
+    item.weaponHand = weaponHand;
+  }
+  
+  return item;
+}
+
+// Generate merchant armor template (blank item, stats and rarity generated on purchase)
+function generateMerchantArmor(armorType) {
+  // Rarity will be determined on purchase
+  // Level will be determined on purchase based on highestWaveDefeated
+  const currentWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = currentWave; // Will be recalculated on purchase
+  
+  // Get armor type name
+  const armorTypeNames = {
+    helmet: 'Helmet',
+    shoulders: 'Shoulders',
+    chest: 'Chest',
+    gloves: 'Gloves',
+    legs: 'Legs',
+    boots: 'Boots'
+  };
+  
+  return {
+    id: generateUniqueItemId('armor'),
+    type: 'armor',
+    armorType: armorType,
+    name: armorTypeNames[armorType] || armorType, // No rarity prefix yet
+    level: itemLevel, // Will be recalculated on purchase
+    rarity: null, // Will be generated on purchase
+    icon: getArmorIcon(armorType),
+    stats: {}, // Empty stats - will be generated on purchase
+    isMerchantTemplate: true // Flag to indicate this is a template
+  };
+}
+
+// Generate stats for merchant armor on purchase
+function generateMerchantArmorStats(item) {
+  if (!item || !item.isMerchantTemplate) return item;
+  
+  // Generate rarity on purchase: RARE, EPIC, or LEGENDARY
+  const rarities = ['RARE', 'EPIC', 'LEGENDARY'];
+  const rarity = rarities[Math.floor(Math.random() * rarities.length)];
+  const rarityData = ITEM_RARITY[rarity];
+  
+  // Update item rarity
+  item.rarity = rarity;
+  
+  // Get level based on highest wave defeated
+  const highestWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = Math.max(1, highestWave); // Level = highest wave defeated (min 1)
+  
+  // Random stat count: 3-6
+  const statCount = 3 + Math.floor(Math.random() * 4);
+  
+  const baseStats = {
+    hp: Math.floor((10 + itemLevel * 3) * rarityData.multiplier),
+    armor: Math.floor((2 + itemLevel * 0.5) * rarityData.multiplier),
+    dodge: Math.floor((0.5 + itemLevel * 0.1) * rarityData.multiplier),
+    hpRegen: Math.floor((0.1 + itemLevel * 0.05) * rarityData.multiplier),
+    maxMana: Math.floor((5 + itemLevel * 2) * rarityData.multiplier),
+    manaRegen: Math.floor((0.05 + itemLevel * 0.02) * rarityData.multiplier * 10) / 10
+  };
+  
+  const availableStats = Object.keys(baseStats);
+  const selectedStats = {};
+  
+  for (let i = 0; i < statCount && i < availableStats.length; i++) {
+    const stat = availableStats[Math.floor(Math.random() * availableStats.length)];
+    if (!selectedStats[stat]) {
+      selectedStats[stat] = baseStats[stat];
+    } else {
+      i--; // Try again if stat already selected
+    }
+  }
+  
+  // Update item with generated stats
+  item.level = itemLevel;
+  item.stats = selectedStats;
+  delete item.isMerchantTemplate; // Remove template flag
+  
+  return item;
+}
+
+// Generate merchant accessory template (blank item, stats generated on purchase)
+function generateMerchantAccessory(accessoryType) {
+  // Random rarity: RARE, EPIC, or LEGENDARY
+  const rarities = ['RARE', 'EPIC', 'LEGENDARY'];
+  const rarity = rarities[Math.floor(Math.random() * rarities.length)];
+  const rarityData = ITEM_RARITY[rarity];
+  
+  // Level will be determined on purchase based on highestWaveDefeated
+  const currentWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = currentWave; // Will be recalculated on purchase
+  
+  const accessoryTypeNames = {
+    ring: 'Ring',
+    amulet: 'Amulet'
+  };
+  
+  return {
+    id: generateUniqueItemId('accessory'),
+    type: 'accessory',
+    accessoryType: accessoryType,
+    name: `${rarityData.name} ${accessoryTypeNames[accessoryType] || accessoryType}`,
+    level: itemLevel, // Will be recalculated on purchase
+    rarity: rarity,
+    icon: accessoryType === 'ring' ? '💍' : '📿',
+    stats: {}, // Empty stats - will be generated on purchase
+    isMerchantTemplate: true // Flag to indicate this is a template
+  };
+}
+
+// Generate stats for merchant accessory on purchase
+function generateMerchantAccessoryStats(item) {
+  if (!item || !item.isMerchantTemplate) return item;
+  
+  const rarityData = ITEM_RARITY[item.rarity];
+  
+  // Get level based on highest wave defeated
+  const highestWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = Math.max(1, highestWave); // Level = highest wave defeated (min 1)
+  
+  // Random stat count: 2-4 for accessories
+  const statCount = 2 + Math.floor(Math.random() * 3);
+  
+  // Accessories can have all stats
+  const baseStats = {
+    hp: Math.floor((10 + itemLevel * 3) * rarityData.multiplier),
+    armor: Math.floor((2 + itemLevel * 0.5) * rarityData.multiplier),
+    dodge: Math.floor((0.5 + itemLevel * 0.1) * rarityData.multiplier),
+    hpRegen: Math.floor((0.1 + itemLevel * 0.05) * rarityData.multiplier),
+    maxMana: Math.floor((5 + itemLevel * 2) * rarityData.multiplier),
+    manaRegen: Math.floor((0.05 + itemLevel * 0.02) * rarityData.multiplier * 10) / 10,
+    critChance: Math.floor((0.5 + itemLevel * 0.1) * rarityData.multiplier * 10) / 10,
+    critMultiplier: Math.floor((0.1 + itemLevel * 0.02) * rarityData.multiplier * 100) / 100
+  };
+  
+  const availableStats = Object.keys(baseStats);
+  const selectedStats = {};
+  
+  for (let i = 0; i < statCount && i < availableStats.length; i++) {
+    const stat = availableStats[Math.floor(Math.random() * availableStats.length)];
+    if (!selectedStats[stat]) {
+      selectedStats[stat] = baseStats[stat];
+    } else {
+      i--; // Try again if stat already selected
+    }
+  }
+  
+  // Update item with generated stats
+  item.level = itemLevel;
+  item.stats = selectedStats;
+  delete item.isMerchantTemplate; // Remove template flag
+  
+  return item;
 }
 

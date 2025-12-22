@@ -76,10 +76,10 @@ body{
   cursor: var(--default-cursor);
 }
 /* Ensure all modals inherit cursor styles */
-#casino-modal, #king-modal, #stats-modal, #updates-modal, #confirm-modal, #debug-modal {
+#merchant-modal, #casino-modal, #king-modal, #stats-modal, #updates-modal, #confirm-modal, #debug-modal {
   cursor: var(--default-cursor);
 }
-#casino-modal *, #king-modal *, #stats-modal *, #updates-modal *, #confirm-modal *, #debug-modal * {
+#merchant-modal *, #casino-modal *, #king-modal *, #stats-modal *, #updates-modal *, #confirm-modal *, #debug-modal * {
   cursor: inherit;
 }
 
@@ -3109,6 +3109,234 @@ body.season-winter .achievement-item {
 
 #casino-modal .modal-footer .btn {
   min-width: 120px;
+}
+
+/* Merchant modal styles */
+#merchant-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+
+#merchant-modal[aria-hidden="false"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+#merchant-modal .merchant-modal-card {
+  max-width: 900px;
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid var(--border-orange);
+  box-shadow: 0 0 24px rgba(200, 170, 110, 0.3), 0 8px 32px rgba(0,0,0,0.9), inset 0 2px 4px rgba(0,0,0,0.5);
+  border-radius: var(--radius);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.3s ease-out;
+  max-height: 85vh;
+  overflow: hidden;
+  position: relative;
+}
+
+#merchant-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 3px solid rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, rgba(0,0,0,0.3), rgba(0,0,0,0.1));
+}
+
+#merchant-modal .modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--poe-orange);
+  text-shadow: 0 0 8px rgba(200, 170, 110, 0.5);
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+#merchant-modal .modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 24px;
+  cursor: var(--pointer-cursor);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+#merchant-modal .modal-close:hover {
+  opacity: 1;
+  color: var(--poe-orange);
+  background: rgba(200, 170, 110, 0.1);
+}
+
+.merchant-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.merchant-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px;
+  border-bottom: 2px solid rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.1));
+}
+
+.merchant-tab-btn {
+  padding: 10px 20px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: var(--pointer-cursor);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.merchant-tab-btn:hover {
+  background: rgba(0,0,0,0.5);
+  border-color: var(--border-bright);
+}
+
+.merchant-tab-btn.active {
+  background: linear-gradient(180deg, #3a2a1a, #2a1a0a);
+  color: var(--poe-orange);
+  border-color: var(--border-orange);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.merchant-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.merchant-tab-content {
+  display: none;
+}
+
+.merchant-tab-content.active {
+  display: block;
+}
+
+.merchant-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.merchant-item {
+  background: linear-gradient(180deg, rgba(42, 42, 42, 0.8), rgba(26, 26, 26, 0.8));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.merchant-item:hover {
+  border-color: var(--border-bright);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  transform: translateY(-2px);
+}
+
+.merchant-item-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.merchant-item-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.merchant-item-info {
+  flex: 1;
+}
+
+.merchant-item-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.merchant-item-level {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.merchant-item-description {
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  border-left: 2px solid var(--border-orange);
+}
+
+.merchant-item-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.merchant-item-stat {
+  color: var(--text);
+  padding: 4px 0;
+}
+
+.merchant-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.merchant-item-price {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--poe-orange);
+  text-shadow: 0 0 6px rgba(200, 170, 110, 0.4);
+}
+
+.merchant-buy-btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  min-width: 80px;
 }
 
 .casino-result-overlay {
