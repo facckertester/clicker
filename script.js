@@ -591,7 +591,7 @@ function newSave(username) {
     treasury: {
       value: 1000,
       max: 1000,
-      regenPerSec: 1,
+      regenPerSec: 0.5,
       lastTs: now(),
       actions: {
         repair1Cd: 0,
@@ -696,7 +696,7 @@ function ensureTreasury(saveObj) {
     saveObj.treasury = {
       value: 1000,
       max: 1000,
-      regenPerSec: 1,
+      regenPerSec: 0.5,
       lastTs: now(),
       actions: {
         repair1Cd: 0,
@@ -2600,7 +2600,7 @@ function renderTopStats() {
         if (labelEl) {
           const labelRect = labelEl.getBoundingClientRect();
           const labelCenterX = labelRect.left + labelRect.width / 2 - progressRect.left;
-          const newColor = labelCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+          const newColor = '#ffffff';
           if (labelEl.style.color !== newColor) {
             labelEl.style.color = newColor;
           }
@@ -2608,7 +2608,7 @@ function renderTopStats() {
         if (amountEl) {
           const amountRect = amountEl.getBoundingClientRect();
           const amountCenterX = amountRect.left + amountRect.width / 2 - progressRect.left;
-          const newColor = amountCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+          const newColor = '#ffffff';
           if (amountEl.style.color !== newColor) {
             amountEl.style.color = newColor;
           }
@@ -2616,7 +2616,7 @@ function renderTopStats() {
         if (regenEl) {
           const regenRect = regenEl.getBoundingClientRect();
           const regenCenterX = regenRect.left + regenRect.width / 2 - progressRect.left;
-          const newColor = regenCenterX < fillWidth ? '#1a0a00' : 'var(--poe-orange)';
+          const newColor = '#ffffff';
           if (regenEl.style.color !== newColor) {
             regenEl.style.color = newColor;
           }

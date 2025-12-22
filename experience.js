@@ -327,6 +327,325 @@ const equipmentLabels = {
   'weapon-left': 'Shield'
 };
 
+// Calculate souls from disenchanting an item
+function getSoulsFromDisenchant(item) {
+  if (!item || !item.level || !item.rarity) return 0;
+  const rarityMultipliers = {
+    'COMMON': 1,
+    'UNCOMMON': 1.5,
+    'RARE': 2,
+    'EPIC': 3,
+    'LEGENDARY': 5
+  };
+  const multiplier = rarityMultipliers[item.rarity] || 1;
+  return Math.floor(item.level * multiplier);
+}
+
+// Sell item function
+function sellItem(inventoryIndex, sellPrice) {
+  // Remove item from inventory
+  inventorySystem.inventory[inventoryIndex] = null;
+  
+  // Update save
+  if (save && save.inventory) {
+    save.inventory.inventory = inventorySystem.inventory;
+  }
+  
+  // Add treasury coins
+  if (save && save.treasury) {
+    // Use gainTreasury function if available, otherwise update value directly
+    if (typeof gainTreasury === 'function') {
+      gainTreasury(sellPrice);
+    } else {
+      const baseMax = save.treasury.max || 1000;
+      save.treasury.value = Math.min((save.treasury.value || 0) + sellPrice, baseMax);
+    }
+  }
+  
+  // Re-render inventory
+  renderInventory();
+  toast(`Item sold for ${sellPrice} treasury coins`, 'good');
+}
+
+// Disenchant item function (convert to souls)
+function disenchantItem(inventoryIndex, soulsAmount) {
+  // Remove item from inventory
+  inventorySystem.inventory[inventoryIndex] = null;
+  
+  // Update save
+  if (save && save.inventory) {
+    save.inventory.inventory = inventorySystem.inventory;
+  }
+  
+  // Add souls
+  if (window.combatSystem && window.combatSystem.souls !== undefined) {
+    window.combatSystem.souls = (window.combatSystem.souls || 0) + soulsAmount;
+    
+    // Save souls
+    if (save && save.combat) {
+      save.combat.souls = window.combatSystem.souls;
+    }
+    
+    // Update souls display if function exists
+    if (typeof renderCombat === 'function') {
+      renderCombat();
+    }
+  }
+  
+  // Re-render inventory
+  renderInventory();
+  toast(`Item disenchanted for +${soulsAmount} souls`, 'good');
+}
+
+// Show item disposal modal (sell or disenchant)
+function showItemDisposalModal(item, sellPrice, soulsAmount, inventoryIndex) {
+  if (!confirmModal || !confirmMessage) return;
+  
+  // Create custom message with both options
+  const itemName = item.name || 'Item';
+  const rarityName = window.combatSystem && window.combatSystem.ITEM_RARITY && window.combatSystem.ITEM_RARITY[item.rarity]
+    ? window.combatSystem.ITEM_RARITY[item.rarity].name
+    : item.rarity || 'Unknown';
+  
+  confirmMessage.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${itemName}</strong> (${rarityName}, Level ${item.level || 1})
+    </div>
+    <div style="margin-bottom: 12px;">
+      Choose an action:
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="padding: 8px; background: rgba(200, 170, 110, 0.1); border-radius: 4px;">
+        <strong>Sell:</strong> +${sellPrice} treasury coins
+      </div>
+      <div style="padding: 8px; background: rgba(139, 108, 187, 0.1); border-radius: 4px;">
+        <strong>Disenchant:</strong> +${soulsAmount} souls
+      </div>
+    </div>
+  `;
+  
+  // Setup buttons
+  const confirmYes = document.getElementById('confirm-yes');
+  const confirmNo = document.getElementById('confirm-no');
+  
+  if (confirmYes && confirmNo) {
+    // Change button labels
+    confirmYes.textContent = 'Sell';
+    confirmNo.textContent = 'Disenchant';
+    
+    // Remove old listeners by cloning buttons
+    const newYes = confirmYes.cloneNode(true);
+    const newNo = confirmNo.cloneNode(true);
+    confirmYes.parentNode.replaceChild(newYes, confirmYes);
+    confirmNo.parentNode.replaceChild(newNo, confirmNo);
+    
+    // Add new listeners
+    newYes.addEventListener('click', () => {
+      closeConfirmModal();
+      sellItem(inventoryIndex, sellPrice);
+    });
+    
+    newNo.addEventListener('click', () => {
+      closeConfirmModal();
+      disenchantItem(inventoryIndex, soulsAmount);
+    });
+  }
+  
+  // Show modal using existing showConfirmModal infrastructure
+  confirmModal.setAttribute('aria-hidden', 'false');
+  
+  // Apply modal styling (reuse from showConfirmModal)
+  const gameColumns = document.querySelector('.game-columns');
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    if (typeof _savedGameColumnsWidth !== 'undefined') {
+      _savedGameColumnsWidth = rect.width;
+    }
+  }
+  
+  const _savedBodyPaddingRight = document.body.style.paddingRight || '';
+  const sbw = window.innerWidth - document.documentElement.clientWidth;
+  
+  if (sbw > 0) {
+    document.body.style.paddingRight = `${sbw}px`;
+  }
+  
+  document.body.classList.add('modal-open');
+  
+  if (gameColumns && typeof _savedGameColumnsWidth !== 'undefined' && _savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      if (gameColumns && _savedGameColumnsWidth !== null) {
+        gameColumns.style.width = `${_savedGameColumnsWidth}px`;
+        gameColumns.style.minWidth = `${_savedGameColumnsWidth}px`;
+        gameColumns.style.maxWidth = `${_savedGameColumnsWidth}px`;
+      }
+    });
+  }
+  
+  confirmModal.classList.add('open');
+  
+  if (confirmNo && typeof confirmNo.focus === 'function') confirmNo.focus();
+}
+
+// Calculate souls from disenchanting an item
+function getSoulsFromDisenchant(item) {
+  if (!item || !item.level || !item.rarity) return 0;
+  const rarityMultipliers = {
+    'COMMON': 1,
+    'UNCOMMON': 1.5,
+    'RARE': 2,
+    'EPIC': 3,
+    'LEGENDARY': 5
+  };
+  const multiplier = rarityMultipliers[item.rarity] || 1;
+  return Math.floor(item.level * multiplier);
+}
+
+// Sell item function
+function sellItem(inventoryIndex, sellPrice) {
+  // Remove item from inventory
+  inventorySystem.inventory[inventoryIndex] = null;
+  
+  // Update save
+  if (save && save.inventory) {
+    save.inventory.inventory = inventorySystem.inventory;
+  }
+  
+  // Add treasury coins
+  if (save && save.treasury) {
+    // Use gainTreasury function if available, otherwise update value directly
+    if (typeof gainTreasury === 'function') {
+      gainTreasury(sellPrice);
+    } else {
+      const baseMax = save.treasury.max || 1000;
+      save.treasury.value = Math.min((save.treasury.value || 0) + sellPrice, baseMax);
+    }
+  }
+  
+  // Re-render inventory
+  renderInventory();
+  toast(`Item sold for ${sellPrice} treasury coins`, 'good');
+}
+
+// Disenchant item function (convert to souls)
+function disenchantItem(inventoryIndex, soulsAmount) {
+  // Remove item from inventory
+  inventorySystem.inventory[inventoryIndex] = null;
+  
+  // Update save
+  if (save && save.inventory) {
+    save.inventory.inventory = inventorySystem.inventory;
+  }
+  
+  // Add souls
+  if (window.combatSystem && window.combatSystem.souls !== undefined) {
+    window.combatSystem.souls = (window.combatSystem.souls || 0) + soulsAmount;
+    
+    // Save souls
+    if (save && save.combat) {
+      save.combat.souls = window.combatSystem.souls;
+    }
+    
+    // Update souls display if function exists
+    if (typeof renderCombat === 'function') {
+      renderCombat();
+    }
+  }
+  
+  // Re-render inventory
+  renderInventory();
+  toast(`Item disenchanted for +${soulsAmount} souls`, 'good');
+}
+
+// Show item disposal modal (sell or disenchant)
+function showItemDisposalModal(item, sellPrice, soulsAmount, inventoryIndex) {
+  if (!confirmModal || !confirmMessage) return;
+  
+  // Create custom message with both options
+  const itemName = item.name || 'Item';
+  const rarityName = window.combatSystem && window.combatSystem.ITEM_RARITY && window.combatSystem.ITEM_RARITY[item.rarity]
+    ? window.combatSystem.ITEM_RARITY[item.rarity].name
+    : item.rarity || 'Unknown';
+  
+  confirmMessage.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${itemName}</strong> (${rarityName}, Level ${item.level || 1})
+    </div>
+    <div style="margin-bottom: 12px;">
+      Choose an action:
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="padding: 8px; background: rgba(200, 170, 110, 0.1); border-radius: 4px;">
+        <strong>Sell:</strong> +${sellPrice} treasury coins
+      </div>
+      <div style="padding: 8px; background: rgba(139, 108, 187, 0.1); border-radius: 4px;">
+        <strong>Disenchant:</strong> +${soulsAmount} souls
+      </div>
+    </div>
+  `;
+  
+  // Setup buttons
+  const confirmYes = document.getElementById('confirm-yes');
+  const confirmNo = document.getElementById('confirm-no');
+  
+  if (confirmYes && confirmNo) {
+    // Change button labels
+    confirmYes.textContent = 'Sell';
+    confirmNo.textContent = 'Disenchant';
+    
+    // Remove old listeners by cloning buttons
+    const newYes = confirmYes.cloneNode(true);
+    const newNo = confirmNo.cloneNode(true);
+    confirmYes.parentNode.replaceChild(newYes, confirmYes);
+    confirmNo.parentNode.replaceChild(newNo, confirmNo);
+    
+    // Add new listeners
+    newYes.addEventListener('click', () => {
+      closeConfirmModal();
+      sellItem(inventoryIndex, sellPrice);
+    });
+    
+    newNo.addEventListener('click', () => {
+      closeConfirmModal();
+      disenchantItem(inventoryIndex, soulsAmount);
+    });
+  }
+  
+  // Show modal using existing showConfirmModal infrastructure
+  confirmModal.setAttribute('aria-hidden', 'false');
+  
+  // Apply modal styling (reuse from showConfirmModal)
+  const gameColumns = document.querySelector('.game-columns');
+  let savedGameColumnsWidth = null;
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    savedGameColumnsWidth = rect.width;
+  }
+  
+  const savedBodyPaddingRight = document.body.style.paddingRight || '';
+  const sbw = window.innerWidth - document.documentElement.clientWidth;
+  
+  if (sbw > 0) {
+    document.body.style.paddingRight = `${sbw}px`;
+  }
+  
+  document.body.classList.add('modal-open');
+  
+  if (gameColumns && savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      if (gameColumns && savedGameColumnsWidth !== null) {
+        gameColumns.style.width = `${savedGameColumnsWidth}px`;
+        gameColumns.style.minWidth = `${savedGameColumnsWidth}px`;
+        gameColumns.style.maxWidth = `${savedGameColumnsWidth}px`;
+      }
+    });
+  }
+  
+  confirmModal.classList.add('open');
+  
+  if (confirmNo && typeof confirmNo.focus === 'function') confirmNo.focus();
+}
+
 // Generate item tooltip HTML
 function getItemTooltipHTML(item, slotName) {
   if (!item) return '';
@@ -611,9 +930,11 @@ function getItemTooltipHTML(item, slotName) {
       return rarityPrices[rarity] || 1;
     };
     const sellPrice = getSellPrice(item.rarity);
+    const soulsAmount = getSoulsFromDisenchant(item);
     html += `
       <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 4px;">
-        <span>Shift + Click to sell for ${sellPrice} treasury coins</span>
+        <div>Shift + Click to sell or disenchant</div>
+        <div style="margin-top: 2px;">Sell: ${sellPrice} coins | Disenchant: ${soulsAmount} souls</div>
       </div>
     `;
   }
@@ -1442,9 +1763,9 @@ function renderInventory() {
           });
         });
         
-        // Add click handler for equipping and selling
+        // Add click handler for equipping and selling/disenchanting
         slot.addEventListener('click', (e) => {
-          // Shift+Click to sell item
+          // Shift+Click to sell or disenchant item
           if (e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
@@ -1464,55 +1785,20 @@ function renderInventory() {
             };
             
             const sellPrice = getSellPrice(item.rarity);
-            const confirmMessage = `Sell item for +${sellPrice} treasury coins?`;
+            const soulsAmount = getSoulsFromDisenchant(item);
             
-            // Use confirmation modal instead of browser confirm
-            if (typeof showConfirmModal === 'function') {
-              showConfirmModal(confirmMessage, () => {
-                // Remove item from inventory
-                inventorySystem.inventory[i] = null;
-                
-                // Update save
-                if (save && save.inventory) {
-                  save.inventory.inventory = inventorySystem.inventory;
-                }
-                
-                // Add treasury coins
-                if (save && save.treasury) {
-                  save.treasury.coins = (save.treasury.coins || 0) + sellPrice;
-                  // Update treasury display if function exists
-                  if (typeof renderTreasury === 'function') {
-                    renderTreasury();
-                  }
-                }
-                
-                // Re-render inventory
-                renderInventory();
-                toast(`Item sold for ${sellPrice} treasury coins`, 'good');
-              });
+            // Show disposal modal with two options
+            if (typeof showItemDisposalModal === 'function') {
+              showItemDisposalModal(item, sellPrice, soulsAmount, i);
             } else {
-              // Fallback to browser confirm if modal function is not available
-              if (confirm(confirmMessage)) {
-                // Remove item from inventory
-                inventorySystem.inventory[i] = null;
-                
-                // Update save
-                if (save && save.inventory) {
-                  save.inventory.inventory = inventorySystem.inventory;
-                }
-                
-                // Add treasury coins
-                if (save && save.treasury) {
-                  save.treasury.coins = (save.treasury.coins || 0) + sellPrice;
-                  // Update treasury display if function exists
-                  if (typeof renderTreasury === 'function') {
-                    renderTreasury();
-                  }
-                }
-                
-                // Re-render inventory
-                renderInventory();
-                toast(`Item sold for ${sellPrice} treasury coins`, 'good');
+              // Fallback to simple sell confirmation
+              const confirmMessage = `Sell item for +${sellPrice} treasury coins?`;
+              if (typeof showConfirmModal === 'function') {
+                showConfirmModal(confirmMessage, () => {
+                  sellItem(i, sellPrice);
+                });
+              } else if (confirm(confirmMessage)) {
+                sellItem(i, sellPrice);
               }
             }
             return;
@@ -1664,6 +1950,7 @@ function sellAllItemsByRarity(rarity) {
   // Count items and calculate total value
   let itemCount = 0;
   let totalValue = 0;
+  let totalSouls = 0;
   const inventory = inventorySystem.inventory;
   
   for (let i = 0; i < inventory.length; i++) {
@@ -1671,6 +1958,7 @@ function sellAllItemsByRarity(rarity) {
     if (item && item.rarity === rarity) {
       itemCount++;
       totalValue += getSellPrice(item.rarity);
+      totalSouls += getSoulsFromDisenchant(item);
     }
   }
   
@@ -1687,74 +1975,180 @@ function sellAllItemsByRarity(rarity) {
     ? window.combatSystem.ITEM_RARITY[rarity].name
     : rarity;
   
-  // Confirm before selling
-  const confirmMessage = `Sell all ${rarityName} items (${itemCount}) for ${totalValue} treasury coins?`;
-  
-  // Use confirmation modal instead of browser confirm
-  if (typeof showConfirmModal === 'function') {
-    showConfirmModal(confirmMessage, () => {
-      // Remove all items of this rarity from inventory
-      for (let i = 0; i < inventory.length; i++) {
-        const item = inventory[i];
-        if (item && item.rarity === rarity) {
-          inventory[i] = null;
-        }
-      }
-      
-      // Update save
-      if (save && save.inventory) {
-        save.inventory.inventory = inventory;
-      }
-      
-      // Update inventorySystem
-      inventorySystem.inventory = inventory;
-      
-      // Add treasury coins
-      if (save && save.treasury) {
-        save.treasury.coins = (save.treasury.coins || 0) + totalValue;
-        // Update treasury display if function exists
-        if (typeof renderTreasury === 'function') {
-          renderTreasury();
-        }
-      }
-      
-      // Re-render inventory
-      renderInventory();
-      toast(`Sold ${itemCount} ${rarityName} items for ${totalValue} treasury coins`, 'good');
-    });
+  // Show disposal modal with two options
+  if (typeof showBulkItemDisposalModal === 'function') {
+    showBulkItemDisposalModal(rarity, rarityName, itemCount, totalValue, totalSouls);
   } else {
-    // Fallback to browser confirm if modal function is not available
-    if (confirm(confirmMessage)) {
-      // Remove all items of this rarity from inventory
-      for (let i = 0; i < inventory.length; i++) {
-        const item = inventory[i];
-        if (item && item.rarity === rarity) {
-          inventory[i] = null;
-        }
-      }
-      
-      // Update save
-      if (save && save.inventory) {
-        save.inventory.inventory = inventory;
-      }
-      
-      // Update inventorySystem
-      inventorySystem.inventory = inventory;
-      
-      // Add treasury coins
-      if (save && save.treasury) {
-        save.treasury.coins = (save.treasury.coins || 0) + totalValue;
-        // Update treasury display if function exists
-        if (typeof renderTreasury === 'function') {
-          renderTreasury();
-        }
-      }
-      
-      // Re-render inventory
-      renderInventory();
-      toast(`Sold ${itemCount} ${rarityName} items for ${totalValue} treasury coins`, 'good');
+    // Fallback to simple sell confirmation
+    const confirmMessage = `Sell all ${rarityName} items (${itemCount}) for ${totalValue} treasury coins?`;
+    if (typeof showConfirmModal === 'function') {
+      showConfirmModal(confirmMessage, () => {
+        sellAllItemsByRarityExecute(rarity, totalValue, itemCount, rarityName);
+      });
+    } else if (confirm(confirmMessage)) {
+      sellAllItemsByRarityExecute(rarity, totalValue, itemCount, rarityName);
     }
   }
+}
+
+// Execute selling all items of a specific rarity
+function sellAllItemsByRarityExecute(rarity, totalValue, itemCount, rarityName) {
+  const inventory = inventorySystem.inventory;
+  
+  // Remove all items of this rarity from inventory
+  for (let i = 0; i < inventory.length; i++) {
+    const item = inventory[i];
+    if (item && item.rarity === rarity) {
+      inventory[i] = null;
+    }
+  }
+  
+  // Update save
+  if (save && save.inventory) {
+    save.inventory.inventory = inventory;
+  }
+  
+  // Update inventorySystem
+  inventorySystem.inventory = inventory;
+  
+  // Add treasury coins
+  if (save && save.treasury) {
+    // Use gainTreasury function if available, otherwise update value directly
+    if (typeof gainTreasury === 'function') {
+      gainTreasury(totalValue);
+    } else {
+      const baseMax = save.treasury.max || 1000;
+      save.treasury.value = Math.min((save.treasury.value || 0) + totalValue, baseMax);
+    }
+  }
+  
+  // Re-render inventory
+  renderInventory();
+  toast(`Sold ${itemCount} ${rarityName} items for ${totalValue} treasury coins`, 'good');
+}
+
+// Execute disenchanting all items of a specific rarity
+function disenchantAllItemsByRarityExecute(rarity, totalSouls, itemCount, rarityName) {
+  const inventory = inventorySystem.inventory;
+  
+  // Remove all items of this rarity from inventory
+  for (let i = 0; i < inventory.length; i++) {
+    const item = inventory[i];
+    if (item && item.rarity === rarity) {
+      inventory[i] = null;
+    }
+  }
+  
+  // Update save
+  if (save && save.inventory) {
+    save.inventory.inventory = inventory;
+  }
+  
+  // Update inventorySystem
+  inventorySystem.inventory = inventory;
+  
+  // Add souls
+  if (window.combatSystem && window.combatSystem.souls !== undefined) {
+    window.combatSystem.souls = (window.combatSystem.souls || 0) + totalSouls;
+    
+    // Save souls
+    if (save && save.combat) {
+      save.combat.souls = window.combatSystem.souls;
+    }
+    
+    // Update souls display if function exists
+    if (typeof renderCombat === 'function') {
+      renderCombat();
+    }
+  }
+  
+  // Re-render inventory
+  renderInventory();
+  toast(`Disenchanted ${itemCount} ${rarityName} items for +${totalSouls} souls`, 'good');
+}
+
+// Show bulk item disposal modal (sell or disenchant all items of a rarity)
+function showBulkItemDisposalModal(rarity, rarityName, itemCount, totalValue, totalSouls) {
+  if (!confirmModal || !confirmMessage) return;
+  
+  // Create custom message with both options
+  confirmMessage.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${itemCount} ${rarityName} items</strong>
+    </div>
+    <div style="margin-bottom: 12px;">
+      Choose an action:
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="padding: 8px; background: rgba(200, 170, 110, 0.1); border-radius: 4px;">
+        <strong>Sell All:</strong> +${totalValue} treasury coins
+      </div>
+      <div style="padding: 8px; background: rgba(139, 108, 187, 0.1); border-radius: 4px;">
+        <strong>Disenchant All:</strong> +${totalSouls} souls
+      </div>
+    </div>
+  `;
+  
+  // Setup buttons
+  const confirmYes = document.getElementById('confirm-yes');
+  const confirmNo = document.getElementById('confirm-no');
+  
+  if (confirmYes && confirmNo) {
+    // Change button labels
+    confirmYes.textContent = 'Sell All';
+    confirmNo.textContent = 'Disenchant All';
+    
+    // Remove old listeners by cloning buttons
+    const newYes = confirmYes.cloneNode(true);
+    const newNo = confirmNo.cloneNode(true);
+    confirmYes.parentNode.replaceChild(newYes, confirmYes);
+    confirmNo.parentNode.replaceChild(newNo, confirmNo);
+    
+    // Add new listeners
+    newYes.addEventListener('click', () => {
+      closeConfirmModal();
+      sellAllItemsByRarityExecute(rarity, totalValue, itemCount, rarityName);
+    });
+    
+    newNo.addEventListener('click', () => {
+      closeConfirmModal();
+      disenchantAllItemsByRarityExecute(rarity, totalSouls, itemCount, rarityName);
+    });
+  }
+  
+  // Show modal using existing showConfirmModal infrastructure
+  confirmModal.setAttribute('aria-hidden', 'false');
+  
+  // Apply modal styling (reuse from showConfirmModal)
+  const gameColumns = document.querySelector('.game-columns');
+  let savedGameColumnsWidth = null;
+  if (gameColumns) {
+    const rect = gameColumns.getBoundingClientRect();
+    savedGameColumnsWidth = rect.width;
+  }
+  
+  const savedBodyPaddingRight = document.body.style.paddingRight || '';
+  const sbw = window.innerWidth - document.documentElement.clientWidth;
+  
+  if (sbw > 0) {
+    document.body.style.paddingRight = `${sbw}px`;
+  }
+  
+  document.body.classList.add('modal-open');
+  
+  if (gameColumns && savedGameColumnsWidth !== null) {
+    requestAnimationFrame(() => {
+      if (gameColumns && savedGameColumnsWidth !== null) {
+        gameColumns.style.width = `${savedGameColumnsWidth}px`;
+        gameColumns.style.minWidth = `${savedGameColumnsWidth}px`;
+        gameColumns.style.maxWidth = `${savedGameColumnsWidth}px`;
+      }
+    });
+  }
+  
+  confirmModal.classList.add('open');
+  
+  if (confirmNo && typeof confirmNo.focus === 'function') confirmNo.focus();
 }
 
 // Setup sell all buttons by rarity
