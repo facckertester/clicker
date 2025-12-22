@@ -793,6 +793,17 @@ function endCombat(victory) {
       toast(`${dropCount} item${dropCount > 1 ? 's' : ''} dropped!`, 'good');
     }
     
+    // Experience reward: 5% of current level's required experience
+    if (window.experienceSystem && typeof window.experienceSystem.getExperienceToNext === 'function') {
+      const experienceToNext = window.experienceSystem.getExperienceToNext();
+      if (experienceToNext > 0) {
+        const experienceReward = Math.floor(experienceToNext * 0.05);
+        if (experienceReward > 0 && typeof window.experienceSystem.addExperience === 'function') {
+          window.experienceSystem.addExperience(experienceReward, 'bossDefeat');
+        }
+      }
+    }
+    
     toast(`Boss defeated! +${soulsReward} Souls. You can now start the next wave.`, 'good');
     
     // Mark that this wave was defeated - allows next wave to start
@@ -2426,7 +2437,10 @@ function updateBossDebuffs() {
     'STUN': 'Enemy cannot attack. Duration varies.'
   };
   
-  bossDebuffsEl.innerHTML = debuffs.map(debuff => {
+  // Clear existing content
+  bossDebuffsEl.innerHTML = '';
+  
+  debuffs.forEach(debuff => {
     const countText = debuff.count ? ` x${debuff.count}` : '';
     const timerText = debuff.timeLeft ? ` (${debuff.timeLeft}s)` : '';
     const description = debuffDescriptions[debuff.name] || '';
@@ -2444,8 +2458,24 @@ function updateBossDebuffs() {
       fullDescription += ` Total damage per second: ${totalDamage}`;
     }
     
-    return `<span class="boss-debuff" style="color: ${debuff.color};">${debuff.name}${countText}${timerText}</span>`;
-  }).join('');
+    // Create element with tooltip support
+    const debuffEl = document.createElement('span');
+    debuffEl.className = 'boss-debuff';
+    debuffEl.style.color = debuff.color;
+    debuffEl.textContent = `${debuff.name}${countText}${timerText}`;
+    debuffEl.setAttribute('data-debuff-name', debuff.name);
+    debuffEl.setAttribute('data-debuff-info', fullDescription);
+    
+    // Add event listeners for tooltip
+    debuffEl.addEventListener('mouseenter', (e) => {
+      showDebuffInfo(debuffEl, 'boss');
+    });
+    debuffEl.addEventListener('mouseleave', () => {
+      hideDebuffInfo('boss');
+    });
+    
+    bossDebuffsEl.appendChild(debuffEl);
+  });
 }
 
 // Update player debuffs display
@@ -2505,7 +2535,10 @@ function updatePlayerDebuffs() {
     'BLEED': 'Bleed damage over time. Stacks up to 15 times.'
   };
   
-  playerDebuffsEl.innerHTML = debuffs.map(debuff => {
+  // Clear existing content
+  playerDebuffsEl.innerHTML = '';
+  
+  debuffs.forEach(debuff => {
     const countText = debuff.count ? ` x${debuff.count}` : '';
     const timerText = debuff.timeLeft ? ` (${debuff.timeLeft}s)` : '';
     const description = debuffDescriptions[debuff.name] || '';
@@ -2523,8 +2556,24 @@ function updatePlayerDebuffs() {
       fullDescription += ` Total damage per second: ${totalDamage}`;
     }
     
-    return `<span class="player-debuff" style="color: ${debuff.color};">${debuff.name}${countText}${timerText}</span>`;
-  }).join('');
+    // Create element with tooltip support
+    const debuffEl = document.createElement('span');
+    debuffEl.className = 'player-debuff';
+    debuffEl.style.color = debuff.color;
+    debuffEl.textContent = `${debuff.name}${countText}${timerText}`;
+    debuffEl.setAttribute('data-debuff-name', debuff.name);
+    debuffEl.setAttribute('data-debuff-info', fullDescription);
+    
+    // Add event listeners for tooltip
+    debuffEl.addEventListener('mouseenter', (e) => {
+      showDebuffInfo(debuffEl, 'player');
+    });
+    debuffEl.addEventListener('mouseleave', () => {
+      hideDebuffInfo('player');
+    });
+    
+    playerDebuffsEl.appendChild(debuffEl);
+  });
 }
 
 // Show debuff info window
@@ -2556,21 +2605,51 @@ function showDebuffInfo(debuffElement, type) {
   infoWindow.style.top = `${rect.top - parentRect.top}px`;
   
   // Adjust if window goes outside parent container
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     const windowRect = infoWindow.getBoundingClientRect();
     const containerRect = parentContainer.getBoundingClientRect();
     
+    let leftPos = parseFloat(infoWindow.style.left) || 0;
+    let topPos = parseFloat(infoWindow.style.top) || 0;
+    
+    // Check right boundary
     if (windowRect.right > containerRect.right) {
-      infoWindow.style.left = `${rect.left - parentRect.left - infoWindow.offsetWidth - 8}px`;
+      leftPos = rect.left - parentRect.left - windowRect.width - 8;
+      if (leftPos < 8) {
+        leftPos = 8;
+      }
     }
+    
+    // Check bottom boundary
     if (windowRect.bottom > containerRect.bottom) {
-      infoWindow.style.top = `${rect.top - parentRect.top - infoWindow.offsetHeight - 8}px`;
+      topPos = rect.top - parentRect.top - windowRect.height - 8;
+      if (topPos < 8) {
+        topPos = rect.bottom - parentRect.top + 8;
+      }
     }
-    // Also check top boundary
-    if (rect.top - parentRect.top - infoWindow.offsetHeight - 8 < 0) {
-      infoWindow.style.top = `${rect.bottom - parentRect.top + 8}px`;
+    
+    // Check top boundary
+    if (topPos < 8) {
+      topPos = rect.bottom - parentRect.top + 8;
     }
-  }, 0);
+    
+    // Check left boundary
+    if (leftPos < 8) {
+      leftPos = rect.right - parentRect.left + 8;
+      if (leftPos + windowRect.width > containerRect.width) {
+        leftPos = containerRect.width - windowRect.width - 8;
+      }
+    }
+    
+    // Ensure position is within bounds
+    leftPos = Math.max(8, Math.min(leftPos, containerRect.width - windowRect.width - 8));
+    topPos = Math.max(8, Math.min(topPos, containerRect.height - windowRect.height - 8));
+    
+    if (!infoWindow.classList.contains('hidden')) {
+      infoWindow.style.left = `${leftPos}px`;
+      infoWindow.style.top = `${topPos}px`;
+    }
+  });
 }
 
 // Hide debuff info window
@@ -2587,33 +2666,51 @@ function hideDebuffInfo(type) {
 }
 
 // Setup boss element tooltip
+let _bossElementTooltipSetup = false;
+
 function setupBossElementTooltip() {
   const bossElementContainer = document.getElementById('boss-element-container');
   const infoWindow = document.getElementById('debuff-info-window');
   
   if (!bossElementContainer || !infoWindow) return;
   
-  // Remove existing listeners by cloning (clean approach)
-  if (!bossElementContainer.classList.contains('boss-element-hoverable')) return;
+  // Check if element is hoverable
+  if (!bossElementContainer.classList.contains('boss-element-hoverable')) {
+    // Remove listeners if element is no longer hoverable
+    if (_bossElementTooltipSetup) {
+      const newContainer = bossElementContainer.cloneNode(true);
+      bossElementContainer.parentNode.replaceChild(newContainer, bossElementContainer);
+      _bossElementTooltipSetup = false;
+    }
+    return;
+  }
   
   const elementType = bossElementContainer.getAttribute('data-boss-element');
-  if (!elementType) return;
+  if (!elementType) {
+    // Remove listeners if no element type
+    if (_bossElementTooltipSetup) {
+      const newContainer = bossElementContainer.cloneNode(true);
+      bossElementContainer.parentNode.replaceChild(newContainer, bossElementContainer);
+      _bossElementTooltipSetup = false;
+    }
+    return;
+  }
   
-  // Remove old listeners
-  const newContainer = bossElementContainer.cloneNode(true);
-  bossElementContainer.parentNode.replaceChild(newContainer, bossElementContainer);
-  
-  // Get fresh reference
-  const elementContainer = document.getElementById('boss-element-container');
-  if (!elementContainer) return;
-  
-  elementContainer.addEventListener('mouseenter', () => {
-    showBossElementInfo(elementContainer, elementType);
-  });
-  
-  elementContainer.addEventListener('mouseleave', () => {
-    hideDebuffInfo('boss');
-  });
+  // Only setup once, unless we need to update
+  if (!_bossElementTooltipSetup) {
+    bossElementContainer.addEventListener('mouseenter', () => {
+      const currentElementType = bossElementContainer.getAttribute('data-boss-element');
+      if (currentElementType) {
+        showBossElementInfo(bossElementContainer, currentElementType);
+      }
+    });
+    
+    bossElementContainer.addEventListener('mouseleave', () => {
+      hideDebuffInfo('boss');
+    });
+    
+    _bossElementTooltipSetup = true;
+  }
 }
 
 // Show boss element info
@@ -2644,8 +2741,8 @@ function showBossElementInfo(elementContainer, elementType) {
   infoWindow.style.display = 'block'; // Force show immediately
   infoWindow.classList.remove('hidden');
   
-  // Position immediately - use setTimeout with 0 delay to ensure DOM is updated
-  setTimeout(() => {
+  // Position immediately - use requestAnimationFrame for better performance
+  requestAnimationFrame(() => {
     // Force a reflow to get accurate measurements after setting content
     void infoWindow.offsetWidth;
     
@@ -2667,11 +2764,19 @@ function showBossElementInfo(elementContainer, elementType) {
     // Adjust if window goes outside parent container (right edge)
     if (leftPos + windowRect.width > containerRect.width) {
       leftPos = rect.left - parentRect.left - windowRect.width - 8;
+      // If still doesn't fit, position to the left
+      if (leftPos < 0) {
+        leftPos = 8;
+      }
     }
     
     // Adjust if window goes outside parent container (bottom edge)
     if (topPos + windowRect.height > containerRect.height) {
       topPos = rect.bottom - parentRect.top - windowRect.height - 8;
+      // If still doesn't fit, position above
+      if (topPos < 0) {
+        topPos = rect.top - parentRect.top - windowRect.height - 8;
+      }
     }
     
     // Adjust if window goes outside parent container (top edge)
@@ -2681,19 +2786,19 @@ function showBossElementInfo(elementContainer, elementType) {
     
     // Adjust if window goes outside parent container (left edge)
     if (leftPos < 0) {
-      leftPos = rect.right - parentRect.left + 8;
+      leftPos = 8;
     }
     
     // Ensure position is within bounds
-    leftPos = Math.max(0, Math.min(leftPos, containerRect.width - windowRect.width));
-    topPos = Math.max(0, Math.min(topPos, containerRect.height - windowRect.height));
+    leftPos = Math.max(8, Math.min(leftPos, containerRect.width - windowRect.width - 8));
+    topPos = Math.max(8, Math.min(topPos, containerRect.height - windowRect.height - 8));
     
     // Apply calculated position only if window is still visible
     if (!infoWindow.classList.contains('hidden')) {
       infoWindow.style.left = `${leftPos}px`;
       infoWindow.style.top = `${topPos}px`;
     }
-  }, 0);
+  });
 }
 
 // Format number for display

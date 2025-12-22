@@ -978,6 +978,7 @@ window.addEventListener('beforeunload', () => {
 // Сохраняем при уходе вкладки в фон
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
+    _isBackground = true;
     saveNow();
     // Сохраняем время ухода в сон для проверки при возврате
     if (save) {
@@ -988,6 +989,7 @@ document.addEventListener('visibilitychange', () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: save }));
     }
   } else if (document.visibilityState === 'visible' && save) {
+    _isBackground = false;
     // Check for offline earnings when page becomes visible again
     checkOfflineEarnings();
     
@@ -3373,10 +3375,10 @@ function renderTreasuryActions() {
         if (isLazyClick) {
           // Данные для Lazy Click
           const lazyClickLevelsData = [
-            { lvl: 1, clicks: 200, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
-            { lvl: 2, clicks: 400, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
-            { lvl: 3, clicks: 1000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
-            { lvl: 4, clicks: 2000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
+            { lvl: 1, clicks: 2000, durationMs: 20000, multiplier: 1.5, cost: 300, clickReq: 589, breakDuration: 0 },
+            { lvl: 2, clicks: 4000, durationMs: 25000, multiplier: 2.0, cost: 0, clickReq: 1488, breakDuration: 164000 },
+            { lvl: 3, clicks: 10000, durationMs: 30000, multiplier: 5.0, cost: 0, clickReq: 3564, breakDuration: 389000 },
+            { lvl: 4, clicks: 20000, durationMs: 50000, multiplier: 10.0, cost: 0, clickReq: 9999, breakDuration: 606000 }
           ];
           
           const nextLevelData = lazyClickLevelsData.find(l => l.lvl === targetLevelNum);
@@ -3629,12 +3631,13 @@ function renderTreasuryActions() {
       });
     }
     
-    // Buff 2: Click always golden, breaks 9x more often
+    // Buff 2: Click always golden, cannot break
     {
       const active = act.alwaysGoldenUntil > nowTs;
       const desc = {
         header: 'ALWAYS GOLDEN',
         effect: 'Click button is always golden.',
+        duringWarning: 'Click button cannot break.',
         afterWarning: 'Click button cannot become golden for 120 seconds. Click income -35% for 90 seconds.',
         cost: 1000,
         duration: 108
@@ -3659,13 +3662,13 @@ function renderTreasuryActions() {
       });
     }
     
-    // Buff 3: Buildings repair 2x faster, break 9x more often
+    // Buff 3: Buildings repair 2x faster, break 27x more often (9x * 3x)
     {
       const active = act.fastRepairUntil > nowTs;
       const desc = {
         header: 'FAST REPAIR',
         effect: 'Buildings repair 2 times faster.',
-        duringWarning: 'Buildings break 9x more often.',
+        duringWarning: 'Buildings break 27x more often.',
         afterWarning: 'Repair time +50%. 3-4 random buildings break for 150 seconds.',
         cost: 1000,
         duration: 108
@@ -4487,6 +4490,8 @@ function renderClick() {
 
   // Явно удаляем и добавляем классы для гарантированного обновления
   // Кнопка больше не может сломаться - убираем класс broken
+  if (!clickBtn) return;
+  
   clickBtn.classList.remove('broken');
   clickBtn.classList.remove('overheated');
   
@@ -4504,11 +4509,13 @@ function renderClick() {
   }
   
   // Обновляем статус
-  if (overheated) {
-    const remaining = Math.ceil((save.click.cooldownUntil - now()) / 1000);
-    clickStatus.textContent = `Overheated (${remaining}s)`;
-  } else {
-    clickStatus.textContent = goldenActive ? 'Golden' : 'Ready';
+  if (clickStatus) {
+    if (overheated) {
+      const remaining = Math.ceil((save.click.cooldownUntil - now()) / 1000);
+      clickStatus.textContent = `Overheated (${remaining}s)`;
+    } else {
+      clickStatus.textContent = goldenActive ? 'Golden' : 'Ready';
+    }
   }
   
   // Обратный таймер вверху кнопки
@@ -6824,8 +6831,9 @@ if (gameTitleEl) {
   });
 }
 
-clickBtn.addEventListener('click', (event) => {
-  const ts = now();
+if (clickBtn) {
+  clickBtn.addEventListener('click', (event) => {
+    const ts = now();
   
   // Проверка перегрева - блокируем клики если кнопка перегрета
   if (isClickOverheated()) {
@@ -7042,7 +7050,8 @@ clickBtn.addEventListener('click', (event) => {
   // Обновляем верхние показатели и статус кнопки
   renderTopStats();
   renderClick();
-});
+  });
+}
 
 // Сбрасываем стрик при клике на любой элемент кроме кнопки Click
 document.addEventListener('click', (event) => {
@@ -7050,7 +7059,7 @@ document.addEventListener('click', (event) => {
   
   // Проверяем, что клик был не на кнопке Click
   const target = event.target;
-  const clickedOnClickBtn = target === clickBtn || clickBtn.contains(target);
+  const clickedOnClickBtn = clickBtn && (target === clickBtn || clickBtn.contains(target));
   
   if (!clickedOnClickBtn) {
     // Сбрасываем стрик при клике на что угодно кроме кнопки Click
@@ -9164,11 +9173,49 @@ let _fpsMonitor = {
   lastTime: performance.now(),
   fps: 0,
   frameTime: 0,
-  samples: [] // для сглаживания
+  samples: [], // для сглаживания
+  rafId: null // для отмены requestAnimationFrame
 };
+
+// FPS limiting settings
+let fpsLimitValue = 0; // 0 = unlimited, 30, 60, 120, 180, 240
+let fpsLimitBackgroundEnabled = false;
+let _targetFrameTime = 0; // Вычисляется динамически на основе fpsLimitValue
+let _lastFrameTime = 0;
+let _isBackground = false; // Инициализируем текущее состояние
+
+// Update target frame time based on FPS limit value
+function updateTargetFrameTime() {
+  if (fpsLimitValue > 0) {
+    _targetFrameTime = 1000 / fpsLimitValue;
+  } else {
+    _targetFrameTime = 0; // Unlimited
+  }
+}
 
 function updateFPSMonitor() {
   const now = performance.now();
+  
+  // Определяем, нужно ли ограничивать FPS
+  // В фоновом режиме ограничение применяется только если включена соответствующая настройка
+  const shouldLimitFPS = fpsLimitValue > 0 && (!_isBackground || fpsLimitBackgroundEnabled);
+  
+  if (shouldLimitFPS) {
+    // Вычисляем целевое время кадра на основе выбранного FPS
+    const targetFrameTime = 1000 / fpsLimitValue;
+    // Ограничиваем FPS: пропускаем кадры, если они слишком частые
+    const timeSinceLastFrame = now - _lastFrameTime;
+    if (timeSinceLastFrame < targetFrameTime) {
+      // Кадр слишком быстрый, пропускаем его
+      _fpsMonitor.rafId = requestAnimationFrame(updateFPSMonitor);
+      return;
+    }
+    _lastFrameTime = now;
+  } else {
+    // Обновляем время последнего кадра даже если ограничение выключено
+    _lastFrameTime = now;
+  }
+  
   const delta = now - _fpsMonitor.lastTime;
   
   // Измеряем время кадра
@@ -9222,18 +9269,70 @@ function updateFPSMonitor() {
   }
   
   _fpsMonitor.lastTime = now;
-  requestAnimationFrame(updateFPSMonitor);
+  _fpsMonitor.rafId = requestAnimationFrame(updateFPSMonitor);
+}
+
+// FPS settings save/load functions
+function saveFpsLimitSettings() {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem('fpsLimitValue', JSON.stringify(fpsLimitValue));
+      localStorage.setItem('fpsLimitBackgroundEnabled', JSON.stringify(fpsLimitBackgroundEnabled));
+      updateTargetFrameTime();
+    } catch (e) {
+      console.warn('Failed to save FPS limit settings:', e);
+    }
+  }
+}
+
+function loadFpsLimitSettings() {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const savedLimit = localStorage.getItem('fpsLimitValue');
+      const savedBackground = localStorage.getItem('fpsLimitBackgroundEnabled');
+      if (savedLimit !== null) {
+        fpsLimitValue = parseInt(JSON.parse(savedLimit), 10) || 0;
+      }
+      if (savedBackground !== null) {
+        fpsLimitBackgroundEnabled = JSON.parse(savedBackground);
+      }
+      // Backward compatibility: check for old checkbox setting
+      const oldLimitEnabled = localStorage.getItem('fpsLimitEnabled');
+      if (oldLimitEnabled !== null && JSON.parse(oldLimitEnabled) && fpsLimitValue === 0) {
+        fpsLimitValue = 60; // Default to 60 FPS if old setting was enabled
+        localStorage.removeItem('fpsLimitEnabled'); // Remove old setting
+      }
+      updateTargetFrameTime();
+    } catch (e) {
+      console.warn('Failed to load FPS limit settings:', e);
+    }
+  }
+}
+
+// Инициализируем состояние фона
+if (typeof document !== 'undefined') {
+  _isBackground = document.hidden || false;
 }
 
 // Запускаем монитор FPS после загрузки страницы
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    loadFpsLimitSettings();
+    if (typeof document !== 'undefined') {
+      _isBackground = document.hidden || false;
+    }
     _fpsMonitor.lastTime = performance.now();
-    requestAnimationFrame(updateFPSMonitor);
+    _lastFrameTime = performance.now();
+    _fpsMonitor.rafId = requestAnimationFrame(updateFPSMonitor);
   });
 } else {
+  loadFpsLimitSettings();
+  if (typeof document !== 'undefined') {
+    _isBackground = document.hidden || false;
+  }
   _fpsMonitor.lastTime = performance.now();
-  requestAnimationFrame(updateFPSMonitor);
+  _lastFrameTime = performance.now();
+  _fpsMonitor.rafId = requestAnimationFrame(updateFPSMonitor);
 }
 
 // ======= Endgame & caps =======
@@ -10451,7 +10550,6 @@ const updatesBtn = document.getElementById('updates-btn');
 const updatesModal = document.getElementById('updates-modal');
 const updatesBody = document.getElementById('updates-body');
 const updatesClose = document.getElementById('updates-close');
-const updatesClose2 = document.getElementById('updates-close-2');
 
 // Confirmation modal elements
 const confirmModal = document.getElementById('confirm-modal');
@@ -10506,6 +10604,11 @@ function _getScrollbarWidth() {
 }
 
 function openUpdatesModal() {
+  if (!updatesModal) {
+    console.warn('Updates modal not found');
+    return;
+  }
+  
   _renderUpdatesList();
 
   // Пометка aria
@@ -10554,6 +10657,8 @@ function openUpdatesModal() {
 }
 
 function closeUpdatesModal() {
+  if (!updatesModal) return;
+  
   // Скрываем модалку
   updatesModal.classList.remove('open');
   updatesModal.setAttribute('aria-hidden', 'true');
@@ -10602,7 +10707,6 @@ if (updatesBtn) {
   });
 }
 if (updatesClose) updatesClose.addEventListener('click', closeUpdatesModal);
-if (updatesClose2) updatesClose2.addEventListener('click', closeUpdatesModal);
 
 // Закрытие при клике по фону модалки (но не по внутренней карточке)
 if (updatesModal) {
@@ -11782,6 +11886,27 @@ function initSettingsMenu() {
         seasonalThemeEnabled = e.target.checked;
         saveSeasonalTheme();
         updateSeason(); // Обновляем сезон (включить/выключить)
+      });
+    }
+    
+    // FPS limit settings handler (load settings once)
+    loadFpsLimitSettings();
+    const fpsLimitSelect = document.getElementById('fps-limit-select');
+    const fpsLimitBackgroundCheckbox = document.getElementById('fps-limit-background-checkbox');
+    
+    if (fpsLimitSelect) {
+      fpsLimitSelect.value = fpsLimitValue.toString();
+      fpsLimitSelect.addEventListener('change', (e) => {
+        fpsLimitValue = parseInt(e.target.value, 10) || 0;
+        saveFpsLimitSettings();
+      });
+    }
+    
+    if (fpsLimitBackgroundCheckbox) {
+      fpsLimitBackgroundCheckbox.checked = fpsLimitBackgroundEnabled;
+      fpsLimitBackgroundCheckbox.addEventListener('change', (e) => {
+        fpsLimitBackgroundEnabled = e.target.checked;
+        saveFpsLimitSettings();
       });
     }
   } catch (e) {

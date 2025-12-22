@@ -224,6 +224,23 @@
                 <input type="checkbox" id="seasonal-theme-checkbox" checked style="flex: 0; width: 40px; height: 40px; margin: 0; cursor: pointer; accent-color: var(--poe-orange);">
                 <div class="music-volume-value" style="min-width: auto;"></div>
               </div>
+              <div class="volume-control-group" style="margin-top: 16px;">
+                <div class="volume-control-label">FPS Limit</div>
+                <select id="fps-limit-select" style="flex: 1; padding: 8px; border-radius: 4px; background: rgba(26, 26, 26, 0.9); border: 1px solid var(--border-orange); color: var(--text-bright); cursor: pointer;">
+                  <option value="0">Unlimited</option>
+                  <option value="30">30 FPS</option>
+                  <option value="60">60 FPS</option>
+                  <option value="120">120 FPS</option>
+                  <option value="180">180 FPS</option>
+                  <option value="240">240 FPS</option>
+                </select>
+                <div class="music-volume-value" style="min-width: auto;"></div>
+              </div>
+              <div class="volume-control-group" style="margin-top: 16px;">
+                <div class="volume-control-label">Limit FPS in Background</div>
+                <input type="checkbox" id="fps-limit-background-checkbox" style="flex: 0; width: 40px; height: 40px; margin: 0; cursor: pointer; accent-color: var(--poe-orange);">
+                <div class="music-volume-value" style="min-width: auto;"></div>
+              </div>
             </div>
           </div>
           <button id="hints-toggle-btn" class="btn tiny" title="Toggle hints">💡</button>
@@ -333,8 +350,6 @@
     <div id="achievements-list" class="achievements-list"></div>
   </div>
 </section>
-
-      </section>
 
     </main>
 

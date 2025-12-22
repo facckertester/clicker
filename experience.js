@@ -1300,14 +1300,24 @@ function renderInventory() {
     }
   }
   
-  document.getElementById('inv-hp').textContent = `${Math.floor(stats.hp)} / ${Math.floor(stats.maxHp)}`;
-  document.getElementById('inv-damage').textContent = stats.damage.toFixed(1);
-  document.getElementById('inv-armor').textContent = stats.armor.toFixed(1);
-  document.getElementById('inv-crit-chance').textContent = `${stats.critChance.toFixed(1)}%`;
-  document.getElementById('inv-crit-mult').textContent = `${stats.critMultiplier.toFixed(1)}x`;
-  document.getElementById('inv-dodge').textContent = `${stats.dodgeChance.toFixed(1)}%`;
-  document.getElementById('inv-hp-regen').textContent = `${stats.hpRegen.toFixed(1)} /s`;
-  document.getElementById('inv-mana').textContent = `${Math.floor(stats.mana)} / ${Math.floor(stats.maxMana)}`;
+  // Update stats display with null checks
+  const invHpEl = document.getElementById('inv-hp');
+  const invDamageEl = document.getElementById('inv-damage');
+  const invArmorEl = document.getElementById('inv-armor');
+  const invCritChanceEl = document.getElementById('inv-crit-chance');
+  const invCritMultEl = document.getElementById('inv-crit-mult');
+  const invDodgeEl = document.getElementById('inv-dodge');
+  const invHpRegenEl = document.getElementById('inv-hp-regen');
+  const invManaEl = document.getElementById('inv-mana');
+  
+  if (invHpEl) invHpEl.textContent = `${Math.floor(stats.hp)} / ${Math.floor(stats.maxHp)}`;
+  if (invDamageEl) invDamageEl.textContent = stats.damage.toFixed(1);
+  if (invArmorEl) invArmorEl.textContent = stats.armor.toFixed(1);
+  if (invCritChanceEl) invCritChanceEl.textContent = `${stats.critChance.toFixed(1)}%`;
+  if (invCritMultEl) invCritMultEl.textContent = `${stats.critMultiplier.toFixed(1)}x`;
+  if (invDodgeEl) invDodgeEl.textContent = `${stats.dodgeChance.toFixed(1)}%`;
+  if (invHpRegenEl) invHpRegenEl.textContent = `${stats.hpRegen.toFixed(1)} /s`;
+  if (invManaEl) invManaEl.textContent = `${Math.floor(stats.mana)} / ${Math.floor(stats.maxMana)}`;
   
   // Sync inventory from save if available
   if (save && save.inventory && save.inventory.inventory) {
