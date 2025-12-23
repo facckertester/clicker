@@ -745,8 +745,219 @@ function getItemTooltipHTML(item, slotName) {
   if (item.type === 'weapon') {
     html += `<div class="tooltip-line"></div>`;
     
+    // ===== BASE STATS =====
+    html += `<div style="font-weight: bold; margin-bottom: 4px; color: var(--text-bright);">Base:</div>`;
     
-    // Display classes that can use this weapon
+    // Damage with type
+    const weaponDamage = item.damage || (item.stats && item.stats.damage ? item.stats.damage : 0);
+    if (weaponDamage > 0) {
+      const damageTypeData = item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES 
+        ? window.combatSystem.DAMAGE_TYPES[item.damageType] 
+        : null;
+      const damageTypeName = damageTypeData ? damageTypeData.name : '';
+      const damageTypeColor = damageTypeData ? damageTypeData.color : '#9d9d9d';
+      
+      // If there's an element, show it in damage type
+      let elementName = '';
+      if (item.element && item.damageType === 'MAGICAL' && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+        const elementData = window.combatSystem.ELEMENT_TYPES[item.element];
+        if (elementData) {
+          elementName = elementData.name;
+        }
+      }
+      
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Damage:</span>
+          <span class="tooltip-stat-value">
+            ${weaponDamage}
+            ${damageTypeName ? ` <span style="color: ${damageTypeColor}; font-weight: bold;">${elementName || damageTypeName}</span>` : ''}
+          </span>
+        </div>
+      `;
+    }
+    
+    // Attack Speed
+    if (item.attackSpeed) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Attack Speed:</span>
+          <span class="tooltip-stat-value">${item.attackSpeed.toFixed(2)}</span>
+        </div>
+      `;
+    }
+    
+    // Crit Chance (in percentage)
+    if (item.critChance) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">Crit Chance:</span>
+          <span class="tooltip-stat-value">~${item.critChance.toFixed(1)}%</span>
+        </div>
+      `;
+    }
+    
+    // If two-handed weapon, show this
+    if (item.weaponType && window.combatSystem && window.combatSystem.WEAPON_TYPES) {
+      const weaponData = window.combatSystem.WEAPON_TYPES[item.weaponType];
+      if (weaponData && weaponData.hands === 2) {
+        html += `
+          <div class="tooltip-stat" style="color: var(--text-dim); font-size: 0.9rem;">
+            <span>takes 2 hands</span>
+          </div>
+        `;
+      }
+    }
+    
+    // Visually separate base stats from additional
+    html += `<div class="tooltip-line" style="margin: 8px 0;"></div>`;
+    
+    // ===== ADDITIONAL STATS =====
+    html += `<div style="font-weight: bold; margin-bottom: 4px; color: var(--text-bright);">Additional:</div>`;
+    
+    // Additional stats for weapons (not shields)
+    if (item.weaponType !== 'SHIELD' && item.stats) {
+      // Additional damage (physical, magical, elemental)
+      if (item.stats.additionalDamage) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ Additional Damage:</span>
+            <span class="tooltip-stat-value">+${item.stats.additionalDamage}</span>
+          </div>
+        `;
+      }
+      
+      // Additional damage in percentage
+      if (item.stats.damagePercent) {
+        const damageTypeData = item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES 
+          ? window.combatSystem.DAMAGE_TYPES[item.damageType] 
+          : null;
+        const damageTypeName = damageTypeData ? damageTypeData.name : '';
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+% Damage:</span>
+            <span class="tooltip-stat-value">+${item.stats.damagePercent.toFixed(1)}% ${damageTypeName}</span>
+          </div>
+        `;
+      }
+      
+      // Additional elemental damage
+      if (window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+        Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
+          const elementDamageKey = `elementDamage_${element}`;
+          if (item.stats[elementDamageKey]) {
+            const elementData = window.combatSystem.ELEMENT_TYPES[element];
+            html += `
+              <div class="tooltip-stat">
+                <span class="tooltip-stat-label" style="color: ${elementData.color}">+ ${elementData.name} Damage:</span>
+                <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[elementDamageKey]}</span>
+              </div>
+            `;
+          }
+        });
+      }
+      
+      // +% Attack Speed
+      if (item.stats.attackSpeedPercent) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+% Attack Speed:</span>
+            <span class="tooltip-stat-value">+${item.stats.attackSpeedPercent.toFixed(1)}%</span>
+          </div>
+        `;
+      }
+      
+      // +% Crit Chance
+      if (item.stats.critChancePercent) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+% Crit Chance:</span>
+            <span class="tooltip-stat-value">+${item.stats.critChancePercent.toFixed(1)}%</span>
+          </div>
+        `;
+      }
+      
+      // +% Crit Multiplier
+      if (item.stats.critMultiplier) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+% Crit Multiplier:</span>
+            <span class="tooltip-stat-value">+${item.stats.critMultiplier.toFixed(2)}x</span>
+          </div>
+        `;
+      }
+      
+      // + HP
+      if (item.stats.hp) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ HP:</span>
+            <span class="tooltip-stat-value">+${item.stats.hp}</span>
+          </div>
+        `;
+      }
+      
+      // + Dodge
+      if (item.stats.dodge) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ Dodge:</span>
+            <span class="tooltip-stat-value">+${item.stats.dodge.toFixed(1)}%</span>
+          </div>
+        `;
+      }
+      
+      // + HP Regen
+      if (item.stats.hpRegen) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ HP Regen:</span>
+            <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
+          </div>
+        `;
+      }
+      
+      // + Mana
+      if (item.stats.maxMana) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ Mana:</span>
+            <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
+          </div>
+        `;
+      }
+      
+      // + Mana Regen
+      if (item.stats.manaRegen) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ Mana Regen:</span>
+            <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+          </div>
+        `;
+      }
+      
+      // + Resistances
+      if (window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
+        Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
+          const resistanceKey = `${element.toLowerCase()}Resistance`;
+          if (item.stats[resistanceKey]) {
+            const elementData = window.combatSystem.ELEMENT_TYPES[element];
+            html += `
+              <div class="tooltip-stat">
+                <span class="tooltip-stat-label" style="color: ${elementData.color}">+ ${elementData.name} Resistance:</span>
+                <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
+              </div>
+            `;
+          }
+        });
+      }
+    }
+    
+    // Visually separate additional stats from classes
+    html += `<div class="tooltip-line" style="margin: 8px 0;"></div>`;
+    
+    // ===== CLASSES =====
     if (window.combatSystem && window.combatSystem.CHARACTER_CLASSES && item.weaponType) {
       const classes = window.combatSystem.CHARACTER_CLASSES;
       const allowedClasses = [];
@@ -771,197 +982,44 @@ function getItemTooltipHTML(item, slotName) {
           'NECROMANCER': '#8e44ad'   // Dark Purple
         };
         
-        // Special handling for DAGGER - show which hand
-        let weaponRestriction = '';
-        if (item.weaponType === 'DAGGER') {
-          // Check if this is for left hand (only ROGUE)
-          const rogueClass = allowedClasses.find(c => c.id === 'ROGUE');
-          if (rogueClass) {
-            const otherClasses = allowedClasses.filter(c => c.id !== 'ROGUE');
-            if (otherClasses.length > 0) {
-              weaponRestriction = ' (Right hand only for non-Rogue classes)';
-            }
-          }
+        // Special handling for DAGGER - left hand only for ROGUE
+        let filteredClasses = allowedClasses;
+        if (item.weaponType === 'DAGGER' && item.weaponHand === 'left') {
+          // Left dagger can only be used by ROGUE
+          filteredClasses = allowedClasses.filter(c => c.id === 'ROGUE');
         }
         
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Classes:</span>
-            <span class="tooltip-stat-value">
-        `;
-        
-        allowedClasses.forEach((classData, index) => {
-          const color = classColors[classData.id] || '#9d9d9d';
-          html += `<span style="color: ${color}; font-weight: bold;">${classData.name}</span>`;
-          if (index < allowedClasses.length - 1) {
-            html += `<span style="color: var(--text-dim);">, </span>`;
-          }
-        });
-        
-        html += `
-            </span>
-          </div>
-          ${weaponRestriction ? `<div class="tooltip-stat" style="color: var(--text-dim); font-size: 0.85em; margin-top: -4px; margin-left: 0;">${weaponRestriction}</div>` : ''}
-        `;
-      }
-    }
-    
-    // Display primary element if weapon has one (only for magical weapons)
-    // Physical weapons don't have primary element, only additional element damage
-    if (item.element && item.damageType === 'MAGICAL' && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
-      const elementData = window.combatSystem.ELEMENT_TYPES[item.element];
-      if (elementData) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Element:</span>
-            <span class="tooltip-stat-value" style="color: ${elementData.color}; font-weight: bold;">${elementData.name}</span>
-          </div>
-        `;
-        
-        // For WAND and STAFF, primary element damage is part of magical damage, not shown separately
-        // (it's already included in the main damage calculation)
-        
-        // Show element effect descriptions with calculated chances (high chance for primary element)
-        const calculateEffectChance = (baseChance, rarity, level, isPrimary = true) => {
-          const rarityMultipliers = {
-            'COMMON': 1.0,
-            'UNCOMMON': 1.2,
-            'RARE': 1.4,
-            'EPIC': 1.7,
-            'LEGENDARY': 2.0
-          };
-          const rarityMultiplier = rarityMultipliers[rarity] || 1.0;
-          const levelBonus = Math.min(0.5, (level || 1) * 0.02);
-          // Primary element uses baseChance (15% for fire, 20% for poison, etc.)
-          // Additional element would use baseChance * 0.33 (5% for fire, 6.7% for poison, etc.)
-          const effectiveBaseChance = isPrimary ? baseChance : baseChance * 0.33;
-          const finalChance = Math.min(95, effectiveBaseChance * 100 * rarityMultiplier * (1 + levelBonus));
-          return Math.round(finalChance);
-        };
-        
-        const itemRarity = item.rarity || 'COMMON';
-        const itemLevel = item.level || 1;
-        
-        const elementDescriptions = {
-          'FIRE': { 
-            baseChance: 0.15, 
-            desc: 'Chance to burn enemy (5s, stacks up to 30x)' 
-          },
-          'POISON': { 
-            baseChance: 0.20, 
-            desc: 'Chance to poison enemy, increases incoming damage (15s, stacks up to 30x)' 
-          },
-          'COLD': { 
-            baseChance: 0.25, 
-            freezeBase: 0.08,
-            desc: 'Chance to slow enemy (5s, stacks up to 5x). Chance to freeze (3s, enemy cannot attack)' 
-          },
-          'LIGHTNING': { 
-            baseChance: 0.20, 
-            desc: 'Chance to shock enemy, increases crit chance per stack (5s, stacks up to 5x)' 
-          },
-          'BLEED': { 
-            baseChance: 0.25, 
-            desc: 'Chance to bleed enemy, reduces armor per stack (5s, stacks up to 15x)' 
-          }
-        };
-        
-        if (elementDescriptions[item.element]) {
-          const desc = elementDescriptions[item.element];
-          let chanceText = '';
-          if (item.element === 'COLD') {
-            const slowChance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel, true);
-            const freezeChance = calculateEffectChance(desc.freezeBase, itemRarity, itemLevel, true);
-            chanceText = `${slowChance}% slow, ${freezeChance}% freeze`;
-          } else {
-            const chance = calculateEffectChance(desc.baseChance, itemRarity, itemLevel, true);
-            chanceText = `${chance}%`;
-          }
+        if (filteredClasses.length > 0) {
           html += `
-            <div class="tooltip-stat" style="color: ${elementData.color}; font-size: 0.7rem; margin-top: 2px;">
-              <span><strong>${chanceText}</strong> ${desc.desc}</span>
+            <div class="tooltip-stat">
+              <span class="tooltip-stat-label">Classes:</span>
+              <span class="tooltip-stat-value">
+          `;
+          
+          filteredClasses.forEach((classData, index) => {
+            const color = classColors[classData.id] || '#9d9d9d';
+            html += `<span style="color: ${color}; font-weight: bold;">${classData.name}</span>`;
+            if (index < filteredClasses.length - 1) {
+              html += `<span style="color: var(--text-dim);">, </span>`;
+            }
+          });
+          
+          html += `
+              </span>
             </div>
           `;
         }
       }
     }
     
-    // Display main damage with damage type
-    const weaponDamage = item.damage || (item.stats && item.stats.damage ? item.stats.damage : 0);
-    if (weaponDamage > 0) {
-      const damageTypeData = item.damageType && window.combatSystem && window.combatSystem.DAMAGE_TYPES 
-        ? window.combatSystem.DAMAGE_TYPES[item.damageType] 
-        : null;
-      const damageTypeName = damageTypeData ? damageTypeData.name : '';
-      const damageTypeColor = damageTypeData ? damageTypeData.color : '#9d9d9d';
-      
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Damage:</span>
-          <span class="tooltip-stat-value">
-            +${weaponDamage}
-            ${damageTypeName ? ` <span style="color: ${damageTypeColor}; font-weight: bold;">${damageTypeName}</span>` : ''}
-          </span>
-        </div>
-      `;
-    }
-    if (item.attackSpeed) {
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Attack Speed:</span>
-          <span class="tooltip-stat-value">${item.attackSpeed.toFixed(2)}/s</span>
-        </div>
-      `;
-    }
-    if (item.stats && item.stats.critChance) {
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Crit Chance:</span>
-          <span class="tooltip-stat-value">+${item.stats.critChance.toFixed(1)}%</span>
-        </div>
-      `;
-    }
-    if (item.stats && item.stats.critMultiplier) {
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Crit Multiplier:</span>
-          <span class="tooltip-stat-value">+${item.stats.critMultiplier.toFixed(2)}x</span>
-        </div>
-      `;
-    }
-    // For shields, show block and reflect stats instead of damage/crit/effect
+    // ===== SHIELDS =====
     if (item.weaponType === 'SHIELD') {
-      if (item.stats && item.stats.blockChance) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Block Chance:</span>
-            <span class="tooltip-stat-value">+${item.stats.blockChance.toFixed(1)}%</span>
-          </div>
-          <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
-            <span>50% damage reduction on block</span>
-          </div>
-        `;
-      }
-      if (item.stats && item.stats.reflectChance) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Reflect Chance:</span>
-            <span class="tooltip-stat-value">+${item.stats.reflectChance.toFixed(1)}%</span>
-          </div>
-          <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
-            <span>Reflects 10% of boss damage back</span>
-          </div>
-        `;
-      }
-      // Show defensive stats for shields
-      if (item.stats && item.stats.hp) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">HP:</span>
-            <span class="tooltip-stat-value">+${item.stats.hp}</span>
-          </div>
-        `;
-      }
+      html += `<div class="tooltip-line"></div>`;
+      
+      // ===== BASE STATS FOR SHIELDS =====
+      html += `<div style="font-weight: bold; margin-bottom: 4px; color: var(--text-bright);">Base:</div>`;
+      
+      // Armor/Dodge
       if (item.stats && item.stats.armor) {
         html += `
           <div class="tooltip-stat">
@@ -978,32 +1036,24 @@ function getItemTooltipHTML(item, slotName) {
           </div>
         `;
       }
-      if (item.stats && item.stats.hpRegen) {
+      
+      // Block Chance
+      if (item.stats && item.stats.blockChance) {
         html += `
           <div class="tooltip-stat">
-            <span class="tooltip-stat-label">HP Regen:</span>
-            <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
-          </div>
-        `;
-      }
-      if (item.stats && item.stats.maxMana) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Max Mana:</span>
-            <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
-          </div>
-        `;
-      }
-      if (item.stats && item.stats.manaRegen) {
-        html += `
-          <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Mana Regen:</span>
-            <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+            <span class="tooltip-stat-label">Block Chance:</span>
+            <span class="tooltip-stat-value">${item.stats.blockChance.toFixed(1)}%</span>
           </div>
         `;
       }
       
-      // Show element resistances for shields if present
+      // Visually separate base stats from additional
+      html += `<div class="tooltip-line" style="margin: 8px 0;"></div>`;
+      
+      // ===== ADDITIONAL STATS FOR SHIELDS =====
+      html += `<div style="font-weight: bold; margin-bottom: 4px; color: var(--text-bright);">Additional:</div>`;
+      
+      // + Resistances
       if (item.stats && window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
         Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
           const resistanceKey = `${element.toLowerCase()}Resistance`;
@@ -1011,149 +1061,52 @@ function getItemTooltipHTML(item, slotName) {
             const elementData = window.combatSystem.ELEMENT_TYPES[element];
             html += `
               <div class="tooltip-stat">
-                <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Resistance:</span>
+                <span class="tooltip-stat-label" style="color: ${elementData.color}">+ ${elementData.name} Resistance:</span>
                 <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
               </div>
             `;
           }
         });
       }
-    } else {
-      // Show additional element damage if present (secondary element damage)
-      // For physical weapons: show all element damage stats as additional damage
-      // For magical weapons: show only additional element damage (not primary element)
-      if (item.stats) {
-        // Check for any element damage stats
-        Object.keys(item.stats).forEach(statKey => {
-          if (statKey.startsWith('elementDamage_')) {
-            const element = statKey.replace('elementDamage_', '');
-            
-            // For magical weapons, skip if this is the primary element (it's already part of magical damage)
-            // Primary element is shown in the weapon name and is part of the main damage
-            if (item.damageType === 'MAGICAL' && item.element === element) {
-              return; // Skip primary element for magical weapons
-            }
-            
-            // Show as additional element damage
-            if (window.combatSystem && window.combatSystem.ELEMENT_TYPES && window.combatSystem.ELEMENT_TYPES[element]) {
-              const elementData = window.combatSystem.ELEMENT_TYPES[element];
-              const elementDamage = item.stats[statKey];
-              if (elementDamage > 0) {
-                html += `
-                  <div class="tooltip-stat">
-                    <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Damage:</span>
-                    <span class="tooltip-stat-value" style="color: ${elementData.color}">+${elementDamage}</span>
-                  </div>
-                `;
-              }
-            }
-          }
-        });
-      }
       
-      // For other weapons, show additional stats (hp, armor, dodge, hpRegen, maxMana, manaRegen)
-      if (item.stats) {
-        if (item.stats.hp) {
-          html += `
-            <div class="tooltip-stat">
-              <span class="tooltip-stat-label">HP:</span>
-              <span class="tooltip-stat-value">+${item.stats.hp}</span>
-            </div>
-          `;
-        }
-        if (item.stats.armor) {
-          html += `
-            <div class="tooltip-stat">
-              <span class="tooltip-stat-label">Armor:</span>
-              <span class="tooltip-stat-value">+${item.stats.armor}</span>
-            </div>
-          `;
-        }
-        if (item.stats.dodge) {
-          html += `
-            <div class="tooltip-stat">
-              <span class="tooltip-stat-label">Dodge:</span>
-              <span class="tooltip-stat-value">+${item.stats.dodge.toFixed(1)}%</span>
-            </div>
-          `;
-        }
-        if (item.stats.hpRegen) {
-          html += `
-            <div class="tooltip-stat">
-              <span class="tooltip-stat-label">HP Regen:</span>
-              <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
-            </div>
-          `;
-        }
-        if (item.stats.maxMana) {
-          html += `
-            <div class="tooltip-stat">
-              <span class="tooltip-stat-label">Max Mana:</span>
-              <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
-            </div>
-          `;
-        }
-        if (item.stats.manaRegen) {
-          html += `
-            <div class="tooltip-stat">
-              <span class="tooltip-stat-label">Mana Regen:</span>
-              <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
-            </div>
-          `;
-        }
-        
-        // Show element resistances if present
-        if (window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
-          Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
-            const resistanceKey = `${element.toLowerCase()}Resistance`;
-            if (item.stats[resistanceKey]) {
-              const elementData = window.combatSystem.ELEMENT_TYPES[element];
-              html += `
-                <div class="tooltip-stat">
-                  <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Resistance:</span>
-                  <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
-                </div>
-              `;
-            }
-          });
-        }
-      }
-      
-      // For other weapons, show damage, crit, and effect stats
-      if (item.effect) {
-        const effectNames = {
-          bleed: 'Bleeding',
-          poison: 'Poison',
-          shock: 'Shock',
-          frost: 'Frost'
-        };
-        const effectDescriptions = {
-          bleed: 'Deals damage over time to the enemy',
-          poison: 'Reduces damage dealt by the enemy',
-          shock: 'Can stun the enemy, preventing attacks',
-          frost: 'Slows enemy attacks, increasing time between attacks'
-        };
+      // + HP
+      if (item.stats && item.stats.hp) {
         html += `
           <div class="tooltip-stat">
-            <span class="tooltip-stat-label">Effect:</span>
-            <span class="tooltip-stat-value">${effectNames[item.effect] || item.effect}</span>
+            <span class="tooltip-stat-label">+ HP:</span>
+            <span class="tooltip-stat-value">+${item.stats.hp}</span>
           </div>
-          <div class="tooltip-stat" style="color: var(--muted); font-size: 0.7rem; margin-top: 2px;">
-            <span>${effectDescriptions[item.effect] || ''}</span>
+        `;
+      }
+      
+      // + Block Efficiency (if such stat exists)
+      // + Regen
+      if (item.stats && item.stats.hpRegen) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ HP Regen:</span>
+            <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
+          </div>
+        `;
+      }
+      
+      // + Damage Reflection
+      if (item.stats && item.stats.reflectChance) {
+        html += `
+          <div class="tooltip-stat">
+            <span class="tooltip-stat-label">+ Damage Reflection:</span>
+            <span class="tooltip-stat-value">+${item.stats.reflectChance.toFixed(1)}%</span>
           </div>
         `;
       }
     }
   } else if (item.type === 'armor' && item.stats) {
     html += `<div class="tooltip-line"></div>`;
-    if (item.stats.hp) {
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">HP:</span>
-          <span class="tooltip-stat-value">+${item.stats.hp}</span>
-        </div>
-      `;
-    }
+    
+    // ===== BASE STATS FOR ARMOR =====
+    html += `<div style="font-weight: bold; margin-bottom: 4px; color: var(--text-bright);">Base:</div>`;
+    
+    // Armor/Dodge/Energy Shield
     if (item.stats.armor) {
       html += `
         <div class="tooltip-stat">
@@ -1170,32 +1123,25 @@ function getItemTooltipHTML(item, slotName) {
         </div>
       `;
     }
-    if (item.stats.hpRegen) {
+    // Energy Shield (if such stat exists)
+    
+    // Visually separate base stats from additional
+    html += `<div class="tooltip-line" style="margin: 8px 0;"></div>`;
+    
+    // ===== ADDITIONAL STATS FOR ARMOR =====
+    html += `<div style="font-weight: bold; margin-bottom: 4px; color: var(--text-bright);">Additional:</div>`;
+    
+    // + HP
+    if (item.stats.hp) {
       html += `
         <div class="tooltip-stat">
-          <span class="tooltip-stat-label">HP Regen:</span>
-          <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
-        </div>
-      `;
-    }
-    if (item.stats.maxMana) {
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Max Mana:</span>
-          <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
-        </div>
-      `;
-    }
-    if (item.stats.manaRegen) {
-      html += `
-        <div class="tooltip-stat">
-          <span class="tooltip-stat-label">Mana Regen:</span>
-          <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+          <span class="tooltip-stat-label">+ HP:</span>
+          <span class="tooltip-stat-value">+${item.stats.hp}</span>
         </div>
       `;
     }
     
-    // Show element resistances if present
+    // + Resistances
     if (window.combatSystem && window.combatSystem.ELEMENT_TYPES) {
       Object.keys(window.combatSystem.ELEMENT_TYPES).forEach(element => {
         const resistanceKey = `${element.toLowerCase()}Resistance`;
@@ -1203,12 +1149,72 @@ function getItemTooltipHTML(item, slotName) {
           const elementData = window.combatSystem.ELEMENT_TYPES[element];
           html += `
             <div class="tooltip-stat">
-              <span class="tooltip-stat-label" style="color: ${elementData.color}">${elementData.name} Resistance:</span>
+              <span class="tooltip-stat-label" style="color: ${elementData.color}">+ ${elementData.name} Resistance:</span>
               <span class="tooltip-stat-value" style="color: ${elementData.color}">+${item.stats[resistanceKey].toFixed(1)}%</span>
             </div>
           `;
         }
       });
+    }
+    
+    // + Attack Speed (for gloves)
+    if (item.armorType === 'gloves' && item.stats.attackSpeedPercent) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">+ Attack Speed:</span>
+          <span class="tooltip-stat-value">+${item.stats.attackSpeedPercent.toFixed(1)}%</span>
+        </div>
+      `;
+    }
+    
+    // + HP Regen
+    if (item.stats.hpRegen) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">+ HP Regen:</span>
+          <span class="tooltip-stat-value">+${item.stats.hpRegen.toFixed(1)}/s</span>
+        </div>
+      `;
+    }
+    
+    // + Dodge/Block
+    if (item.stats.dodge && !item.stats.armor) { // If dodge is not in base stats
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">+ Dodge:</span>
+          <span class="tooltip-stat-value">+${item.stats.dodge.toFixed(1)}%</span>
+        </div>
+      `;
+    }
+    
+    // + Mana Regen
+    if (item.stats.manaRegen) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">+ Mana Regen:</span>
+          <span class="tooltip-stat-value">+${item.stats.manaRegen.toFixed(1)}/s</span>
+        </div>
+      `;
+    }
+    
+    // + Mana
+    if (item.stats.maxMana) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">+ Mana:</span>
+          <span class="tooltip-stat-value">+${item.stats.maxMana}</span>
+        </div>
+      `;
+    }
+    
+    // + Crit Chance (for shoulders)
+    if (item.armorType === 'shoulders' && item.stats.critChancePercent) {
+      html += `
+        <div class="tooltip-stat">
+          <span class="tooltip-stat-label">+ Crit Chance:</span>
+          <span class="tooltip-stat-value">+${item.stats.critChancePercent.toFixed(1)}%</span>
+        </div>
+      `;
     }
   }
   

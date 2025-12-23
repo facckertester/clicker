@@ -11406,6 +11406,7 @@ function closeCasinoModal() {
 const MERCHANT_PRICES = {
   WEAPON_ONEHANDED: 3000,
   WEAPON_TWOHANDED: 4000,
+  SHIELD: 3000,
   ARMOR: 1000,
   ACCESSORY: 1500
 };
@@ -11425,12 +11426,28 @@ function openMerchantModal() {
   // Render items
   renderMerchantItems();
   
+  // Update souls display
+  updateMerchantSoulsDisplay();
+  
   // Show first tab
   switchMerchantTab('weapons');
   
   // Open modal
   merchantModal.setAttribute('aria-hidden', 'false');
   document.body.classList.add('modal-open');
+}
+
+// Update merchant souls display
+function updateMerchantSoulsDisplay() {
+  const soulsDisplay = document.getElementById('merchant-souls-amount');
+  if (soulsDisplay && window.combatSystem) {
+    const souls = window.combatSystem.souls || 0;
+    if (window.combatSystem.formatNumber) {
+      soulsDisplay.textContent = window.combatSystem.formatNumber(souls);
+    } else {
+      soulsDisplay.textContent = souls.toLocaleString();
+    }
+  }
 }
 
 // Close merchant modal
@@ -11452,12 +11469,32 @@ function generateMerchantItems() {
     const weaponTypes = Object.keys(window.combatSystem.WEAPON_TYPES).filter(type => type !== 'SHIELD');
     weaponTypes.forEach(weaponType => {
       if (window.combatSystem && window.combatSystem.generateMerchantWeapon) {
-        const weapon = window.combatSystem.generateMerchantWeapon(weaponType);
-        if (weapon) {
-          merchantWeapons.push(weapon);
+        if (weaponType === 'DAGGER') {
+          // For daggers, generate both left and right versions
+          const leftDagger = window.combatSystem.generateMerchantWeapon(weaponType, 'left');
+          if (leftDagger) {
+            merchantWeapons.push(leftDagger);
+          }
+          const rightDagger = window.combatSystem.generateMerchantWeapon(weaponType, 'right');
+          if (rightDagger) {
+            merchantWeapons.push(rightDagger);
+          }
+        } else {
+          const weapon = window.combatSystem.generateMerchantWeapon(weaponType);
+          if (weapon) {
+            merchantWeapons.push(weapon);
+          }
         }
       }
     });
+    
+    // Add shield at the end
+    if (window.combatSystem && window.combatSystem.generateMerchantShield) {
+      const shield = window.combatSystem.generateMerchantShield();
+      if (shield) {
+        merchantWeapons.push(shield);
+      }
+    }
   }
   
   // Generate armor (all types)
@@ -11495,7 +11532,12 @@ function renderMerchantItems() {
   if (merchantWeaponsGrid) {
     merchantWeaponsGrid.innerHTML = '';
     merchantWeapons.forEach(weapon => {
-      const price = weapon.hands === 2 ? MERCHANT_PRICES.WEAPON_TWOHANDED : MERCHANT_PRICES.WEAPON_ONEHANDED;
+      let price;
+      if (weapon.weaponType === 'SHIELD') {
+        price = MERCHANT_PRICES.SHIELD;
+      } else {
+        price = weapon.hands === 2 ? MERCHANT_PRICES.WEAPON_TWOHANDED : MERCHANT_PRICES.WEAPON_ONEHANDED;
+      }
       const itemEl = createMerchantItemElement(weapon, price, 'weapon');
       merchantWeaponsGrid.appendChild(itemEl);
     });
@@ -11681,19 +11723,26 @@ function getMerchantItemDescription(item, itemType) {
     desc += `<strong style="color: var(--text);">On purchase:</strong><br>`;
     desc += `• Random rarity: <span style="color: #0070dd;">Rare</span>, <span style="color: #a335ee;">Epic</span>, or <span style="color: #ff8000;">Legendary</span><br>`;
     desc += `• Level: ${highestWave || '?'} (based on highest wave defeated)<br>`;
-    desc += `• Base damage + random stats (2-5 affixes)<br>`;
     
-    if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
-      desc += `• May have primary elemental damage (Fire, Poison, Cold, Lightning)<br>`;
-      desc += `• May have additional elemental damage<br>`;
-    } else if (item.weaponType === 'DAGGER') {
-      desc += `• May have additional elemental damage<br>`;
-    }
-    
-    if (weaponData && weaponData.hands === 2) {
-      desc += `• Two-handed weapon`;
+    if (item.weaponType === 'SHIELD') {
+      desc += `• Block chance + reflect chance<br>`;
+      desc += `• Random stats: 2-5 affixes<br>`;
+      desc += `• Possible stats: HP, Armor, Dodge, HP Regen, Max Mana`;
     } else {
-      desc += `• One-handed weapon`;
+      desc += `• Base damage + random stats (2-5 affixes)<br>`;
+      
+      if (item.weaponType === 'WAND' || item.weaponType === 'STAFF') {
+        desc += `• May have primary elemental damage (Fire, Poison, Cold, Lightning)<br>`;
+        desc += `• May have additional elemental damage<br>`;
+      } else if (item.weaponType === 'DAGGER') {
+        desc += `• May have additional elemental damage<br>`;
+      }
+      
+      if (weaponData && weaponData.hands === 2) {
+        desc += `• Two-handed weapon`;
+      } else {
+        desc += `• One-handed weapon`;
+      }
     }
     
     desc += `</div>`;
@@ -11798,31 +11847,41 @@ function buyMerchantItem(itemId, price) {
     soulsDisplay.textContent = newSouls.toLocaleString();
   }
   
-  // Generate stats for the item before adding to inventory
-  if (item.isMerchantTemplate) {
-    if (itemType === 'weapon' && window.combatSystem.generateMerchantWeaponStats) {
-      item = window.combatSystem.generateMerchantWeaponStats(item);
+  // Update merchant souls display if modal is open
+  updateMerchantSoulsDisplay();
+  
+  // Create a copy of the item for purchase (don't modify the template)
+  let purchasedItem = JSON.parse(JSON.stringify(item));
+  
+  // Generate stats for the purchased item
+  if (purchasedItem.isMerchantTemplate) {
+    if (itemType === 'weapon') {
+      // Check if it's a shield
+      if (purchasedItem.weaponType === 'SHIELD' && window.combatSystem.generateMerchantShieldStats) {
+        purchasedItem = window.combatSystem.generateMerchantShieldStats(purchasedItem);
+      } else if (window.combatSystem.generateMerchantWeaponStats) {
+        purchasedItem = window.combatSystem.generateMerchantWeaponStats(purchasedItem);
+      }
     } else if (itemType === 'armor' && window.combatSystem.generateMerchantArmorStats) {
-      item = window.combatSystem.generateMerchantArmorStats(item);
+      purchasedItem = window.combatSystem.generateMerchantArmorStats(purchasedItem);
     } else if (itemType === 'accessory' && window.combatSystem.generateMerchantAccessoryStats) {
-      item = window.combatSystem.generateMerchantAccessoryStats(item);
+      purchasedItem = window.combatSystem.generateMerchantAccessoryStats(purchasedItem);
     }
   }
   
-  // Add item to inventory
-  window.combatSystem.addItemToInventory(item);
-  
-  // Remove item from merchant
-  if (itemType === 'weapon') {
-    merchantWeapons = merchantWeapons.filter(w => w.id !== itemId);
-  } else if (itemType === 'armor') {
-    merchantArmor = merchantArmor.filter(a => a.id !== itemId);
-  } else if (itemType === 'accessory') {
-    merchantAccessories = merchantAccessories.filter(acc => acc.id !== itemId);
+  // Generate new unique ID for purchased item
+  if (window.combatSystem && typeof window.combatSystem.generateUniqueItemId === 'function') {
+    purchasedItem.id = window.combatSystem.generateUniqueItemId(purchasedItem.type);
+  } else {
+    // Fallback: use timestamp-based ID
+    purchasedItem.id = `${purchasedItem.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
   
-  // Re-render
-  renderMerchantItems();
+  // Add purchased item to inventory (template stays in merchant - infinite stock)
+  window.combatSystem.addItemToInventory(purchasedItem);
+  
+  // Don't remove item from merchant - it's infinite stock
+  // No need to re-render as items stay in merchant
   
   toast(`Purchased ${item.name}!`, 'good');
   
@@ -12696,5 +12755,18 @@ setInterval(() => {
   checkUberUnlock();
   renderUber();
 }, 1000);
+
+// ======= Cursed Pit event handlers =======
+// Summon boss button
+const summonBossBtn = document.getElementById('summon-boss-btn');
+if (summonBossBtn) {
+  summonBossBtn.addEventListener('click', () => {
+    if (window.combatSystem && window.combatSystem.summonBoss) {
+      window.combatSystem.summonBoss();
+    } else if (typeof summonBoss === 'function') {
+      summonBoss();
+    }
+  });
+}
 
 

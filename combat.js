@@ -177,7 +177,17 @@ let combatSystem = {
   countdownTimer: null,
   countdownSeconds: 0,
   lastWaveDefeated: false, // Track if last wave was defeated
-  highestWaveDefeated: 0 // Track highest wave defeated for replay system
+  highestWaveDefeated: 0, // Track highest wave defeated for replay system
+  
+  // Cursed Pit system
+  pitLevel: 1,
+  pitProgress: 0, // 0-100
+  currentWave: null, // Current wave of enemies
+  enemies: [], // Array of current enemies
+  waveNumber: 0, // Current wave number in the pit
+  bossSummoned: false, // Whether boss has been summoned
+  pitSeed: null, // Seed for deterministic generation
+  rareItemChanceBonus: 0 // Bonus chance for rare items after boss kill
 };
 
 // Item rarities
@@ -320,28 +330,24 @@ function generateItem(bossLevel, rarity) {
     const weaponType = weaponTypes[Math.floor(Math.random() * weaponTypes.length)];
     const weaponData = WEAPON_TYPES[weaponType];
     
-    // Calculate damage based on weapon type base damage and level scaling
-    // REBALANCE: Reduced damage scaling (proposal 8)
-    // Damage scales: baseDamage * (1 + itemLevel * 0.08) * rarity multiplier (reduced from 0.1)
-    const damage = Math.floor(weaponData.baseDamage * (1 + itemLevel * 0.08) * rarityData.multiplier);
+    // ===== ОСНОВНЫЕ СТАТЫ (всегда есть) =====
+    // Урон: базовое значение 1-4, масштабируется уровнем и редкостью
+    const baseDamageRoll = 1 + Math.floor(Math.random() * 4); // 1-4
+    const damage = Math.floor(baseDamageRoll * (1 + itemLevel * 0.1) * rarityData.multiplier);
     
-    // Attack speed based on weapon type (rarity slightly improves speed)
-    const attackSpeed = weaponData.attackSpeed 
-      ? weaponData.attackSpeed.min + (weaponData.attackSpeed.max - weaponData.attackSpeed.min) * (0.8 + (rarityData.multiplier - 1) * 0.05)
-      : null;
+    // Скорость атаки: зависит от типа оружия
+    let attackSpeed = 1.0;
+    if (weaponData.attackSpeed) {
+      attackSpeed = weaponData.attackSpeed.min + (weaponData.attackSpeed.max - weaponData.attackSpeed.min) * (0.8 + (rarityData.multiplier - 1) * 0.05);
+    }
     
-    // Crit chance based on weapon type base and level scaling
-    // REBALANCE: Limited crit chance growth (proposal 5)
-    // Higher rarity = better crit chance, but most items capped at 70%, only Legendary can reach 95%
+    // Шанс крита: зависит от типа оружия
     const critChanceBase = weaponData.critChanceBase || 0.5;
-    const baseCritChance = Math.floor((critChanceBase * (1 + itemLevel * 0.15) * rarityData.multiplier) * 10) / 10;
-    // Limit crit chance based on rarity: Common/Uncommon/Rare/Epic max 70%, Legendary max 95%
-    const critChance = Math.min(rarity === 'LEGENDARY' ? 95 : 70, baseCritChance);
+    const critChance = Math.floor((critChanceBase * (1 + itemLevel * 0.15) * rarityData.multiplier) * 10) / 10;
     
-    // Crit multiplier based on weapon type base and level scaling
-    // REBALANCE: Reduced crit multiplier scaling (was 0.1, now 0.05)
+    // Crit multiplier: базовое значение из weaponData, масштабируется уровнем и редкостью
     const critMultiplierBase = weaponData.critMultiplierBase || 0.1;
-    const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.05) * rarityData.multiplier) * 100) / 100;
+    const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.1) * rarityData.multiplier) * 100) / 100;
     
     // Determine weapon damage type based on weapon type FIRST
     // Default: SWORD, TWOHANDED_SWORD, DAGGER, BOW, CROSSBOW = PHYSICAL
@@ -461,31 +467,37 @@ function generateItem(bossLevel, rarity) {
       weaponStats.critMultiplier = critMultiplier;
     }
     
-    // Random secondary affixes (like Diablo 3/PoE)
-    // Affix count: Common 0-1, Uncommon 1-2, Rare 2-3, Epic 2-4, Legendary 3-5
-    const affixCountRanges = {
-      'COMMON': { min: 0, max: 1 },
-      'UNCOMMON': { min: 1, max: 2 },
-      'RARE': { min: 2, max: 3 },
-      'EPIC': { min: 2, max: 4 },
-      'LEGENDARY': { min: 3, max: 5 }
-    };
+    // ===== СЛУЧАЙНЫЕ СТАТЫ =====
+    // Определяем количество случайных статов в зависимости от редкости
+    let affixCount = 1;
+    if (rarity === 'LEGENDARY') affixCount = 4 + Math.floor(Math.random() * 3); // 4-6
+    else if (rarity === 'EPIC') affixCount = 3 + Math.floor(Math.random() * 3); // 3-5
+    else if (rarity === 'RARE') affixCount = 2 + Math.floor(Math.random() * 3); // 2-4
+    else if (rarity === 'UNCOMMON') affixCount = 1 + Math.floor(Math.random() * 3); // 1-3
+    else affixCount = 1 + Math.floor(Math.random() * 2); // 1-2 (COMMON)
     
-    const affixRange = affixCountRanges[rarity] || { min: 0, max: 1 };
-    const affixCount = affixRange.min + Math.floor(Math.random() * (affixRange.max - affixRange.min + 1));
-    
-    // Available secondary affixes for weapons
-    const availableAffixes = ['hp', 'armor', 'dodge', 'hpRegen', 'maxMana'];
+    // Доступные случайные статы
+    const availableAffixes = [
+      'hp',                    // + к жизни
+      'armor',                 // + к броне
+      'dodge',                 // + к уклонению
+      'hpRegen',               // + к регену жизни
+      'attackSpeedPercent',   // + к скорости атаки в %
+      'critChancePercent',    // + к шансу крита в %
+      'critMultiplier',       // + к множителю крита
+      'additionalDamage',     // доп урон стихией/физикой/магией
+      'elementResistance'     // + к сопротивлению стихии
+    ];
     const selectedAffixes = [];
     
-    // Randomly select affixes without duplicates
+    // Выбираем случайные статы
     for (let i = 0; i < affixCount && availableAffixes.length > 0; i++) {
       const randomIndex = Math.floor(Math.random() * availableAffixes.length);
       const affix = availableAffixes.splice(randomIndex, 1)[0];
       selectedAffixes.push(affix);
     }
     
-    // Generate values for selected affixes (scaled by item level and rarity)
+    // Генерируем значения для выбранных статов
     selectedAffixes.forEach(affix => {
       let baseValue = 0;
       switch (affix) {
@@ -505,9 +517,51 @@ function generateItem(bossLevel, rarity) {
           baseValue = (0.1 + itemLevel * 0.03) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
           weaponStats.hpRegen = Math.floor(baseValue * 10) / 10;
           break;
-        case 'maxMana':
-          baseValue = (5 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
-          weaponStats.maxMana = Math.floor(baseValue);
+        case 'attackSpeedPercent':
+          // + к скорости атаки в % (множитель)
+          baseValue = (5 + itemLevel * 0.5) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.attackSpeedPercent = Math.floor(baseValue * 10) / 10;
+          break;
+        case 'critChancePercent':
+          // + к шансу крита в % (добавка)
+          baseValue = (0.5 + itemLevel * 0.1) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.critChancePercent = Math.floor(baseValue * 10) / 10;
+          break;
+        case 'critMultiplier':
+          // + к множителю крита (сильно уменьшен еще больше)
+          baseValue = (0.005 + itemLevel * 0.001) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          weaponStats.critMultiplier = Math.floor(baseValue * 100) / 100;
+          break;
+        case 'additionalDamage':
+          // Доп урон стихией/физикой/магией
+          const damageTypes = ['PHYSICAL', 'MAGICAL'];
+          const elements = Object.keys(ELEMENT_TYPES);
+          const allDamageTypes = [...damageTypes, ...elements];
+          const randomDamageType = allDamageTypes[Math.floor(Math.random() * allDamageTypes.length)];
+          
+          if (elements.includes(randomDamageType)) {
+            // Элементальный урон
+            const elementDamagePercent = 0.05 + Math.random() * 0.05;
+            const elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
+            if (elementDamage > 0) {
+              weaponStats[`elementDamage_${randomDamageType}`] = elementDamage;
+            }
+          } else {
+            // Физический или магический урон
+            const additionalDamagePercent = 0.05 + Math.random() * 0.05;
+            const additionalDamage = Math.floor(damage * additionalDamagePercent * rarityData.multiplier);
+            if (additionalDamage > 0) {
+              weaponStats[`additionalDamage_${randomDamageType}`] = additionalDamage;
+            }
+          }
+          break;
+        case 'elementResistance':
+          // + к сопротивлению стихии (сильно уменьшено)
+          const resistanceElements = Object.keys(ELEMENT_TYPES);
+          const resistanceElement = resistanceElements[Math.floor(Math.random() * resistanceElements.length)];
+          baseValue = (0.5 + itemLevel * 0.05) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+          const resistanceKey = `${resistanceElement.toLowerCase()}Resistance`;
+          weaponStats[resistanceKey] = Math.floor(baseValue * 10) / 10;
           break;
       }
     });
@@ -732,14 +786,34 @@ function calculatePlayerStats() {
             bowCrossbowDamage += item.stats.damage * statMultiplier;
           }
         }
-        if (item.stats.critChance) baseStats.critChance += item.stats.critChance * statMultiplier;
+        // Основной стат крита из оружия
+        if (item.critChance) {
+          // Основной шанс крита применяется как базовая добавка
+          baseStats.critChance += item.critChance * statMultiplier;
+        }
+        // Случайный стат: + к шансу крита в % (увеличивает основной шанс крита)
+        if (item.stats.critChancePercent && item.critChance) {
+          // Увеличиваем основной шанс крита на процент
+          const critIncrease = (item.critChance * item.stats.critChancePercent / 100) * statMultiplier;
+          baseStats.critChance += critIncrease;
+        }
+        // Случайный стат: + к множителю крита
         if (item.stats.critMultiplier) baseStats.critMultiplier += item.stats.critMultiplier * statMultiplier;
       }
       if (item.stats.blockChance) baseStats.blockChance += item.stats.blockChance * statMultiplier;
       if (item.stats.reflectChance) baseStats.reflectChance += item.stats.reflectChance * statMultiplier;
       if (item.stats.maxMana) baseStats.maxMana += item.stats.maxMana * statMultiplier;
       if (item.stats.manaRegen) baseStats.manaRegen += item.stats.manaRegen * statMultiplier;
-      if (item.attackSpeed && slot === 'weaponRight') baseStats.attackSpeed = item.attackSpeed;
+      
+      // Основной стат: скорость атаки (0.86) - применяется только из правого оружия
+      if (item.attackSpeed && slot === 'weaponRight') {
+        baseStats.attackSpeed = item.attackSpeed;
+      }
+      
+      // Случайный стат: + к скорости атаки в % (множитель)
+      if (item.stats.attackSpeedPercent) {
+        baseStats.attackSpeed *= (1 + item.stats.attackSpeedPercent / 100);
+      }
       
       // Track element damage for class bonuses
       if (item.stats) {
@@ -750,6 +824,16 @@ function calculatePlayerStats() {
               elementDamageFromWeapons[element] = 0;
             }
             elementDamageFromWeapons[element] += item.stats[statKey] * statMultiplier;
+          }
+          // Случайный стат: дополнительный урон стихией/физикой/магией
+          if (statKey.startsWith('additionalDamage_')) {
+            const damageType = statKey.replace('additionalDamage_', '');
+            if (!elementDamageFromWeapons[damageType]) {
+              elementDamageFromWeapons[damageType] = 0;
+            }
+            elementDamageFromWeapons[damageType] += item.stats[statKey] * statMultiplier;
+            // Также добавляем к общему урону
+            baseStats.damage += item.stats[statKey] * statMultiplier;
           }
         });
       }
@@ -850,6 +934,205 @@ function calculatePlayerStats() {
   });
 }
 
+// Enemy affixes (modifiers)
+const ENEMY_AFFIXES = {
+  INCREASED_DAMAGE: {
+    name: 'Increased Damage',
+    description: '+50% damage',
+    apply: (enemy, level) => {
+      enemy.damage = Math.floor(enemy.damage * 1.5);
+    }
+  },
+  INCREASED_HP: {
+    name: 'Increased HP',
+    description: '+100% HP',
+    apply: (enemy, level) => {
+      enemy.hp = Math.floor(enemy.hp * 2);
+      enemy.maxHp = enemy.hp;
+    }
+  },
+  FAST_ATTACK: {
+    name: 'Fast Attack',
+    description: '+50% attack speed',
+    apply: (enemy, level) => {
+      enemy.attackSpeed = enemy.attackSpeed * 1.5;
+    }
+  },
+  ELEMENTAL_DAMAGE: {
+    name: 'Elemental',
+    description: 'Deals elemental damage',
+    apply: (enemy, level) => {
+      const elements = Object.keys(ELEMENT_TYPES);
+      enemy.element = elements[Math.floor(Math.random() * elements.length)];
+    }
+  },
+  REGENERATION: {
+    name: 'Regeneration',
+    description: 'Regenerates HP over time',
+    apply: (enemy, level) => {
+      enemy.hpRegen = (enemy.maxHp * 0.01) * (1 + level * 0.1);
+    }
+  },
+  AURA_ENHANCEMENT: {
+    name: 'Aura',
+    description: 'Enhances nearby enemies',
+    apply: (enemy, level) => {
+      enemy.hasAura = true;
+      enemy.auraBonus = 0.2; // 20% bonus to nearby enemies
+    }
+  },
+  DEATH_EFFECT: {
+    name: 'Death Effect',
+    description: 'Explodes on death',
+    apply: (enemy, level) => {
+      enemy.deathEffect = 'explosion';
+      enemy.deathDamage = Math.floor(enemy.damage * 2);
+    }
+  },
+  POISON_ON_DEATH: {
+    name: 'Poison Cloud',
+    description: 'Creates poison cloud on death',
+    apply: (enemy, level) => {
+      enemy.deathEffect = 'poison';
+      enemy.deathDamage = Math.floor(enemy.damage * 1.5);
+    }
+  },
+  SUMMON_ON_DEATH: {
+    name: 'Summoner',
+    description: 'Summons minions on death',
+    apply: (enemy, level) => {
+      enemy.deathEffect = 'summon';
+      enemy.summonCount = 2;
+    }
+  }
+};
+
+// Unique enemies (mini-bosses)
+const UNIQUE_ENEMIES = [
+  { name: 'The Corrupted', baseHp: 500, baseDamage: 30, affixes: ['INCREASED_HP', 'INCREASED_DAMAGE', 'REGENERATION'] },
+  { name: 'The Cursed', baseHp: 450, baseDamage: 35, affixes: ['ELEMENTAL_DAMAGE', 'FAST_ATTACK', 'DEATH_EFFECT'] },
+  { name: 'The Warden', baseHp: 600, baseDamage: 25, affixes: ['INCREASED_HP', 'AURA_ENHANCEMENT', 'REGENERATION'] },
+  { name: 'The Plaguebearer', baseHp: 400, baseDamage: 28, affixes: ['POISON_ON_DEATH', 'REGENERATION', 'ELEMENTAL_DAMAGE'] }
+];
+
+// Generate enemy based on type and level
+function generateEnemy(type, level) {
+  const baseHp = 50 + level * 10;
+  const baseDamage = 5 + level * 1;
+  const baseAttackSpeed = 0.8 - (level * 0.01);
+  const minAttackSpeed = 0.3;
+  
+  let enemy = {
+    id: `enemy_${Date.now()}_${Math.random()}`,
+    type: type, // 'NORMAL', 'ELITE', 'RARE', 'UNIQUE'
+    hp: baseHp,
+    maxHp: baseHp,
+    damage: baseDamage,
+    attackSpeed: Math.max(minAttackSpeed, baseAttackSpeed),
+    armor: Math.floor(level * 0.5),
+    dodgeChance: Math.min(15, level * 0.2),
+    level: level,
+    affixes: [],
+    lastAttackTime: Date.now(),
+    effects: {
+      stunned: 0,
+      slowed: 0,
+      poisoned: 0,
+      burning: [],
+      frozen: 0,
+      shocked: [],
+      bleeding: [],
+      armorReduction: 0
+    }
+  };
+  
+  // Apply type-specific modifiers
+  if (type === 'ELITE') {
+    enemy.hp = Math.floor(enemy.hp * 2);
+    enemy.maxHp = enemy.hp;
+    enemy.damage = Math.floor(enemy.damage * 1.5);
+    // 1-2 affixes
+    const affixCount = 1 + Math.floor(Math.random() * 2);
+    applyRandomAffixes(enemy, affixCount, level);
+  } else if (type === 'RARE') {
+    enemy.hp = Math.floor(enemy.hp * 4);
+    enemy.maxHp = enemy.hp;
+    enemy.damage = Math.floor(enemy.damage * 2);
+    // 3-4 affixes
+    const affixCount = 3 + Math.floor(Math.random() * 2);
+    applyRandomAffixes(enemy, affixCount, level);
+  } else if (type === 'UNIQUE') {
+    const uniqueTemplate = UNIQUE_ENEMIES[Math.floor(Math.random() * UNIQUE_ENEMIES.length)];
+    enemy.name = uniqueTemplate.name;
+    enemy.hp = Math.floor(uniqueTemplate.baseHp * (1 + level * 0.2));
+    enemy.maxHp = enemy.hp;
+    enemy.damage = Math.floor(uniqueTemplate.baseDamage * (1 + level * 0.15));
+    // Apply unique affixes
+    uniqueTemplate.affixes.forEach(affixKey => {
+      if (ENEMY_AFFIXES[affixKey]) {
+        ENEMY_AFFIXES[affixKey].apply(enemy, level);
+        enemy.affixes.push(affixKey);
+      }
+    });
+  } else {
+    // NORMAL enemy - 0-1 affix
+    if (Math.random() < 0.3) {
+      applyRandomAffixes(enemy, 1, level);
+    }
+  }
+  
+  return enemy;
+}
+
+// Apply random affixes to enemy
+function applyRandomAffixes(enemy, count, level) {
+  const availableAffixes = Object.keys(ENEMY_AFFIXES);
+  const selectedAffixes = [];
+  
+  for (let i = 0; i < count && availableAffixes.length > 0; i++) {
+    const randomIndex = Math.floor(Math.random() * availableAffixes.length);
+    const affixKey = availableAffixes[randomIndex];
+    selectedAffixes.push(affixKey);
+    availableAffixes.splice(randomIndex, 1);
+    
+    // Apply affix
+    if (ENEMY_AFFIXES[affixKey]) {
+      ENEMY_AFFIXES[affixKey].apply(enemy, level);
+      enemy.affixes.push(affixKey);
+    }
+  }
+}
+
+// Generate wave of enemies
+function generateWave(level) {
+  const wave = {
+    enemies: [],
+    waveNumber: combatSystem.waveNumber + 1
+  };
+  
+  // Determine wave composition based on level
+  const roll = Math.random();
+  
+  if (roll < 0.001) { // Very rare: Unique enemy
+    wave.enemies.push(generateEnemy('UNIQUE', level));
+  } else if (roll < 0.05) { // Rare: Rare enemy
+    wave.enemies.push(generateEnemy('RARE', level));
+  } else if (roll < 0.35) { // 30%: Elite + normal enemies
+    wave.enemies.push(generateEnemy('ELITE', level));
+    const normalCount = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < normalCount; i++) {
+      wave.enemies.push(generateEnemy('NORMAL', level));
+    }
+  } else { // Common: 2-6 normal enemies
+    const normalCount = 2 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < normalCount; i++) {
+      wave.enemies.push(generateEnemy('NORMAL', level));
+    }
+  }
+  
+  return wave;
+}
+
 // Generate boss
 function generateBoss(wave) {
   // Bosses have much more HP (10-20x more), but attack slower and deal less damage
@@ -932,8 +1215,7 @@ function generateBoss(wave) {
   };
 }
 
-// Start combat with countdown
-// DIABLO 3/POE STYLE: Allow replaying previous bosses by specifying wave
+// Start Cursed Pit
 function startCombat(waveNumber = null) {
   // Check if combat is already active
   if (combatSystem.active) {
@@ -941,40 +1223,134 @@ function startCombat(waveNumber = null) {
     return;
   }
   
-  // Check if countdown is already running
-  if (combatSystem.countdownTimer !== null) {
-    toast('Countdown already in progress!', 'warn');
+  // Check if class is selected
+  if (!save || !save.combat || !save.combat.playerClass) {
+    showClassSelectionModal();
     return;
   }
   
-  // If wave number is specified, use it (for replaying previous bosses)
+  // Initialize Cursed Pit
   if (waveNumber !== null && waveNumber > 0) {
-    // Check if player has defeated this wave before (for replay)
-    if (waveNumber <= combatSystem.highestWaveDefeated + 1) {
-      // Allow replaying any defeated wave or next wave
-      combatSystem.bossWave = waveNumber;
-      combatSystem.lastWaveDefeated = false; // Reset flag for replay
-    } else {
-      toast(`You must defeat wave ${combatSystem.highestWaveDefeated + 1} first!`, 'warn');
-      return;
-    }
+    combatSystem.pitLevel = waveNumber;
   } else if (combatSystem.lastWaveDefeated) {
-    // Normal progression - move to next wave
-    combatSystem.bossWave++;
-    combatSystem.lastWaveDefeated = false;
-  } else if (combatSystem.bossWave === 0) {
-    // First time starting combat - check if class is selected
-    if (!save || !save.combat || !save.combat.playerClass) {
-      // Show class selection modal
-      showClassSelectionModal();
-      return;
-    }
-    combatSystem.bossWave = 1;
+    combatSystem.pitLevel++;
+  } else if (combatSystem.pitLevel === 0) {
+    combatSystem.pitLevel = 1;
   }
-  // Otherwise, retry current wave (no change)
   
-  // Start countdown
-  startCombatCountdown();
+  // Reset pit state
+  combatSystem.pitProgress = 0;
+  combatSystem.waveNumber = 0;
+  combatSystem.bossSummoned = false;
+  combatSystem.enemies = [];
+  combatSystem.currentWave = null;
+  combatSystem.pitSeed = Date.now();
+  
+  // Start pit
+  startCursedPit();
+}
+
+// Start Cursed Pit (no countdown, immediate start)
+function startCursedPit() {
+  combatSystem.active = true;
+  combatSystem.lastAttackTime = Date.now();
+  calculatePlayerStats();
+  combatSystem.player.hp = combatSystem.player.maxHp;
+  
+  // Generate first wave
+  spawnNextWave();
+  
+  renderCombat();
+  updateCombatLoop();
+}
+
+// Spawn next wave of enemies
+function spawnNextWave() {
+  combatSystem.waveNumber++;
+  combatSystem.currentWave = generateWave(combatSystem.pitLevel);
+  combatSystem.enemies = [...combatSystem.currentWave.enemies];
+  
+  // Update UI
+  renderEnemies();
+}
+
+// Add progress when enemy is killed
+function addProgress(enemyType) {
+  let progressGain = 0;
+  
+  switch (enemyType) {
+    case 'NORMAL':
+      progressGain = 1 + Math.floor(Math.random() * 2); // 1-2%
+      break;
+    case 'ELITE':
+      progressGain = 4 + Math.floor(Math.random() * 3); // 4-6%
+      break;
+    case 'RARE':
+      progressGain = 8 + Math.floor(Math.random() * 5); // 8-12%
+      break;
+    case 'UNIQUE':
+      progressGain = 15 + Math.floor(Math.random() * 11); // 15-25%
+      break;
+  }
+  
+  combatSystem.pitProgress = Math.min(100, combatSystem.pitProgress + progressGain);
+  updateProgressBar();
+  
+  // Check if boss can be summoned
+  if (combatSystem.pitProgress >= 100 && !combatSystem.bossSummoned) {
+    showSummonBossButton();
+  }
+}
+
+// Update progress bar UI
+function updateProgressBar() {
+  const progressBar = document.getElementById('pit-progress-bar');
+  const progressText = document.getElementById('pit-progress-text');
+  
+  if (progressBar) {
+    progressBar.style.width = `${combatSystem.pitProgress}%`;
+  }
+  
+  if (progressText) {
+    progressText.textContent = `${Math.floor(combatSystem.pitProgress)}%`;
+  }
+}
+
+// Show summon boss button
+function showSummonBossButton() {
+  const summonBtn = document.getElementById('summon-boss-btn');
+  if (summonBtn) {
+    summonBtn.style.display = 'block';
+  }
+}
+
+// Hide summon boss button
+function hideSummonBossButton() {
+  const summonBtn = document.getElementById('summon-boss-btn');
+  if (summonBtn) {
+    summonBtn.style.display = 'none';
+  }
+}
+
+// Summon boss
+function summonBoss() {
+  if (combatSystem.bossSummoned || combatSystem.pitProgress < 100) {
+    return;
+  }
+  
+  combatSystem.bossSummoned = true;
+  combatSystem.boss = generateBoss(combatSystem.pitLevel);
+  combatSystem.enemies = []; // Clear enemies
+  
+  // Hide enemies container, show boss section
+  const enemiesContainer = document.getElementById('enemies-container');
+  const bossSection = document.getElementById('boss-section');
+  
+  if (enemiesContainer) enemiesContainer.style.display = 'none';
+  if (bossSection) bossSection.style.display = 'block';
+  
+  hideSummonBossButton();
+  renderCombat();
 }
 
 // Start countdown before combat
@@ -1673,8 +2049,36 @@ function unequipItem(slot) {
 
 // Player attack
 function playerAttack() {
-  if (!combatSystem.active || !combatSystem.boss) {
+  if (!combatSystem.active) {
     toast('No active combat!', 'warn');
+    return;
+  }
+  
+  // Check if we're fighting boss or enemies
+  const isBossFight = combatSystem.boss && combatSystem.bossSummoned;
+  const hasEnemies = combatSystem.enemies && combatSystem.enemies.length > 0;
+  
+  if (!isBossFight && !hasEnemies) {
+    toast('No enemies to attack!', 'warn');
+    return;
+  }
+  
+  // If fighting boss, use old logic
+  if (isBossFight) {
+    playerAttackBoss();
+    return;
+  }
+  
+  // If fighting enemies, attack random enemy
+  if (hasEnemies) {
+    playerAttackEnemy();
+    return;
+  }
+}
+
+// Attack boss (old logic)
+function playerAttackBoss() {
+  if (!combatSystem.boss) {
     return;
   }
   
@@ -1899,6 +2303,209 @@ function playerAttack() {
   
   renderCombat();
   updateAttackButton();
+}
+
+// Attack enemy (new function for Cursed Pit)
+function playerAttackEnemy() {
+  if (!combatSystem.enemies || combatSystem.enemies.length === 0) {
+    return;
+  }
+  
+  // Check if player has a weapon equipped
+  const rightWeapon = combatSystem.player.equipped.weaponRight;
+  if (!rightWeapon) {
+    toast('You need a weapon to attack! Equip a weapon from inventory.', 'bad');
+    return;
+  }
+  
+  const now = Date.now();
+  
+  // Get attack speed from weapon or default to 1.0
+  let attackSpeed = 1.0;
+  if (rightWeapon && rightWeapon.attackSpeed) {
+    attackSpeed = rightWeapon.attackSpeed;
+  } else {
+    attackSpeed = 1.0;
+  }
+  
+  const attackCooldown = 1000 / attackSpeed;
+  
+  // Check cooldown
+  if (now - combatSystem.lastAttackTime < attackCooldown) {
+    const remainingCooldown = ((attackCooldown - (now - combatSystem.lastAttackTime)) / 1000).toFixed(1);
+    toast(`Attack on cooldown! ${remainingCooldown}s remaining`, 'warn');
+    return;
+  }
+  
+  combatSystem.lastAttackTime = now;
+  
+  // Select random enemy to attack
+  const aliveEnemies = combatSystem.enemies.filter(e => e.hp > 0);
+  if (aliveEnemies.length === 0) {
+    // All enemies dead, spawn next wave
+    onWaveCleared();
+    return;
+  }
+  
+  const targetEnemy = aliveEnemies[Math.floor(Math.random() * aliveEnemies.length)];
+  
+  // Calculate damage (similar to boss attack but simplified)
+  let damage = combatSystem.player.damage;
+  
+  // Check for crit
+  let critChance = combatSystem.player.critChance;
+  let isCrit = false;
+  if (Math.random() * 100 < critChance) {
+    damage *= combatSystem.player.critMultiplier;
+    isCrit = true;
+    showCombatText('CRIT!', '#ffd700', targetEnemy, 'left', '1.5rem');
+  }
+  
+  // Check enemy dodge
+  if (targetEnemy.dodgeChance && Math.random() * 100 < targetEnemy.dodgeChance) {
+    showCombatText('MISS!', '#888888', targetEnemy);
+    renderEnemies();
+    updateAttackButton();
+    return;
+  }
+  
+  // Apply enemy armor
+  let enemyArmor = targetEnemy.armor || 0;
+  if (enemyArmor > 0) {
+    const damageReduction = Math.min(0.7, enemyArmor / (enemyArmor + 100));
+    damage = Math.max(1, damage * (1 - damageReduction));
+  }
+  
+  // Apply damage
+  targetEnemy.hp -= damage;
+  targetEnemy.hp = Math.max(0, targetEnemy.hp);
+  showCombatText(`-${Math.floor(damage)}`, '#ff6666', targetEnemy, isCrit ? 'left' : 'center', isCrit ? '1.5rem' : null);
+  
+  // Check if enemy is dead
+  if (targetEnemy.hp <= 0) {
+    targetEnemy.hp = 0;
+    onEnemyKilled(targetEnemy);
+  }
+  
+  renderEnemies();
+  updateAttackButton();
+}
+
+// Handle enemy killed
+function onEnemyKilled(enemy) {
+  // Add progress
+  addProgress(enemy.type);
+  
+  // Remove enemy from array
+  combatSystem.enemies = combatSystem.enemies.filter(e => e.id !== enemy.id);
+  
+  // Check if all enemies are dead
+  const aliveEnemies = combatSystem.enemies.filter(e => e.hp > 0);
+  if (aliveEnemies.length === 0) {
+    onWaveCleared();
+  }
+}
+
+// Handle wave cleared
+function onWaveCleared() {
+  // Give items for cleared wave
+  giveWaveRewards();
+  
+  // Spawn next wave (if progress < 100%)
+  if (combatSystem.pitProgress < 100) {
+    spawnNextWave();
+  } else {
+    // Progress is 100%, wait for boss summon
+    combatSystem.enemies = [];
+    renderEnemies();
+  }
+}
+
+// Give rewards for cleared wave
+function giveWaveRewards() {
+  if (!combatSystem.currentWave) return;
+  
+  // Generate item based on pit level and random rarity
+  const rarities = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+  const rarityWeights = [0.4, 0.3, 0.2, 0.08, 0.02]; // Weights for each rarity
+  const totalWeight = rarityWeights.reduce((a, b) => a + b, 0);
+  let random = Math.random() * totalWeight;
+  let selectedRarity = 'COMMON';
+  
+  for (let i = 0; i < rarities.length; i++) {
+    random -= rarityWeights[i];
+    if (random <= 0) {
+      selectedRarity = rarities[i];
+      break;
+    }
+  }
+  
+  // Apply rare item chance bonus from boss kills
+  if (combatSystem.rareItemChanceBonus > 0 && selectedRarity !== 'LEGENDARY') {
+    const bonusRoll = Math.random() * 100;
+    if (bonusRoll < combatSystem.rareItemChanceBonus) {
+      // Upgrade rarity
+      const currentIndex = rarities.indexOf(selectedRarity);
+      if (currentIndex < rarities.length - 1) {
+        selectedRarity = rarities[currentIndex + 1];
+      }
+    }
+  }
+  
+  const item = generateItem(combatSystem.pitLevel, selectedRarity);
+  if (item) {
+    addItemToInventory(item);
+    toast(`Wave cleared! Received ${ITEM_RARITY[selectedRarity].name} ${item.type === 'weapon' ? 'weapon' : 'armor'}!`, 'good');
+  }
+}
+
+// Render enemies on screen
+function renderEnemies() {
+  const enemiesContainer = document.getElementById('enemies-container');
+  if (!enemiesContainer) return;
+  
+  enemiesContainer.innerHTML = '';
+  
+  if (!combatSystem.enemies || combatSystem.enemies.length === 0) {
+    return;
+  }
+  
+  combatSystem.enemies.forEach(enemy => {
+    if (enemy.hp <= 0) return; // Skip dead enemies
+    
+    const enemyElement = document.createElement('div');
+    enemyElement.className = 'enemy-card';
+    enemyElement.id = enemy.id;
+    enemyElement.style.cssText = `
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid ${enemy.type === 'UNIQUE' ? '#ff8000' : enemy.type === 'RARE' ? '#a335ee' : enemy.type === 'ELITE' ? '#0070dd' : '#9d9d9d'};
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 200px;
+      position: relative;
+    `;
+    
+    const hpPercent = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
+    
+    enemyElement.innerHTML = `
+      <div style="font-weight: bold; margin-bottom: 4px; color: ${enemy.type === 'UNIQUE' ? '#ff8000' : enemy.type === 'RARE' ? '#a335ee' : enemy.type === 'ELITE' ? '#0070dd' : '#9d9d9d'};">
+        ${enemy.name || `${enemy.type} Enemy`}
+      </div>
+      <div style="width: 100%; height: 8px; background: rgba(255, 255, 255, 0.2); border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+        <div style="width: ${hpPercent}%; height: 100%; background: ${hpPercent > 50 ? '#4ade80' : hpPercent > 25 ? '#fbbf24' : '#ef4444'}; transition: width 0.3s;"></div>
+      </div>
+      <div style="font-size: 0.85em; color: var(--text-dim);">
+        ${Math.floor(enemy.hp)} / ${Math.floor(enemy.maxHp)} HP
+      </div>
+      ${enemy.affixes && enemy.affixes.length > 0 ? `
+        <div style="margin-top: 4px; font-size: 0.75em; color: var(--text-dim);">
+          ${enemy.affixes.map(affix => ENEMY_AFFIXES[affix]?.name || affix).join(', ')}
+        </div>
+      ` : ''}
+    `;
+    
+    enemiesContainer.appendChild(enemyElement);
+  });
 }
 
 // Apply element effect
@@ -2337,7 +2944,7 @@ function updateCombatLoop() {
   const now = Date.now();
   
   // Auto-attack if enabled
-  if (autoAttackEnabled && combatSystem.boss && combatSystem.boss.hp > 0) {
+  if (autoAttackEnabled) {
     const rightWeapon = combatSystem.player.equipped.weaponRight;
     if (rightWeapon) {
       // Check if attack is off cooldown
@@ -2345,11 +2952,50 @@ function updateCombatLoop() {
       const attackCooldown = 1000 / attackSpeed;
       if (now - combatSystem.lastAttackTime >= attackCooldown) {
         // Check if player is frozen
-        if (!combatSystem.boss.playerEffects || !combatSystem.boss.playerEffects.frozen || now >= combatSystem.boss.playerEffects.frozen) {
-          playerAttack();
+        const isFrozen = (combatSystem.boss && combatSystem.boss.playerEffects && combatSystem.boss.playerEffects.frozen && now < combatSystem.boss.playerEffects.frozen);
+        if (!isFrozen) {
+          // Attack boss if boss is active, otherwise attack enemies
+          if (combatSystem.boss && combatSystem.bossSummoned && combatSystem.boss.hp > 0) {
+            playerAttack();
+          } else if (combatSystem.enemies && combatSystem.enemies.length > 0 && combatSystem.enemies.some(e => e.hp > 0)) {
+            playerAttack();
+          }
         }
       }
     }
+  }
+  
+  // Enemy attacks (if enemies are present)
+  if (combatSystem.enemies && combatSystem.enemies.length > 0 && !combatSystem.bossSummoned) {
+    combatSystem.enemies.forEach(enemy => {
+      if (enemy.hp <= 0) return;
+      
+      const enemyAttackCooldown = 1000 / enemy.attackSpeed;
+      if (now - enemy.lastAttackTime >= enemyAttackCooldown) {
+        enemy.lastAttackTime = now;
+        
+        // Check for dodge
+        if (Math.random() * 100 < combatSystem.player.dodgeChance) {
+          showCombatText('DODGE!', '#00ff00', combatSystem.player);
+          return;
+        }
+        
+        // Calculate damage
+        let damage = enemy.damage;
+        damage = Math.max(1, damage - combatSystem.player.armor * 0.5);
+        
+        // Apply damage
+        combatSystem.player.hp -= damage;
+        combatSystem.player.hp = Math.max(0, combatSystem.player.hp);
+        showCombatText(`-${Math.floor(damage)}`, '#ff6666', combatSystem.player, 'right');
+        
+        if (combatSystem.player.hp <= 0) {
+          combatSystem.player.hp = 0;
+          endCombat(false);
+          toast('You were defeated!', 'bad');
+        }
+      }
+    });
   }
   
   // Update player effects from boss
@@ -2590,7 +3236,8 @@ function updateCombatLoop() {
 // Track active combat texts to prevent overlap
 const activeCombatTexts = {
   boss: { left: [], center: [], right: [] },
-  player: { left: [], center: [], right: [] }
+  player: { left: [], center: [], right: [] },
+  enemy: { left: [], center: [], right: [] } // For enemy cards
 };
 
 // Show combat text
@@ -2600,8 +3247,31 @@ function showCombatText(text, color, target, direction = 'center', fontSize = nu
   const combatArena = document.querySelector('.combat-arena');
   if (!combatArena) return;
   
-  const targetKey = target === combatSystem.boss ? 'boss' : 'player';
-  const textQueue = activeCombatTexts[targetKey][direction];
+  // Check if target is an enemy (has id property and is in enemies array)
+  const isEnemy = target && target.id && combatSystem.enemies && combatSystem.enemies.some(e => e.id === target.id);
+  
+  let targetKey, targetEl;
+  
+  if (isEnemy) {
+    // Target is an enemy - find enemy card by ID
+    targetEl = document.getElementById(target.id);
+    targetKey = 'enemy'; // Use separate key for enemies
+  } else if (target === combatSystem.boss) {
+    targetKey = 'boss';
+    targetEl = document.querySelector('.combat-boss');
+  } else {
+    targetKey = 'player';
+    targetEl = document.querySelector('.combat-player');
+  }
+  
+  // Initialize enemy text queue if needed
+  if (isEnemy && !activeCombatTexts.enemy) {
+    activeCombatTexts.enemy = { left: [], center: [], right: [] };
+  }
+  
+  const textQueue = isEnemy 
+    ? (activeCombatTexts.enemy || { left: [], center: [], right: [] })[direction]
+    : activeCombatTexts[targetKey][direction];
   
   // Clean up queue - remove elements that are no longer in DOM
   for (let i = textQueue.length - 1; i >= 0; i--) {
@@ -2625,10 +3295,6 @@ function showCombatText(text, color, target, direction = 'center', fontSize = nu
   textEl.style.pointerEvents = 'none';
   textEl.style.zIndex = '10000';
   textEl.style.fontFamily = 'var(--mono-font)';
-  
-  const targetEl = target === combatSystem.boss 
-    ? document.querySelector('.combat-boss')
-    : document.querySelector('.combat-player');
   
   if (targetEl) {
     const rect = targetEl.getBoundingClientRect();
@@ -2759,11 +3425,29 @@ function renderCombat() {
     }
   }
   
-  // Show screen if combat is active, boss exists, or countdown is running
-  const shouldShowScreen = (combatSystem.active && combatSystem.boss) || combatSystem.countdownTimer !== null;
+  // Show screen if combat is active, boss exists, enemies exist, or countdown is running
+  const shouldShowScreen = combatSystem.active || combatSystem.countdownTimer !== null;
   
   if (shouldShowScreen) {
     combatScreen.classList.remove('hidden');
+    
+    // Show/hide enemies container and boss section based on state
+    const enemiesContainer = document.getElementById('enemies-container');
+    const bossSection = document.getElementById('boss-section');
+    
+    if (combatSystem.bossSummoned && combatSystem.boss) {
+      // Boss fight - hide enemies, show boss
+      if (enemiesContainer) enemiesContainer.style.display = 'none';
+      if (bossSection) bossSection.style.display = 'block';
+    } else if (combatSystem.enemies && combatSystem.enemies.length > 0) {
+      // Enemy waves - show enemies, hide boss
+      if (enemiesContainer) enemiesContainer.style.display = 'flex';
+      if (bossSection) bossSection.style.display = 'none';
+    } else {
+      // No enemies or boss - show enemies container (empty)
+      if (enemiesContainer) enemiesContainer.style.display = 'flex';
+      if (bossSection) bossSection.style.display = 'none';
+    }
     
     // Update boss info
     if (bossName) {
@@ -2775,9 +3459,23 @@ function renderCombat() {
     }
     
     if (bossWaveNumber) {
-      // Always show current wave number (not next wave)
-      bossWaveNumber.textContent = combatSystem.bossWave;
+      // Show pit level instead of boss wave
+      const pitLevelEl = document.getElementById('pit-level');
+      if (pitLevelEl) {
+        pitLevelEl.textContent = combatSystem.pitLevel || 1;
+      } else {
+        bossWaveNumber.textContent = combatSystem.pitLevel || 1;
+      }
     }
+    
+    // Update pit level display
+    const pitLevelEl = document.getElementById('pit-level');
+    if (pitLevelEl) {
+      pitLevelEl.textContent = combatSystem.pitLevel || 1;
+    }
+    
+    // Update progress bar
+    updateProgressBar();
     
     // Update boss HP (only if boss exists and combat is active)
     if (bossHpBar && bossHpText && combatSystem.boss && combatSystem.active) {
@@ -4084,12 +4782,18 @@ if (typeof window !== 'undefined') {
       generateMerchantWeapon: generateMerchantWeapon,
       generateMerchantArmor: generateMerchantArmor,
       generateMerchantAccessory: generateMerchantAccessory,
+      generateMerchantShield: generateMerchantShield,
       generateMerchantWeaponStats: generateMerchantWeaponStats,
       generateMerchantArmorStats: generateMerchantArmorStats,
       generateMerchantAccessoryStats: generateMerchantAccessoryStats,
+      generateMerchantShieldStats: generateMerchantShieldStats,
       ARMOR_TYPES: ARMOR_TYPES,
       ACCESSORY_TYPES: ACCESSORY_TYPES,
-      highestWaveDefeated: 0
+      summonBoss: summonBoss,
+      renderEnemies: renderEnemies,
+      updateProgressBar: updateProgressBar,
+      highestWaveDefeated: 0,
+      generateUniqueItemId: generateUniqueItemId
     },
     writable: false,
     configurable: true
@@ -4125,7 +4829,7 @@ if (typeof window !== 'undefined') {
 // ===== MERCHANT SYSTEM - Her Barrus =====
 
 // Generate merchant weapon template (blank item, stats and rarity generated on purchase)
-function generateMerchantWeapon(weaponType) {
+function generateMerchantWeapon(weaponType, hand = null) {
   const weaponData = WEAPON_TYPES[weaponType];
   if (!weaponData) return null;
   
@@ -4137,8 +4841,12 @@ function generateMerchantWeapon(weaponType) {
   // Build weapon name (simple name without elements, as stats will be generated on purchase)
   let weaponName = weaponData.name;
   if (weaponType === 'DAGGER') {
-    // For daggers, randomly assign hand (will be finalized on purchase)
-    weaponName = Math.random() < 0.5 ? 'Left Dagger' : 'Right Dagger';
+    // For daggers, use specified hand or randomly assign
+    if (hand === 'left' || hand === 'right') {
+      weaponName = hand === 'left' ? 'Left Dagger' : 'Right Dagger';
+    } else {
+      weaponName = Math.random() < 0.5 ? 'Left Dagger' : 'Right Dagger';
+    }
   }
   
   // Create blank item template (stats and rarity will be generated on purchase)
@@ -4154,6 +4862,11 @@ function generateMerchantWeapon(weaponType) {
     stats: {}, // Empty stats - will be generated on purchase
     isMerchantTemplate: true // Flag to indicate this is a template
   };
+  
+  // Store hand preference for daggers
+  if (weaponType === 'DAGGER' && (hand === 'left' || hand === 'right')) {
+    item._merchantHand = hand;
+  }
   
   return item;
 }
@@ -4177,25 +4890,23 @@ function generateMerchantWeaponStats(item) {
   const highestWave = combatSystem.highestWaveDefeated || 0;
   const itemLevel = Math.max(1, highestWave); // Level = highest wave defeated (min 1)
   
-  // Calculate damage
-  const baseDamage = weaponData.baseDamage || 10;
-  const damage = Math.floor(baseDamage * (1 + itemLevel * 0.1) * rarityData.multiplier);
+  // ===== ОСНОВНЫЕ СТАТЫ (всегда есть) =====
+  // Урон: базовое значение 1-4, масштабируется уровнем и редкостью
+  const baseDamageRoll = 1 + Math.floor(Math.random() * 4); // 1-4
+  const damage = Math.floor(baseDamageRoll * (1 + itemLevel * 0.1) * rarityData.multiplier);
   
-  // Calculate attack speed
+  // Скорость атаки: зависит от типа оружия
   let attackSpeed = 1.0;
   if (weaponData.attackSpeed) {
     const minSpeed = weaponData.attackSpeed.min || 0.5;
     const maxSpeed = weaponData.attackSpeed.max || 1.0;
-    attackSpeed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+    attackSpeed = minSpeed + (maxSpeed - minSpeed) * (0.8 + (rarityData.multiplier - 1) * 0.05);
   }
   
-  // Calculate crit stats
+  // Шанс крита: зависит от типа оружия
   const critChanceBase = weaponData.critChanceBase || 0.5;
   const baseCritChance = Math.floor((critChanceBase * (1 + itemLevel * 0.15) * rarityData.multiplier) * 10) / 10;
   const critChance = Math.min(item.rarity === 'LEGENDARY' ? 95 : 70, baseCritChance);
-  
-  const critMultiplierBase = weaponData.critMultiplierBase || 0.1;
-  const critMultiplier = Math.floor((critMultiplierBase * (1 + itemLevel * 0.05) * rarityData.multiplier) * 100) / 100;
   
   // Determine weapon damage type
   let weaponDamageType = 'PHYSICAL';
@@ -4208,8 +4919,14 @@ function generateMerchantWeaponStats(item) {
   // For daggers, determine hand
   let weaponHand = null;
   if (item.weaponType === 'DAGGER') {
-    // Check if name contains "Left" or "Right"
-    if (item.name.includes('Left')) {
+    // Check if _merchantHand is stored (from template generation)
+    if (item._merchantHand === 'left' || item._merchantHand === 'right') {
+      weaponHand = item._merchantHand;
+      if (weaponHand === 'left') {
+        weaponDamageType = 'PHYSICAL';
+      }
+    } else if (item.name.includes('Left')) {
+      // Fallback: check name
       weaponHand = 'left';
       weaponDamageType = 'PHYSICAL';
     } else {
@@ -4247,30 +4964,37 @@ function generateMerchantWeaponStats(item) {
     }
   }
   
-  // Generate weapon stats
+  // ===== ОСНОВНЫЕ СТАТЫ (всегда есть) =====
   const weaponStats = {
     damage: damage
   };
   
-  if (critChance > 0) {
-    weaponStats.critChance = critChance;
-  }
-  if (critMultiplier > 0) {
-    weaponStats.critMultiplier = critMultiplier;
-  }
+  // ===== СЛУЧАЙНЫЕ СТАТЫ =====
+  // У торговца: RARE, EPIC, LEGENDARY - 4-6 статов
+  let affixCount = 4 + Math.floor(Math.random() * 3); // 4-6
   
-  // Random secondary affixes (2-5 for merchant items)
-  const affixCount = 2 + Math.floor(Math.random() * 4);
-  const availableAffixes = ['hp', 'armor', 'dodge', 'hpRegen', 'maxMana'];
+  // Доступные случайные статы
+  const availableAffixes = [
+    'hp',                    // + к жизни
+    'armor',                 // + к броне
+    'dodge',                 // + к уклонению
+    'hpRegen',               // + к регену жизни
+    'attackSpeedPercent',   // + к скорости атаки в %
+    'critChancePercent',    // + к шансу крита в %
+    'critMultiplier',       // + к множителю крита
+    'additionalDamage',     // доп урон стихией/физикой/магией
+    'elementResistance'     // + к сопротивлению стихии
+  ];
   const selectedAffixes = [];
   
+  // Выбираем случайные статы
   for (let i = 0; i < affixCount && availableAffixes.length > 0; i++) {
     const randomIndex = Math.floor(Math.random() * availableAffixes.length);
     const affix = availableAffixes.splice(randomIndex, 1)[0];
     selectedAffixes.push(affix);
   }
   
-  // Generate values for selected affixes
+  // Генерируем значения для выбранных статов
   selectedAffixes.forEach(affix => {
     let baseValue = 0;
     switch (affix) {
@@ -4290,9 +5014,51 @@ function generateMerchantWeaponStats(item) {
         baseValue = (0.1 + itemLevel * 0.03) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
         weaponStats.hpRegen = Math.floor(baseValue * 10) / 10;
         break;
-      case 'maxMana':
-        baseValue = (5 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
-        weaponStats.maxMana = Math.floor(baseValue);
+      case 'attackSpeedPercent':
+        // + к скорости атаки в % (множитель)
+        baseValue = (5 + itemLevel * 0.5) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.attackSpeedPercent = Math.floor(baseValue * 10) / 10;
+        break;
+      case 'critChancePercent':
+        // + к шансу крита в % (добавка)
+        baseValue = (0.5 + itemLevel * 0.1) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.critChancePercent = Math.floor(baseValue * 10) / 10;
+        break;
+      case 'critMultiplier':
+        // + к множителю крита (сильно уменьшен еще больше)
+        baseValue = (0.005 + itemLevel * 0.001) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        weaponStats.critMultiplier = Math.floor(baseValue * 100) / 100;
+        break;
+      case 'additionalDamage':
+        // Доп урон стихией/физикой/магией
+        const damageTypes = ['PHYSICAL', 'MAGICAL'];
+        const elements = Object.keys(ELEMENT_TYPES);
+        const allDamageTypes = [...damageTypes, ...elements];
+        const randomDamageType = allDamageTypes[Math.floor(Math.random() * allDamageTypes.length)];
+        
+        if (elements.includes(randomDamageType)) {
+          // Элементальный урон
+          const elementDamagePercent = 0.05 + Math.random() * 0.05;
+          const elementDamage = Math.floor(damage * elementDamagePercent * rarityData.multiplier);
+          if (elementDamage > 0) {
+            weaponStats[`elementDamage_${randomDamageType}`] = elementDamage;
+          }
+        } else {
+          // Физический или магический урон
+          const additionalDamagePercent = 0.05 + Math.random() * 0.05;
+          const additionalDamage = Math.floor(damage * additionalDamagePercent * rarityData.multiplier);
+          if (additionalDamage > 0) {
+            weaponStats[`additionalDamage_${randomDamageType}`] = additionalDamage;
+          }
+        }
+        break;
+      case 'elementResistance':
+        // + к сопротивлению стихии (сильно уменьшено)
+        const resistanceElements = Object.keys(ELEMENT_TYPES);
+        const resistanceElement = resistanceElements[Math.floor(Math.random() * resistanceElements.length)];
+        baseValue = (0.5 + itemLevel * 0.05) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        const resistanceKey = `${resistanceElement.toLowerCase()}Resistance`;
+        weaponStats[resistanceKey] = Math.floor(baseValue * 10) / 10;
         break;
     }
   });
@@ -4320,6 +5086,7 @@ function generateMerchantWeaponStats(item) {
   item.damage = damage;
   item.damageType = weaponDamageType;
   item.attackSpeed = attackSpeed;
+  item.critChance = critChance; // Основной стат: 1.2%
   item.element = primaryElement;
   item.additionalElement = additionalElement;
   item.stats = weaponStats;
@@ -4336,6 +5103,121 @@ function generateMerchantWeaponStats(item) {
   if (weaponHand) {
     item.weaponHand = weaponHand;
   }
+  
+  return item;
+}
+
+// Generate merchant shield template (blank item, stats and rarity generated on purchase)
+function generateMerchantShield() {
+  const shieldData = WEAPON_TYPES.SHIELD;
+  if (!shieldData) return null;
+  
+  // Rarity will be determined on purchase
+  // Level will be determined on purchase based on highestWaveDefeated
+  const currentWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = currentWave; // Will be recalculated on purchase
+  
+  // Create blank shield template (stats and rarity will be generated on purchase)
+  const item = {
+    id: generateUniqueItemId('weapon'),
+    type: 'weapon',
+    weaponType: 'SHIELD',
+    name: 'Shield', // No rarity prefix yet
+    level: itemLevel, // Will be recalculated on purchase
+    rarity: null, // Will be generated on purchase
+    hands: shieldData.hands,
+    icon: getWeaponIcon('SHIELD'),
+    stats: {}, // Empty stats - will be generated on purchase
+    isMerchantTemplate: true // Flag to indicate this is a template
+  };
+  
+  return item;
+}
+
+// Generate stats for merchant shield on purchase
+function generateMerchantShieldStats(item) {
+  if (!item || !item.isMerchantTemplate || item.weaponType !== 'SHIELD') return item;
+  
+  const shieldData = WEAPON_TYPES.SHIELD;
+  if (!shieldData) return item;
+  
+  // Generate rarity on purchase: RARE, EPIC, or LEGENDARY
+  const rarities = ['RARE', 'EPIC', 'LEGENDARY'];
+  const rarity = rarities[Math.floor(Math.random() * rarities.length)];
+  const rarityData = ITEM_RARITY[rarity];
+  
+  // Update item rarity
+  item.rarity = rarity;
+  
+  // Get level based on highest wave defeated
+  const highestWave = combatSystem.highestWaveDefeated || 0;
+  const itemLevel = Math.max(1, highestWave); // Level = highest wave defeated (min 1)
+  
+  // Calculate block chance
+  const baseBlockChance = shieldData.blockChanceBase || 5;
+  const blockChance = Math.min(95, Math.floor((baseBlockChance * (1 + itemLevel * 0.1) * rarityData.multiplier) * 10) / 10);
+  
+  // Calculate reflect chance
+  const baseReflectChance = shieldData.reflectChanceBase || 3;
+  const reflectChance = Math.min(50, Math.floor((baseReflectChance * (1 + itemLevel * 0.08) * rarityData.multiplier) * 10) / 10);
+  
+  // Calculate block damage reduction
+  const baseBlockReduction = shieldData.blockDamageReduction || 0.3;
+  const blockReduction = Math.min(0.95, Math.floor((baseBlockReduction * (1 + itemLevel * 0.02) * rarityData.multiplier) * 100) / 100);
+  
+  // Generate shield stats
+  const shieldStats = {};
+  
+  if (blockChance > 0) {
+    shieldStats.blockChance = blockChance;
+  }
+  if (reflectChance > 0) {
+    shieldStats.reflectChance = reflectChance;
+  }
+  
+  // Random secondary affixes (2-5 for merchant items)
+  const affixCount = 2 + Math.floor(Math.random() * 4);
+  const availableAffixes = ['hp', 'armor', 'dodge', 'hpRegen', 'maxMana'];
+  const selectedAffixes = [];
+  
+  for (let i = 0; i < affixCount && availableAffixes.length > 0; i++) {
+    const randomIndex = Math.floor(Math.random() * availableAffixes.length);
+    const affix = availableAffixes.splice(randomIndex, 1)[0];
+    selectedAffixes.push(affix);
+  }
+  
+  // Generate values for selected affixes
+  selectedAffixes.forEach(affix => {
+    let baseValue = 0;
+    switch (affix) {
+      case 'hp':
+        baseValue = (10 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        shieldStats.hp = Math.floor(baseValue);
+        break;
+      case 'armor':
+        baseValue = (2 + itemLevel * 0.3) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        shieldStats.armor = Math.floor(baseValue);
+        break;
+      case 'dodge':
+        baseValue = (0.3 + itemLevel * 0.05) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        shieldStats.dodge = Math.floor(baseValue * 10) / 10;
+        break;
+      case 'hpRegen':
+        baseValue = (0.1 + itemLevel * 0.03) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        shieldStats.hpRegen = Math.floor(baseValue * 10) / 10;
+        break;
+      case 'maxMana':
+        baseValue = (5 + itemLevel * 2) * rarityData.multiplier * (0.8 + Math.random() * 0.4);
+        shieldStats.maxMana = Math.floor(baseValue);
+        break;
+    }
+  });
+  
+  // Update item with generated stats
+  item.level = itemLevel;
+  item.stats = shieldStats;
+  item.name = `${rarityData.name} ${item.name}`; // Add rarity prefix to name
+  delete item.isMerchantTemplate; // Remove template flag
   
   return item;
 }
